@@ -1,0 +1,55 @@
+// src/settings/types.ts
+// Settings model: global (library-wide) + per-reader (local) settings.
+// Per-reader settings override global ones for that reader instance.
+
+export type Theme = "light" | "dark" | "sepia" | "high-contrast";
+
+/** Global settings — apply to the whole app / library view. */
+export interface GlobalSettings {
+  theme: Theme;
+  /** Default font family for the reader. */
+  fontFamily: string;
+  /** Default font size (px) for the reader. */
+  fontSize: number;
+  /** Default context window (words before/after the current word). */
+  contextWindow: { before: number; after: number };
+  /** Whether the context window adapts to WPM. */
+  adaptiveWindow: boolean;
+  /** Default WPM. */
+  wpm: number;
+  /** Sentence pause (ms). */
+  sentencePauseMs: number;
+  /** Paragraph pause (ms). */
+  paragraphPauseMs: number;
+}
+
+/** Per-reader settings — override global for one reader instance. */
+export type ReaderSettings = Partial<GlobalSettings>;
+
+/** The full settings state: global + per-reader overrides. */
+export interface SettingsState {
+  global: GlobalSettings;
+  /** Keyed by book id (or stream id). */
+  perReader: Record<string, ReaderSettings>;
+}
+
+export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
+  theme: "light",
+  fontFamily: "system-ui",
+  fontSize: 28,
+  contextWindow: { before: 3, after: 3 },
+  adaptiveWindow: true,
+  wpm: 600,
+  sentencePauseMs: 150,
+  paragraphPauseMs: 200,
+};
+
+/** Merge per-reader overrides onto global settings → effective settings. */
+export function mergeSettings(global: GlobalSettings, local?: ReaderSettings): GlobalSettings {
+  if (!local) return global;
+  return {
+    ...global,
+    ...local,
+    contextWindow: { ...global.contextWindow, ...local.contextWindow },
+  };
+}

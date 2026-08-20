@@ -1,0 +1,167 @@
+// src/settings/SettingsPanel.tsx
+// Reusable settings form. Used for both global (library) settings and
+// per-reader (local) settings. Calls onChange with partial updates.
+
+import type { GlobalSettings, ReaderSettings, Theme } from "./types";
+import { themeTokens } from "./themes";
+
+export interface SettingsPanelProps {
+  /** Current effective settings to display. */
+  settings: GlobalSettings;
+  /** Whether this is the per-reader panel (shows a "reset to global" option). */
+  isReader?: boolean;
+  /** Called with partial updates. */
+  onChange: (patch: ReaderSettings) => void;
+  /** Called to reset per-reader overrides. */
+  onReset?: () => void;
+}
+
+const FONTS = ["system-ui", "Georgia, serif", "Arial, sans-serif", "Courier New, monospace", "Verdana, sans-serif"];
+
+export function SettingsPanel({ settings, isReader, onChange, onReset }: SettingsPanelProps) {
+  const set = (patch: ReaderSettings) => onChange(patch);
+  const t = themeTokens(settings.theme);
+
+  // Blended native controls: soft, theme-aware, no stark white boxes.
+  const selectStyle: React.CSSProperties = {
+    appearance: "none",
+    WebkitAppearance: "none",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "8px 28px 8px 12px",
+    borderRadius: 8,
+    border: `1px solid ${t.border}`,
+    backgroundColor: t.panel,
+    color: t.fg,
+    fontFamily: "inherit",
+    fontSize: 14,
+    cursor: "pointer",
+    outline: "none",
+    backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='${t.muted}' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>`
+    )}")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 12px center",
+  };
+
+  // Custom chevron; browser renders the popup list from these backgrounds too.
+  const optionStyle: React.CSSProperties = { backgroundColor: t.panel, color: t.fg };
+  // Soft native accent for sliders + checkbox.
+  const controlAccent: React.CSSProperties = { accentColor: t.highlight };
+
+  return (
+    <div style={{ fontFamily: "system-ui", padding: 16, minWidth: 280, color: t.fg }}>
+      <h3 style={{ marginTop: 0 }}>{isReader ? "Reader Settings" : "Global Settings"}</h3>
+
+      <Field label="Theme">
+        <select style={selectStyle} value={settings.theme} onChange={(e) => set({ theme: e.target.value as Theme })}>
+          <option style={optionStyle} value="light">Light</option>
+          <option style={optionStyle} value="dark">Dark</option>
+          <option style={optionStyle} value="sepia">Sepia</option>
+          <option style={optionStyle} value="high-contrast">High Contrast</option>
+        </select>
+      </Field>
+
+      <Field label="Font" color={t.muted}>
+        <select style={selectStyle} value={settings.fontFamily} onChange={(e) => set({ fontFamily: e.target.value })}>
+          {FONTS.map((f) => (
+            <option style={optionStyle} key={f} value={f}>{f.split(",")[0]}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label={`Font size: ${settings.fontSize}px`} color={t.muted}>
+        <input
+          type="range"
+          min={16}
+          max={64}
+          style={controlAccent}
+          value={settings.fontSize}
+          onChange={(e) => set({ fontSize: Number(e.target.value) })}
+        />
+      </Field>
+
+      <Field label={`Context before: ${settings.contextWindow.before}`} color={t.muted}>
+        <input
+          type="range"
+          min={0}
+          max={200}
+          style={controlAccent}
+          value={settings.contextWindow.before}
+          onChange={(e) => set({ contextWindow: { ...settings.contextWindow, before: Number(e.target.value) } })}
+        />
+      </Field>
+
+      <Field label={`Context after: ${settings.contextWindow.after}`} color={t.muted}>
+        <input
+          type="range"
+          min={0}
+          max={200}
+          style={controlAccent}
+          value={settings.contextWindow.after}
+          onChange={(e) => set({ contextWindow: { ...settings.contextWindow, after: Number(e.target.value) } })}
+        />
+      </Field>
+
+      <Field label="Adaptive window" color={t.muted}>
+        <input
+          type="checkbox"
+          style={controlAccent}
+          checked={settings.adaptiveWindow}
+          onChange={(e) => set({ adaptiveWindow: e.target.checked })}
+        />
+      </Field>
+
+      <Field label={`WPM: ${settings.wpm}`} color={t.muted}>
+        <input
+          type="range"
+          min={100}
+          max={2000}
+          step={50}
+          style={controlAccent}
+          value={settings.wpm}
+          onChange={(e) => set({ wpm: Number(e.target.value) })}
+        />
+      </Field>
+
+      <Field label={`Sentence pause: ${settings.sentencePauseMs}ms`} color={t.muted}>
+        <input
+          type="range"
+          min={0}
+          max={500}
+          step={25}
+          style={controlAccent}
+          value={settings.sentencePauseMs}
+          onChange={(e) => set({ sentencePauseMs: Number(e.target.value) })}
+        />
+      </Field>
+
+      <Field label={`Paragraph pause: ${settings.paragraphPauseMs}ms`} color={t.muted}>
+        <input
+          type="range"
+          min={0}
+          max={800}
+          step={25}
+          style={controlAccent}
+          value={settings.paragraphPauseMs}
+          onChange={(e) => set({ paragraphPauseMs: Number(e.target.value) })}
+        />
+      </Field>
+
+      {isReader && onReset && (
+        <button onClick={onReset} style={{ marginTop: 8, background: t.panel, color: t.fg, border: `1px solid ${t.border}`, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>
+          Reset to global
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children, color }: { label: string; children: React.ReactNode; color?: string }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: color ?? "#666", marginBottom: 4 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
