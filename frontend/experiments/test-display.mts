@@ -6,7 +6,7 @@
 //   npx tsx experiments/test-display.mts
 
 import { SelfCorrectingClock } from "../src/display/clock.ts";
-import { buildFrame, adaptiveWindow } from "../src/display/renderer.ts";
+import { buildFrame } from "../src/display/renderer.ts";
 import type { Word } from "../src/epub/types.ts";
 
 function makeWords(n: number): Word[] {
@@ -20,21 +20,14 @@ function makeWords(n: number): Word[] {
 async function main() {
   // --- Renderer ---
   const words = makeWords(10);
-  const frame = buildFrame(words, 5, { window: { before: 3, after: 3 }, adaptiveWindow: false, wpm: 600 });
-  console.log("=== Renderer (index 5, window 3/3) ===");
+  const frame = buildFrame(words, 5, { wpm: 600 });
+  console.log("=== Renderer (index 5) ===");
   console.log("current:", frame.current.text);
-  console.log("before:", frame.before.map((w) => w.text).join(" "));
-  console.log("after:", frame.after.map((w) => w.text).join(" "));
+  console.log("index:", frame.index);
 
   // Edge: index 0
-  const edge = buildFrame(words, 0, { window: { before: 3, after: 3 }, adaptiveWindow: false, wpm: 600 });
-  console.log("\nEdge index 0 -> before:", edge.before.length, "after:", edge.after.length);
-
-  // Adaptive window
-  console.log("\n=== Adaptive window ===");
-  console.log("wpm=600 ->", adaptiveWindow(600, 3));
-  console.log("wpm=200 ->", adaptiveWindow(200, 3));
-  console.log("wpm=1000 ->", adaptiveWindow(1000, 3));
+  const edge = buildFrame(words, 0, { wpm: 600 });
+  console.log("\nEdge index 0 -> current:", edge.current.text, "index:", edge.index);
 
   // --- Clock ---
   console.log("\n=== Clock (durations [50,50,50,50,50]) ===");

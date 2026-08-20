@@ -50,7 +50,7 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
   const controlAccent: React.CSSProperties = { accentColor: t.highlight };
 
   return (
-    <div style={{ fontFamily: "system-ui", padding: 16, minWidth: 280, color: t.fg }}>
+    <div style={{ fontFamily: "system-ui", padding: 16, minWidth: 0, width: "100%", boxSizing: "border-box", color: t.fg }}>
       <h3 style={{ marginTop: 0 }}>{isReader ? "Reader Settings" : "Global Settings"}</h3>
 
       <Field label="Theme">
@@ -78,37 +78,6 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
           style={controlAccent}
           value={settings.fontSize}
           onChange={(e) => set({ fontSize: Number(e.target.value) })}
-        />
-      </Field>
-
-      <Field label={`Context before: ${settings.contextWindow.before}`} color={t.muted}>
-        <input
-          type="range"
-          min={0}
-          max={200}
-          style={controlAccent}
-          value={settings.contextWindow.before}
-          onChange={(e) => set({ contextWindow: { ...settings.contextWindow, before: Number(e.target.value) } })}
-        />
-      </Field>
-
-      <Field label={`Context after: ${settings.contextWindow.after}`} color={t.muted}>
-        <input
-          type="range"
-          min={0}
-          max={200}
-          style={controlAccent}
-          value={settings.contextWindow.after}
-          onChange={(e) => set({ contextWindow: { ...settings.contextWindow, after: Number(e.target.value) } })}
-        />
-      </Field>
-
-      <Field label="Adaptive window" color={t.muted}>
-        <input
-          type="checkbox"
-          style={controlAccent}
-          checked={settings.adaptiveWindow}
-          onChange={(e) => set({ adaptiveWindow: e.target.checked })}
         />
       </Field>
 

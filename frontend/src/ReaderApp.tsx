@@ -123,7 +123,7 @@ export default function ReaderApp() {
         <SpeedReader
           stream={stream}
           pacing={pacing}
-          config={{ window: effective.contextWindow, adaptiveWindow: effective.adaptiveWindow, wpm: effective.wpm }}
+          config={{ wpm: effective.wpm }}
           fontFamily={effective.fontFamily}
           fontSize={effective.fontSize}
           theme={effective.theme}

@@ -4,6 +4,21 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-20 — GitHub Actions CI for desktop + mobile
+
+- Added three GitHub Actions workflows under `.github/workflows/`:
+  - **`build-desktop.yml`** — matrix over `windows-latest`, `macos-latest`, `ubuntu-latest`; uses `tauri-apps/tauri-action@v0` to build + attach release artifacts (auto-creates GitHub Releases on `v*` tags). Ubuntu installs `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
+  - **`build-android.yml`** — `ubuntu-latest`; Rust targets `aarch64/armv7/i686/x86_64-linux-android`, Java 17 (temurin), Android SDK via `android-actions/setup-android@v3`; runs `tauri android init` then `tauri android build --apk`, uploads the universal APK as an artifact.
+  - **`build-ios.yml`** — `macos-latest`; Rust targets `aarch64-apple-ios` (+ sim); runs `tauri ios init` then `tauri ios build --no-sign` (unsigned simulator build), uploads the `.app` as an artifact.
+- **Notes / gotchas**:
+  - The mobile projects (`src-tauri/gen/android`, `src-tauri/gen/apple`) are **not committed** — they're generated on the runner via `tauri android init` / `tauri ios init`. (Tauri's default `.gitignore` excludes them.)
+  - iOS **is possible** on GitHub Actions (macOS runners), but a real signed/App-Store build needs Apple signing secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`). The workflow here does an unsigned simulator build; wire up signing when you have a paid Apple Developer account.
+  - Android APK is unsigned by default; signing requires a keystore secret for Play Store distribution.
+  - All workflows trigger on `push`/`PR` to `main`, `v*` tags, and manual `workflow_dispatch`.
+- Node pinned to 18 (matches local env); Rust `stable` via `dtolnay/rust-toolchain`; `swatinem/rust-cache` scoped to `frontend/src-tauri`.
+
+---
+
 ## 2026-08-18 — Tauri + React scaffold & headless EPUB parsing
 
 ### Environment setup (WSL)
@@ -132,3 +147,40 @@ frontend/src/App.tsx                     # mounts EpubExplorer
 ### Experiment artifacts (kept in `frontend/experiments/`)
 
 - `test-ingestion.mts`, `test-pacing.mts`, `test-display.mts`, `test-navtree.mts`, `test-pretext.mts` — headless module conformance checks.
+
+## 2026-08-20 — Removed dead context-window settings
+
+- The **context window** (`contextWindow.before/after`) and **adaptive window** (`adaptiveWindow`) settings did nothing: `SpeedReader` renders a stable 400-word chunk (`chunkWords`) and only uses `frame.index` — `frame.before`/`frame.after`/`frame.current` were never rendered. The settings were pure dead weight in the UI.
+- **Removed** from `settings/types.ts` (`GlobalSettings`, `DEFAULT_GLOBAL_SETTINGS`, `mergeSettings`), `SettingsPanel.tsx` (the two "Context before/after" sliders + "Adaptive window" checkbox), `display/types.ts` (`ContextWindow`, `DisplayConfig.window`/`adaptiveWindow`), `renderer.ts` (`adaptiveWindow()` + before/after slicing — `buildFrame` now returns just `{ current, index }`), `display/index.ts` export, `SpeedReader.tsx` (`DEFAULT_CONFIG` + config merge), and `ReaderApp.tsx` (config now `{ wpm }`).
+- Updated `experiments/test-display.mts` to the simplified renderer. Build + test pass.
+
+## Tips & gotchas (from UI polish + GitHub setup chats)
+
+### Glassmorphism & theming
+
+- **Never use a fixed translucent white background on a glass card** (`rgba(255,255,255,0.12)`) — it makes theme `fg` text unreadable on light themes and washes out dark themes. Use the theme's own panel color with an alpha suffix instead: `` `${t.panel}e6` `` (6-digit hex + 2 alpha digits = valid 8-digit hex). Keeps the blur while guaranteeing contrast on every theme.
+- **Scrollbar styling**: style `::-webkit-scrollbar` (width 6px, transparent track, translucent rounded thumb) **plus** `scrollbar-width: thin; scrollbar-color: …` for Firefox. Define it **once globally** (e.g. `App.css` `.glass-scroll` class) — an inline `<style>` inside a modal only applies while the modal is open, so other surfaces (nav tree) won't get it.
+- **Native form controls are stark by default** (white selects/checkboxes). Kill it with `appearance: none` + theme `panel`/`fg`/`border` background + a custom chevron via inline SVG data-URI (`encodeURIComponent` around the SVG, stroke = `t.muted`). Sliders/checkbox: `accentColor: t.highlight` tints them per theme (blue/red/yellow).
+- **`<option>` elements also need theme backgrounds** (`backgroundColor: t.panel, color: t.fg`) or the dropdown popup flashes white on dark themes.
+
+### Layout / scrollbar overflow
+
+- **Nested `100vh` inside `calc(100vh - Npx)` always overflows** → permanent page scrollbar (the inner element is Npx taller than the viewport). Fix: make the app a `height: 100vh` flex column with `overflow: hidden`, top bar `flexShrink: 0`, content `flex: 1; minHeight: 0`. No pixel math, no scrollbar regardless of bar height/zoom.
+- `minHeight: 100vh` (library view) is safe — it only grows if content is taller.
+
+### Seekable scrubber
+
+- **Pointer capture** (`setPointerCapture`) on pointerdown lets a drag continue outside the bar; `touch-action: none` prevents page scroll while scrubbing on touch.
+- Make it a real control: `role="slider"`, `aria-valuemin/max/now`, `tabIndex={0}`, arrow keys + Home/End.
+- **Seek must update frame + chunk + progress in ONE batched render** (`jumpTo()` helper). If only `frame` updates and `chunkStart` waits for the re-chunk `useEffect`, there's a one-frame gap where the current word isn't in the rendered chunk → no highlight, no centering (empty-center flash).
+- `SelfCorrectingClock.seek()` stops the clock — scrubbing pauses playback, which is good UX (drop the playhead, then Play).
+
+### GitHub repo creation
+
+- Folder wasn't a git repo; `gh` CLI was installed. One-shot flow:
+  ```bash
+  git init -b main
+  git add . && git commit -m "Initial commit: Tauri + React speedreader"
+  gh repo create speedreader --public --source . --remote origin --push
+  ```
+- `--source .` uses the current folder, `--remote origin` wires the remote, `--push` pushes in one shot. Use `--private` for a private repo; run `gh auth login` first if unauthenticated.

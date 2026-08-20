@@ -54,9 +54,11 @@ export function SettingsModal({ open, onClose, settings, isReader, onChange, onR
         onClick={(e) => e.stopPropagation()}
         className="glass-scroll"
         style={{
+          width: "100%",
           maxWidth: "min(92vw, 420px)",
           maxHeight: "85vh",
           overflowY: "auto",
+          overflowX: "hidden",
           borderRadius: 20,
           border: `1px solid ${t.border}`,
           background: `${t.panel}e6`, // panel color at ~90% alpha

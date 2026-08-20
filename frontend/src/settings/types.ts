@@ -11,10 +11,6 @@ export interface GlobalSettings {
   fontFamily: string;
   /** Default font size (px) for the reader. */
   fontSize: number;
-  /** Default context window (words before/after the current word). */
-  contextWindow: { before: number; after: number };
-  /** Whether the context window adapts to WPM. */
-  adaptiveWindow: boolean;
   /** Default WPM. */
   wpm: number;
   /** Sentence pause (ms). */
@@ -37,8 +33,6 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   theme: "light",
   fontFamily: "system-ui",
   fontSize: 28,
-  contextWindow: { before: 3, after: 3 },
-  adaptiveWindow: true,
   wpm: 600,
   sentencePauseMs: 150,
   paragraphPauseMs: 200,
@@ -47,9 +41,5 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
 /** Merge per-reader overrides onto global settings → effective settings. */
 export function mergeSettings(global: GlobalSettings, local?: ReaderSettings): GlobalSettings {
   if (!local) return global;
-  return {
-    ...global,
-    ...local,
-    contextWindow: { ...global.contextWindow, ...local.contextWindow },
-  };
+  return { ...global, ...local };
 }

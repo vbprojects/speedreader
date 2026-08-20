@@ -17,6 +17,19 @@ import { SelfCorrectingClock } from "./clock";
 import { buildFrame } from "./renderer";
 import type { DisplayConfig, DisplayFrame } from "./types";
 
+/** True when the viewport is at or below the given breakpoint. */
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    mql.addEventListener("change", onChange);
+    setMatches(mql.matches);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
 export interface SpeedReaderProps {
   stream: WordStream;
   pacing: PacingEngine;
@@ -36,8 +49,6 @@ export interface SpeedReaderProps {
 }
 
 const DEFAULT_CONFIG: DisplayConfig = {
-  window: { before: 3, after: 3 },
-  adaptiveWindow: true,
   wpm: 600,
 };
 
@@ -47,16 +58,34 @@ const CHUNK_SIZE = 400;
 const CHUNK_REFRESH_MARGIN = 100;
 
 export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav }: SpeedReaderProps) {
-  const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config, window: { ...DEFAULT_CONFIG.window, ...config?.window } };
+  const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
   const [frame, setFrame] = useState<DisplayFrame | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [chunkStart, setChunkStart] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 640px)");
   const clockRef = useRef<SelfCorrectingClock | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
+  // Swipe gesture tracking (horizontal seek).
+  const swipeStartRef = useRef<{
+    x: number;
+    y: number;
+    t: number;
+    index: number;
+    lastX: number;
+    lastT: number;
+  } | null>(null);
+  // Set true when a swipe consumed the gesture, so the following click
+  // (which fires after pointerup) doesn't also toggle play/pause.
+  const swipedRef = useRef(false);
+  // Horizontal drag offset applied while swiping so the text follows the
+  // finger; animates back to 0 on release for a smooth settle.
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
 
   // Keep the latest config in a ref so the clock's onTick always reads the
   // current context window (avoids a stale closure when settings change).
@@ -160,6 +189,71 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     jumpTo(Math.max(0, Math.min(index, stream.words.length - 1)));
   };
 
+  // Swipe left/right to scrub. While dragging, the current word changes live
+// (like scrubbing); the number of words moved per pixel scales with the
+// drag velocity so a fast flick jumps further than a slow drag.
+const SWIPE_THRESHOLD = 40; // px of horizontal travel to trigger a seek
+const PX_PER_WORD = 24; // slow-drag: ~1 word per 24px
+const VELOCITY_BOOST = 0.06; // extra words per px/s of velocity
+
+const onSwipeStart = (e: React.PointerEvent) => {
+  const clock = clockRef.current;
+  swipeStartRef.current = {
+    x: e.clientX,
+    y: e.clientY,
+    t: Date.now(),
+    index: clock ? clock.index : 0,
+    lastX: e.clientX,
+    lastT: Date.now(),
+  };
+  setDragging(true);
+};
+const onSwipeMove = (e: React.PointerEvent) => {
+  const start = swipeStartRef.current;
+  if (!start) return;
+  const now = Date.now();
+  const dx = e.clientX - start.x;
+  // Text follows the finger horizontally.
+  setDragX(dx);
+
+  // Instantaneous velocity (px/s) from the last move event.
+  const dt = Math.max(1, now - start.lastT);
+  const velocity = ((e.clientX - start.lastX) / dt) * 1000;
+  start.lastX = e.clientX;
+  start.lastT = now;
+
+  // Words to move: distance-based + velocity boost. Negative dx (swipe
+  // left) → forward.
+  const words = -dx / PX_PER_WORD - velocity * VELOCITY_BOOST;
+  const target = Math.round(start.index + words);
+  const clamped = Math.max(0, Math.min(target, stream.words.length - 1));
+  if (clamped !== (clockRef.current?.index ?? -1)) {
+    jumpTo(clamped);
+  }
+};
+const onSwipeEnd = (e: React.PointerEvent) => {
+  const start = swipeStartRef.current;
+  swipeStartRef.current = null;
+  setDragging(false);
+  setDragX(0);
+  if (!start) return;
+  const dx = e.clientX - start.x;
+  const dy = e.clientY - start.y;
+  // A real swipe (dominant horizontal travel) suppresses the trailing click.
+  if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) >= Math.abs(dy) * 1.5) {
+    swipedRef.current = true;
+  }
+};
+
+  const onViewportClick = () => {
+    // If a swipe just happened, ignore the trailing click.
+    if (swipedRef.current) {
+      swipedRef.current = false;
+      return;
+    }
+    toggle();
+  };
+
   if (!frame) return null;
 
   return (
@@ -201,80 +295,180 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {/* The reading viewport. The paragraph is TRANSLATED so the current
             word sits at the exact center of this viewport — a fixed focal
-            point, so the reader's eye never moves. Context flows around it. */}
+            point, so the reader's eye never moves. Context flows around it.
+            Clicking anywhere toggles play/pause. */}
         <div
           ref={scrollRef}
+          onClick={onViewportClick}
+          onPointerDown={onSwipeStart}
+          onPointerMove={onSwipeMove}
+          onPointerUp={onSwipeEnd}
+          onPointerCancel={() => {
+            swipeStartRef.current = null;
+            setDragging(false);
+            setDragX(0);
+          }}
           style={{
             flex: 1,
             overflow: "hidden",
             position: "relative",
             boxSizing: "border-box",
+            cursor: "pointer",
+            touchAction: "none", // let us handle horizontal swipes
           }}
         >
-          <p
+          {/* Drag wrapper: carries the swipe offset + settle transition.
+              Kept separate from the <p> so the centering transform below has
+              NO transition — otherwise the centering useLayoutEffect would
+              measure mid-animation and the word would never settle centered. */}
+          <div
             style={{
-              fontSize,
-              lineHeight: 1.8,
-              margin: 0,
               position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: "70ch",
-              maxWidth: "80%",
-              transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-              overflowWrap: "normal",
-              wordBreak: "normal",
+              inset: 0,
+              transform: `translateX(${dragX}px)`,
+              transition: dragging ? "none" : "transform 0.25s ease-out",
+              pointerEvents: "none",
             }}
           >
-            {chunkWords.map((w) =>
-              w.index === frame.index ? (
-                <span
-                  key={w.index}
-                  ref={currentWordRef}
-                  style={{
-                    color: themeStyle.highlightFg,
-                    background: themeStyle.highlight,
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                  }}
-                >
-                  {w.text}
-                </span>
-              ) : (
-                <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
-              )
-            )}
-          </p>
+            <p
+              style={{
+                fontSize,
+                lineHeight: 1.8,
+                margin: 0,
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                width: "70ch",
+                maxWidth: "80%",
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                overflowWrap: "normal",
+                wordBreak: "normal",
+              }}
+            >
+              {chunkWords.map((w) =>
+                w.index === frame.index ? (
+                  <span
+                    key={w.index}
+                    ref={currentWordRef}
+                    style={{
+                      color: themeStyle.highlightFg,
+                      background: themeStyle.highlight,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    {w.text}
+                  </span>
+                ) : (
+                  <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
+                )
+              )}
+            </p>
+          </div>
         </div>
 
-        {/* Controls */}
-        <div
-          style={{
-            padding: "10px 16px",
-            borderTop: `1px solid ${themeStyle.border}`,
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-          }}
-        >
-          <button onClick={toggle}>{running ? "Pause" : "Play"}</button>
-          <button onClick={() => seek(-1)}>◀</button>
-          <button onClick={() => seek(1)}>▶</button>
-          <span style={{ color: themeStyle.muted, fontSize: 13 }}>
-            word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)
-          </span>
-          <SeekBar
-            value={frame.index}
-            max={stream.words.length - 1}
-            onSeek={seekTo}
-            colors={{
-              track: themeStyle.border,
-              fill: themeStyle.highlight,
-              thumb: themeStyle.highlightFg,
-              thumbBorder: themeStyle.highlight,
+        {/* Controls — inline row on desktop, collapsible bottom drawer on mobile */}
+        {isMobile ? (
+          <div
+            style={{
+              borderTop: `1px solid ${themeStyle.border}`,
+              background: themeStyle.panel,
             }}
-          />
-        </div>
+          >
+            {/* Drawer handle / toggle */}
+            <button
+              onClick={() => setDrawerOpen((o) => !o)}
+              aria-expanded={drawerOpen}
+              style={{
+                width: "100%",
+                padding: "8px 0",
+                background: "transparent",
+                border: "none",
+                color: themeStyle.muted,
+                fontSize: 13,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <span>{running ? "Pause" : "Play"}</span>
+              <span style={{ fontSize: 10 }}>{drawerOpen ? "▾" : "▴"}</span>
+            </button>
+            {drawerOpen && (
+              <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Transport buttons */}
+                <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center" }}>
+                  <button
+                    onClick={() => seek(-1)}
+                    aria-label="Previous word"
+                    style={{ fontSize: 22, padding: "8px 16px", minWidth: 56 }}
+                  >
+                    ◀
+                  </button>
+                  <button
+                    onClick={toggle}
+                    aria-label={running ? "Pause" : "Play"}
+                    style={{ fontSize: 22, padding: "8px 20px", minWidth: 72 }}
+                  >
+                    {running ? "⏸" : "▶"}
+                  </button>
+                  <button
+                    onClick={() => seek(1)}
+                    aria-label="Next word"
+                    style={{ fontSize: 22, padding: "8px 16px", minWidth: 56 }}
+                  >
+                    ▶
+                  </button>
+                </div>
+                {/* Full-width scrub bar */}
+                <SeekBar
+                  value={frame.index}
+                  max={stream.words.length - 1}
+                  onSeek={seekTo}
+                  colors={{
+                    track: themeStyle.border,
+                    fill: themeStyle.highlight,
+                    thumb: themeStyle.highlightFg,
+                    thumbBorder: themeStyle.highlight,
+                  }}
+                />
+                <div style={{ color: themeStyle.muted, fontSize: 12, textAlign: "center" }}>
+                  word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: "10px 16px",
+              borderTop: `1px solid ${themeStyle.border}`,
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+            }}
+          >
+            <button onClick={toggle}>{running ? "Pause" : "Play"}</button>
+            <button onClick={() => seek(-1)}>◀</button>
+            <button onClick={() => seek(1)}>▶</button>
+            <span style={{ color: themeStyle.muted, fontSize: 13 }}>
+              word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)
+            </span>
+            <SeekBar
+              value={frame.index}
+              max={stream.words.length - 1}
+              onSeek={seekTo}
+              colors={{
+                track: themeStyle.border,
+                fill: themeStyle.highlight,
+                thumb: themeStyle.highlightFg,
+                thumbBorder: themeStyle.highlight,
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
