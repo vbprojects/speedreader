@@ -17,6 +17,11 @@ A running log of setup, findings, and decisions for the speedreader project.
   - All workflows trigger on `push`/`PR` to `main`, `v*` tags, and manual `workflow_dispatch`.
 - Node pinned to 18 (matches local env); Rust `stable` via `dtolnay/rust-toolchain`; `swatinem/rust-cache` scoped to `frontend/src-tauri`.
 
+### CI fixes (from first runner runs)
+
+- **`setup-node` npm cache error** (`Some specified paths were not resolved`): the `cache: npm` option tried to cache `~/.npm` before npm had run, so the path didn't exist and the job failed. Removed `cache: npm` / `cache-dependency-path` from all three workflows.
+- **`npm ci` EUSAGE error**: `package-lock.json` was **ignored by git** (both `frontend/.gitignore` and root `.gitignore` had `package-lock.json` under "npm, yarn and bun lock files"). Since it wasn't committed, `npm ci` had no lockfile. **Fix**: removed `package-lock.json` from both `.gitignore` files (kept `yarn.lock`/`bun.lockb` ignored) and committed the lockfile — required for reproducible `npm ci` builds in CI.
+
 ---
 
 ## 2026-08-18 — Tauri + React scaffold & headless EPUB parsing

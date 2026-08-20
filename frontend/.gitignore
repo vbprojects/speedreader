@@ -231,7 +231,8 @@ node_modules/
 .vscode/tasks.json
 
 # npm, yarn and bun lock files
-package-lock.json
+# NOTE: package-lock.json is intentionally committed (needed for `npm ci`
+# in CI). Only yarn/bun locks are ignored.
 yarn.lock
 bun.lockb
 
