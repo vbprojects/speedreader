@@ -4,6 +4,15 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-21 — Security hardening (Dependabot, CodeQL, least-privilege)
+
+- **`.github/dependabot.yml`** — weekly updates for npm (`/frontend`), Cargo (`/frontend/src-tauri`), and GitHub Actions (`/`), each with `dependencies` labels and `chore(deps)` commit prefixes.
+- **`.github/workflows/codeql.yml`** — CodeQL static analysis for `javascript-typescript` + `rust`, run on push/PR to `main`, weekly (Mon 06:00 UTC), and manual dispatch. `security-events: write` on the analyze job; `contents: read` at workflow level.
+- **Least-privilege permissions** — added `permissions: contents: read` to `build-android.yml` and `build-ios.yml` (they only build + upload artifacts). `build-desktop.yml` already had `contents: write` (needed for releases); `deploy-pages.yml` already had `pages: write` + `id-token: write`.
+- **Token push protection** — this is a **repo setting**, not a file: enable in **Settings → Code security and analysis → Secret scanning → Push protection** (free for public repos). Blocks commits containing known secrets (API keys, tokens) before they land.
+
+---
+
 ## 2026-08-21 — GitHub Pages deploy for the PWA
 
 - Added `.github/workflows/deploy-pages.yml` — builds the frontend and deploys `dist/` to **GitHub Pages** on every push to `main` (and manual dispatch). Uses `actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4`, with `permissions: pages: write, id-token: write` and a `github-pages` environment.
