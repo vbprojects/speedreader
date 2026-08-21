@@ -46,7 +46,7 @@ jobs:
         run: npx tauri ios build --no-sign
 
       - name: Upload iOS app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-app
           path: frontend/src-tauri/gen/apple/build/Release-iphonesimulator/*.app
