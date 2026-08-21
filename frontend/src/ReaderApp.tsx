@@ -129,6 +129,8 @@ export default function ReaderApp() {
           theme={effective.theme}
           navCollapsed={navCollapsed}
           onToggleNav={() => setNavCollapsed((c) => !c)}
+          initialIndex={bookId ? (store.getPosition(bookId)?.index ?? 0) : 0}
+          onPositionChange={(index) => bookId && store.setPosition(bookId, index)}
         />
       </div>
 

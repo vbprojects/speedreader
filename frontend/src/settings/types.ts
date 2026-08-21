@@ -29,6 +29,19 @@ export interface SettingsState {
   perReader: Record<string, ReaderSettings>;
 }
 
+/** A saved reading position for a book. */
+export interface ReaderPosition {
+  /** Word index in the stream. */
+  index: number;
+  /** When the position was last saved (epoch ms). */
+  updatedAt: number;
+}
+
+/** The full reader-state map: book id → saved position. */
+export interface ReaderStateMap {
+  positions: Record<string, ReaderPosition>;
+}
+
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   theme: "light",
   fontFamily: "system-ui",

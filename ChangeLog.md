@@ -4,6 +4,18 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-21 — Reader state persistence (resume position)
+
+- Books now **resume where you left off**: reopening an EPUB jumps to the saved word index.
+- **`settings/types.ts`** — added `ReaderPosition { index, updatedAt }` + `ReaderStateMap`.
+- **`settings/store.ts`** — `SettingsStore` now persists per-book positions under a **separate** localStorage key (`speedreader.positions.v1`): `getPosition` / `setPosition` / `clearPosition` / `allPositions`.
+- **`display/SpeedReader.tsx`** — new props `initialIndex` (clock starts there instead of 0) and `onPositionChange` (fired on tick + seek/scrub/nav-tree jumps).
+- **`ReaderApp.tsx`** — passes `initialIndex` from the store on open; saves via `onPositionChange` on every index change.
+- **Decisions**: positions stored separately from settings; playback starts **paused** at the saved position (user taps play); position kept when returning to library.
+- Verified: `tsc --noEmit` + `npm run build` pass.
+
+---
+
 ## 2026-08-21 — Security hardening (Dependabot, CodeQL, least-privilege)
 
 - **`.github/dependabot.yml`** — weekly updates for npm (`/frontend`), Cargo (`/frontend/src-tauri`), and GitHub Actions (`/`), each with `dependencies` labels and `chore(deps)` commit prefixes.

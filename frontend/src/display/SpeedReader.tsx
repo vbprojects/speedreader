@@ -46,6 +46,10 @@ export interface SpeedReaderProps {
   navCollapsed?: boolean;
   /** Called when the user toggles the sidebar. */
   onToggleNav?: () => void;
+  /** Word index to start at (resume position). Defaults to 0. */
+  initialIndex?: number;
+  /** Called whenever the current word index changes (tick or seek). */
+  onPositionChange?: (index: number) => void;
 }
 
 const DEFAULT_CONFIG: DisplayConfig = {
@@ -57,7 +61,7 @@ const CHUNK_SIZE = 400;
 /** When the current word gets within this distance of a chunk edge, re-chunk. */
 const CHUNK_REFRESH_MARGIN = 100;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -119,15 +123,17 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
   // Create the clock. Recreated when durations change (e.g. WPM/settings),
   // but preserves the current position so changing speed doesn't reset the
-  // book to the beginning. Only starts at 0 for a brand-new stream.
+  // book to the beginning. Starts at `initialIndex` (resume position) for a
+  // brand-new stream.
   useEffect(() => {
-    const prevIndex = clockRef.current?.index ?? 0;
+    const prevIndex = clockRef.current?.index ?? initialIndex;
     const wasRunning = clockRef.current?.running ?? false;
     const clock = new SelfCorrectingClock({
       durations,
       onTick: (index) => {
         setFrame(buildFrame(stream.words, index, cfgRef.current));
         setProgress(stream.words.length ? index / stream.words.length : 0);
+        onPositionChange?.(index);
       },
       onEnd: () => setRunning(false),
     });
@@ -192,6 +198,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     setChunkStart(start);
     setFrame(f);
     setProgress(stream.words.length ? index / stream.words.length : 0);
+    onPositionChange?.(index);
   };
 
   const seekTo = (index: number) => {
