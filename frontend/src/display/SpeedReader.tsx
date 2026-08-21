@@ -117,8 +117,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     return pacing.durations(stream.words, stats);
   }, [stream, pacing]);
 
-  // Create the clock once.
+  // Create the clock. Recreated when durations change (e.g. WPM/settings),
+  // but preserves the current position so changing speed doesn't reset the
+  // book to the beginning. Only starts at 0 for a brand-new stream.
   useEffect(() => {
+    const prevIndex = clockRef.current?.index ?? 0;
+    const wasRunning = clockRef.current?.running ?? false;
     const clock = new SelfCorrectingClock({
       durations,
       onTick: (index) => {
@@ -128,8 +132,13 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       onEnd: () => setRunning(false),
     });
     clockRef.current = clock;
-    // Show the first word immediately.
-    setFrame(buildFrame(stream.words, 0, cfgRef.current));
+    // Show the current word immediately (preserve position across re-creates).
+    setFrame(buildFrame(stream.words, prevIndex, cfgRef.current));
+    setProgress(stream.words.length ? prevIndex / stream.words.length : 0);
+    if (wasRunning) {
+      clock.start(prevIndex);
+      setRunning(true);
+    }
     return () => clock.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durations, stream]);

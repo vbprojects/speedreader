@@ -28,12 +28,37 @@ export function pickFileBrowser(accept = ".epub"): Promise<FileInfo | null> {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = accept;
+
+    // Keep the input in the DOM (visually hidden) — on iOS standalone
+    // (home-screen PWA), a detached input's .click() silently does nothing;
+    // an attached input opens the picker reliably.
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    input.style.top = "0";
+    input.style.width = "1px";
+    input.style.height = "1px";
+    input.style.opacity = "0";
+
+    const cleanup = () => {
+      document.body.removeChild(input);
+    };
+
     input.onchange = () => {
+      cleanup();
       const file = input.files?.[0];
       if (!file) return resolve(null);
       fileFromBrowserFile(file).then(resolve, reject);
     };
-    input.onerror = () => reject(new Error("File picker failed"));
+    input.oncancel = () => {
+      cleanup();
+      resolve(null);
+    };
+    input.onerror = () => {
+      cleanup();
+      reject(new Error("File picker failed"));
+    };
+
+    document.body.appendChild(input);
     input.click();
   });
 }

@@ -4,6 +4,51 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-21 — GitHub Pages deploy for the PWA
+
+- Added `.github/workflows/deploy-pages.yml` — builds the frontend and deploys `dist/` to **GitHub Pages** on every push to `main` (and manual dispatch). Uses `actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4`, with `permissions: pages: write, id-token: write` and a `github-pages` environment.
+- **Base path handling**: GitHub Pages serves the repo at a subpath (`/speedreader/`), so `vite.config.ts` now sets `base: process.env.GITHUB_ACTIONS ? "/speedreader/" : "/"` — Pages builds get the subpath, Tauri builds keep root.
+- **Relative PWA paths**: manifest `start_url`/`scope`/icons and the `apple-touch-icon` link are now **relative** (`./`, `pwa-*.png`) so they resolve under any base path. The manifest `<link>` is injected by `vite-plugin-pwa` (removed the manual duplicate).
+- **iOS standalone file-picker fix**: `pickFileBrowser` now appends the hidden `<input>` to `document.body` before `.click()` — a detached input's click is silently ignored in iOS home-screen (standalone) PWAs, so the EPUB picker never opened after install. Attaching it fixes loading books in the installed app.
+- Verified: `tsc --noEmit` OK; `GITHUB_ACTIONS=true npm run build` emits `/speedreader/`-prefixed assets + `sw.js`; workflow YAML valid.
+- **To activate**: enable Pages in repo Settings → Pages → Source "GitHub Actions", then push to `main`. Site at `https://vbprojects.github.io/speedreader/`.
+
+---
+
+## 2026-08-21 — Node 22 upgrade + standard vite-plugin-pwa
+
+- **Upgraded to Node 22.23.2** via nvm (`nvm install 22`, `nvm alias default 22`; auto-loads in `.bashrc`). User-local, no sudo — avoids the Windows fnm path trap.
+- **CI bumped to `node-version: 22`** in all three workflows (`build-desktop.yml`, `build-android.yml`, `build-ios.yml`).
+- **Replaced the hand-rolled SW with `vite-plugin-pwa@1.3.0`** (now that Node 22 supports it):
+  - `vite.config.ts` — `VitePWA` plugin: `registerType: "autoUpdate"`, `devOptions: { enabled: false }`, `injectRegister: false` (we call `registerSW()` ourselves), full manifest, workbox precache (`globPatterns`, `navigateFallback: /index.html`, `cleanupOutdatedCaches`).
+  - `src/main.tsx` — `registerSW({ immediate: true })` from `virtual:pwa-register`, guarded by `!("__TAURI_INTERNALS__" in window)` (no SW inside Tauri webview).
+  - `src/vite-env.d.ts` — `virtual:pwa-register` module declaration.
+  - Deleted `public/sw-custom.js` + `public/manifest.webmanifest` (plugin generates both).
+  - Build now emits `dist/sw.js` + `dist/workbox-*.js`, precaches **13 entries (586.94 KiB)**.
+- **Gotchas (recorded)**:
+  - `npm install` from the repo root (`~/speedreader`) created a stray root `package.json`/`node_modules` (the tool ran there first) — removed the root install and reinstalled in `frontend/`.
+  - The current terminal session kept an old PATH (still showing v18); **new terminals** get v22 from nvm.
+- Verified on Node 22: `tsc --noEmit` OK, `npm run build` OK (PWA v1.3.0, generateSW mode), `cargo check` OK.
+
+---
+
+## 2026-08-21 — Offline-capable PWA
+
+- Made the frontend an **installable, offline-first PWA** so users don't need internet — served-as-website or wrapped in Tauri.
+- **Hand-rolled the SW** (no `vite-plugin-pwa`): 
+  - `public/sw-custom.js` — custom service worker (install caches shell: `/`, `/index.html`, `/manifest.webmanifest`, icon; fetch = stale-while-revalidate, cache-first with network fallback; navigation → cached index.html for offline SPA).
+  - `public/manifest.webmanifest` — app manifest (name "Speedreader", standalone display, theme `#2563eb`, icons 32/128/512 + maskable).
+  - Icons copied from `src-tauri/icons/` → `public/pwa-{32,128,512}.png`.
+  - `index.html` — added `theme-color` meta, `<link rel="manifest">`, apple-touch-icon; title → "Speedreader".
+  - `src/main.tsx` — registers `/sw-custom.js` on load, **skipped inside Tauri webview** (`"__TAURI_INTERNALS__" in window`), so the native app isn't affected.
+- **Gotcha (recorded)**: `vite-plugin-pwa` v1.3.0 and v0.20.x both fail on **Node 18**:
+  - v1.3.0: `crypto is not defined` (its `serialize-javascript` dep needs newer Node).
+  - v0.20.1: `Dynamic require of "workbox-build" is not supported` (plugin's ESM shim can't `require` workbox-build on Node 18).
+  - Workaround: **skip the plugin entirely** — write a small SW + manifest by hand. Everything the plugin does (precache, manifest, registration) is ~50 lines.
+- `tsc --noEmit`, `npm run build`, and `cargo check` all pass. `dist/` now contains `sw-custom.js`, `manifest.webmanifest`, `pwa-*.png`.
+
+---
+
 ## 2026-08-20 — GitHub Actions CI for desktop + mobile
 
 - Added three GitHub Actions workflows under `.github/workflows/`:
