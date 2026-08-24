@@ -21,6 +21,9 @@ export interface DisplayFrame {
   index: number;
 }
 
+/** Callback fired when playback running state changes. */
+export type RunningStateCallback = (running: boolean) => void;
+
 /** Callback fired on each tick with the new frame. */
 export type FrameCallback = (frame: DisplayFrame) => void;
 

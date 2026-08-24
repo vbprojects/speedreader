@@ -51,6 +51,8 @@ export interface SpeedReaderProps {
   initialIndex?: number;
   /** Called whenever the current word index changes (tick or seek). */
   onPositionChange?: (index: number) => void;
+  /** Called when the playback state changes (play/pause). */
+  onRunningChange?: (running: boolean) => void;
 }
 
 const DEFAULT_CONFIG: DisplayConfig = {
@@ -67,7 +69,7 @@ const TRADITIONAL_BATCH_SIZE = 400;
 /** Distance from top/bottom scroll boundary (in px) before loading more words. */
 const TRADITIONAL_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -87,6 +89,11 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
   const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
+
+  // Sync running state to parent coordinator
+  useEffect(() => {
+    onRunningChange?.(running);
+  }, [running, onRunningChange]);
 
   // Long-press detection on words in traditional view
   const wordLongPressRef = useRef<{
@@ -601,8 +608,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: themeStyle.bg, color: themeStyle.fg, fontFamily, overflow: "hidden" }}>
       {/* Top area: Nav tree + Reading viewport */}
       <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
-        {/* Navigation tree — left sidebar, collapsible */}
-        {showNav && (
+        {/* Navigation tree — left sidebar, collapsible: hidden while running */}
+        {showNav && !running && (
           <div style={{ display: "flex", height: "100%", flexShrink: 0 }}>
             {!navCollapsed && (
               <NavTreeView
@@ -613,20 +620,32 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                 theme={theme}
               />
             )}
-            {/* Collapse toggle rail */}
+            {/* Collapse / Expand toggle rail */}
             <button
               onClick={onToggleNav}
+              aria-label={navCollapsed ? "Expand navigation sidebar" : "Collapse navigation sidebar"}
               title={navCollapsed ? "Expand navigation" : "Collapse navigation"}
               style={{
-                width: 22,
+                width: isMobile ? 36 : 28,
+                height: isMobile ? 48 : 36,
                 alignSelf: "flex-start",
                 marginTop: 8,
-                background: "transparent",
-                border: "none",
-                color: themeStyle.muted,
+                background: `${themeStyle.panel}99`,
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                border: `1px solid ${themeStyle.border}66`,
+                borderLeft: "none",
+                borderRadius: "0 8px 8px 0",
+                color: themeStyle.fg,
                 cursor: "pointer",
-                fontSize: 14,
-                padding: "4px 0",
+                fontSize: isMobile ? 18 : 15,
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                zIndex: 10,
               }}
             >
               {navCollapsed ? "▸" : "◂"}
@@ -845,39 +864,46 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         </div>
       </div>
 
-      {/* Bottom controls drawer — collapsible across both desktop & mobile, full width when left drawer is collapsed */}
+      {/* Bottom controls drawer — collapsible, and disappears completely when playing */}
       <div
         style={{
-          borderTop: `1px solid ${themeStyle.border}`,
+          borderTop: running ? "none" : `1px solid ${themeStyle.border}`,
           background: themeStyle.panel,
           flexShrink: 0,
           width: "100%",
           boxSizing: "border-box",
+          maxHeight: running ? 0 : (controlsOpen ? 240 : 48),
+          opacity: running ? 0 : 1,
+          overflow: "hidden",
+          transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+          pointerEvents: running ? "none" : "auto",
         }}
       >
-        {/* Minimize / expand toggle handle */}
+        {/* Minimize / expand toggle handle with prominent touch targets on mobile */}
         <button
           onClick={() => setControlsOpen((o) => !o)}
           aria-expanded={controlsOpen}
+          aria-label={controlsOpen ? "Minimize bottom controls" : "Expand bottom controls"}
           title={controlsOpen ? "Minimize controls" : "Expand controls"}
           style={{
             width: "100%",
-            padding: "4px 12px",
+            padding: isMobile ? "8px 16px" : "5px 12px",
+            minHeight: isMobile ? 38 : 28,
             background: "transparent",
             border: "none",
             color: themeStyle.muted,
-            fontSize: 12,
+            fontSize: isMobile ? 13 : 12,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 6,
+            gap: 8,
           }}
         >
-          <span style={{ fontSize: 11, fontWeight: 500 }}>
-            {controlsOpen ? "Hide Controls" : (running ? "Playing · Show Controls" : "Paused · Show Controls")}
+          <span style={{ fontSize: isMobile ? 12 : 11, fontWeight: 600 }}>
+            {controlsOpen ? "Hide Controls" : "Show Controls"}
           </span>
-          <span style={{ fontSize: 10 }}>{controlsOpen ? "▾" : "▴"}</span>
+          <span style={{ fontSize: isMobile ? 14 : 11, fontWeight: 700 }}>{controlsOpen ? "▾" : "▴"}</span>
         </button>
 
         {controlsOpen && (

@@ -4,6 +4,19 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Clean fullscreen reading mode & UI polish
+
+- **Default collapsed left sidebar**: The navigation tree starts collapsed by default when opening a book, providing an immediate full-width reading view.
+- **Enlarged touch targets on mobile**:
+  - Increased the sidebar toggle rail size ($36\text{px} \times 48\text{px}$) with an elevated glassmorphic handle and larger chevron icon.
+  - Increased the bottom control bar collapse/expand handle touch height ($38\text{px}$) and typography on mobile.
+- **Distraction-free auto-hide while playing**:
+  - When playback starts, the top title bar, left navigation drawer, and bottom controls smoothly hide (animated opacity and height transitions with `pointer-events: none`).
+  - When the reader is paused (via screen tap, seek, or keypress), all drawers, headers, and expansion controls reappear instantly.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
 ## 2026-08-24 — Fix word spacing in traditional view
 
 - **`display/SpeedReader.tsx`**: Fixed missing inter-word whitespace in the traditional e-reader view caused by HTML whitespace collapsing between `inline-block` spans. Added explicit inter-word space nodes between rendered word spans.

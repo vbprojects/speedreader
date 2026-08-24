@@ -28,7 +28,8 @@ export interface ReaderScreenProps {
 
 export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset }: ReaderScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(true);
+  const [running, setRunning] = useState(false);
   const t = themeTokens(settings.theme);
 
   // Pacing engine recreated when effective WPM/pauses/model/gamma change.
@@ -48,17 +49,23 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+      {/* Top Header Bar: hidden while playing for an ultra-clean distraction-free reading experience */}
       <div
         style={{
           fontFamily: settings.fontFamily,
-          padding: "8px 16px",
+          padding: running ? "0 16px" : "8px 16px",
+          maxHeight: running ? 0 : 56,
+          opacity: running ? 0 : 1,
+          overflow: "hidden",
+          transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           display: "flex",
           gap: 12,
           alignItems: "center",
-          borderBottom: `1px solid ${t.border}`,
+          borderBottom: running ? "none" : `1px solid ${t.border}`,
           background: t.panel,
           color: t.fg,
           flexShrink: 0,
+          pointerEvents: running ? "none" : "auto",
         }}
       >
         <button onClick={onBack}>← Library</button>
@@ -93,6 +100,7 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           onToggleNav={() => setNavCollapsed((c) => !c)}
           initialIndex={initialIndex}
           onPositionChange={onPositionChange}
+          onRunningChange={setRunning}
         />
       </div>
 
