@@ -234,6 +234,8 @@ export default function ReaderApp() {
       importing={importing}
       error={error}
       theme={global.theme}
+      settings={global}
+      onUpdateSettings={(patch) => settingsStore.updateGlobal(patch)}
       onImport={handleImport}
       onOpen={openBook}
       onRemove={handleRemove}

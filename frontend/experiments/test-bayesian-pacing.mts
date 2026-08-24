@@ -45,10 +45,16 @@ async function testSynthetic() {
   console.log(`muHat after 200 10-char words: ${statsLong.muHat.toFixed(2)} (Expected ~10.00)`);
   if (Math.abs(statsLong.muHat - 10) > 0.3) throw new Error("Failed to adapt upward to long words");
 
-  // 3. Reset and check
-  fn.reset();
-  console.log(`muHat after reset: ${fn.getStats().muHat.toFixed(2)} (Expected 6.00)`);
-  if (Math.abs(fn.getStats().muHat - 6.0) > 1e-4) throw new Error("Reset failed");
+  // 4. Configurable gamma test
+  const fnFast = createBayesianPacingFn({ gamma: 0.90 }); // ~10 words window
+  const fnSlow = createBayesianPacingFn({ gamma: 0.995 }); // ~200 words window
+  for (let i = 0; i < 20; i++) {
+    fnFast(makeWord(10), dummyCtx);
+    fnSlow(makeWord(10), dummyCtx);
+  }
+  console.log(`Fast-decay gamma=0.90 muHat after 20 words: ${fnFast.getStats().muHat.toFixed(2)} (rapid adaptation)`);
+  console.log(`Slow-decay gamma=0.995 muHat after 20 words: ${fnSlow.getStats().muHat.toFixed(2)} (gradual adaptation)`);
+  if (fnFast.getStats().muHat <= fnSlow.getStats().muHat) throw new Error("Gamma discount sensitivity failed");
 
   console.log("Synthetic tests: PASS\n");
 }

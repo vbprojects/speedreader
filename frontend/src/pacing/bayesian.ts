@@ -56,6 +56,8 @@ export function createBayesianPacingFn(options: BayesianPacingOptions = {}): {
   let beta = beta0;
 
   const fn = (word: Word, ctx: PacingContext): number => {
+    const effectiveGamma = ctx.profile.gamma ?? gamma;
+
     // 1. Current estimate of expected character length per word
     const muHat = 1 + (beta > 0 ? alpha / beta : alpha0 / beta0);
 
@@ -76,8 +78,8 @@ export function createBayesianPacingFn(options: BayesianPacingOptions = {}): {
 
     // 5. Discount and Bayesian update
     const excessChars = len - 1;
-    alpha = gamma * alpha + excessChars;
-    beta = gamma * beta + 1;
+    alpha = effectiveGamma * alpha + excessChars;
+    beta = effectiveGamma * beta + 1;
 
     return duration;
   };

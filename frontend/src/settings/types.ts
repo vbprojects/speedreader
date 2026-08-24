@@ -20,6 +20,8 @@ export interface GlobalSettings {
   paragraphPauseMs: number;
   /** Pacing algorithm model. */
   pacingModel: PacingAlgorithm;
+  /** Forgetting / discounting factor gamma for Bayesian model (e.g., 0.90 to 0.999). */
+  bayesianGamma: number;
 }
 
 /** Per-reader settings — override global for one reader instance. */
@@ -38,6 +40,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   sentencePauseMs: 150,
   paragraphPauseMs: 200,
   pacingModel: "naive",
+  bayesianGamma: 0.98,
 };
 
 /** Merge per-reader overrides onto global settings → effective settings. */

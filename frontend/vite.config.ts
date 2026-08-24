@@ -44,6 +44,9 @@ export default defineConfig(async () => ({
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
+        // Aggressive update: activate new SW immediately and claim all client tabs
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],

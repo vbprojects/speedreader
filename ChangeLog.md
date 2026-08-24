@@ -4,6 +4,45 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Aggressive PWA Service Worker updates
+
+- **`vite.config.ts`**: Enabled `workbox.skipWaiting = true` and `workbox.clientsClaim = true` so newly installed service workers immediately bypass the waiting phase and claim all active client tabs.
+- **`src/main.tsx`**:
+  - `onNeedRefresh`: Immediately calls `updateSW(true)` to trigger an automatic refresh when an update is available.
+  - Periodic update check: polls `registration.update()` every 30 minutes.
+  - Active check on tab focus: invokes `registration.update()` on `window.onfocus` and `visibilitychange` (when tab becomes visible).
+  - Listens for `navigator.serviceWorker.oncontrollerchange` to reload the window immediately once the new worker takes control.
+- **`src/vite-env.d.ts`**: Updated module type declaration for `virtual:pwa-register` options and return signature.
+- Verified: `npx tsc --noEmit`, `npm run build` (verified `self.skipWaiting()` and `e.clientsClaim()` in `dist/sw.js`), and all experiment test suites pass.
+
+---
+
+## 2026-08-24 — Glassmorphism styling, library search bar & settings button
+
+- **Glassmorphic library UI (`LibraryView.tsx`)**:
+  - Replaced flat material styling with frosted glassmorphism: translucent theme surfaces (`backdrop-filter: blur(...)`, border highlights, ambient radial gradients).
+  - Hover effects on cards with smooth transforms, elevated shadows, and theme accent borders.
+  - Decorative ambient glass badge on generated title cards.
+- **Search bar**:
+  - Added a search input in the sticky glass header to filter library books by title or author in real time.
+  - Clear button and "No matching books" feedback state.
+- **Global Settings in Library**:
+  - Wired the global Settings button (`⚙️`) into the library header and connected `SettingsModal` through `ReaderApp.tsx`, enabling theme and typography adjustments directly from the library view.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
+## 2026-08-24 — Configurable Bayesian gamma discounting
+
+- **`settings/types.ts`**: Added `bayesianGamma: number` to `GlobalSettings` and `DEFAULT_GLOBAL_SETTINGS` (default `0.98`).
+- **`settings/SettingsPanel.tsx`**: Added a slider control for `bayesianGamma` (range `0.90`–`0.999`, step `0.005`) that dynamically appears when the Bayesian pacing model is selected, showing both the decimal value and the approximate effective word window ($N_{\text{eff}} \approx \frac{1}{1-\gamma}$).
+- **`pacing/bayesian.ts` & `pacing/select.ts`**: Updated `createBayesianPacingFn` to honor context/option-level gamma overrides during runtime updates.
+- **`reader/ReaderScreen.tsx`**: Wired `settings.bayesianGamma` directly into the `PacingEngine` instantiation.
+- **`experiments/test-bayesian-pacing.mts`**: Added unit verification for fast ($\gamma = 0.90$) vs. slow ($\gamma = 0.995$) adaptation rates.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all experiment test suites pass.
+
+---
+
 ## 2026-08-23 — Full-width collapsible bottom drawer & jump-to-word UX
 
 - **Full-width bottom drawer**: Reorganized `SpeedReader.tsx` layout into a vertical flex container. The collapsible bottom drawer is now a full-width bottom bar (spanning 100% of the viewport width when the left navigation drawer is collapsed).

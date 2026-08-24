@@ -81,6 +81,23 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
         </select>
       </Field>
 
+      {(settings.pacingModel === "bayesian") && (
+        <Field
+          label={`Bayesian Gamma (Memory factor): ${(settings.bayesianGamma ?? 0.98).toFixed(3)} (~${Math.round(1 / (1 - (settings.bayesianGamma ?? 0.98)))} words)`}
+          color={t.muted}
+        >
+          <input
+            type="range"
+            min={0.90}
+            max={0.999}
+            step={0.005}
+            style={controlAccent}
+            value={settings.bayesianGamma ?? 0.98}
+            onChange={(e) => set({ bayesianGamma: Number(e.target.value) })}
+          />
+        </Field>
+      )}
+
       <Field label={`Font size: ${settings.fontSize}px`} color={t.muted}>
         <input
           type="range"

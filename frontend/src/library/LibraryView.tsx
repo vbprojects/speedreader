@@ -1,12 +1,13 @@
 // src/library/LibraryView.tsx
-// The root library screen: grid of book tiles (cover + title footer),
-// import action, empty state, and a remove-only context menu (right-click /
-// long-press). Opening a book calls onOpen(bookId).
+// The root library screen: grid of glassmorphic book tiles (cover + title footer),
+// search bar, import action, settings modal, and a remove-only context menu
+// (right-click / long-press). Opening a book calls onOpen(bookId).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Book } from "../db/types";
-import type { Theme } from "../settings/types";
+import type { GlobalSettings, ReaderSettings, Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
+import { SettingsModal } from "../settings/SettingsModal";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -18,6 +19,8 @@ export interface LibraryViewProps {
   importing: boolean;
   error: string | null;
   theme: Theme;
+  settings?: GlobalSettings;
+  onUpdateSettings?: (patch: ReaderSettings) => void;
   onImport: () => void;
   onOpen: (bookId: string) => void;
   onRemove: (bookId: string) => void;
@@ -28,10 +31,35 @@ export interface LibraryViewProps {
 /** Long-press threshold (ms) before a touch opens the context menu. */
 const LONG_PRESS_MS = 500;
 
-export function LibraryView({ books, loading, importing, error, theme, onImport, onOpen, onRemove, positions }: LibraryViewProps) {
+export function LibraryView({
+  books,
+  loading,
+  importing,
+  error,
+  theme,
+  settings,
+  onUpdateSettings,
+  onImport,
+  onOpen,
+  onRemove,
+  positions,
+}: LibraryViewProps) {
   const t = themeTokens(theme);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [confirmBook, setConfirmBook] = useState<Book | null>(null);
+
+  // Filter books by title or author
+  const filteredBooks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return books;
+    return books.filter(
+      (b) =>
+        b.title.toLowerCase().includes(q) ||
+        b.author.toLowerCase().includes(q)
+    );
+  }, [books, searchQuery]);
 
   // Long-press tracking per tile.
   const longPressRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; bookId: string | null; moved: boolean }>({
@@ -99,78 +127,247 @@ export function LibraryView({ books, loading, importing, error, theme, onImport,
     setConfirmBook(null);
   };
 
+  // Glassmorphic surface styles
+  const glassHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    padding: "16px 24px",
+    borderBottom: `1px solid ${t.border}`,
+    background: `${t.panel}bb`,
+    backdropFilter: "blur(20px) saturate(1.3)",
+    WebkitBackdropFilter: "blur(20px) saturate(1.3)",
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+  };
+
+  const searchInputStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 180,
+    maxWidth: 400,
+    padding: "8px 14px 8px 34px",
+    borderRadius: 12,
+    border: `1px solid ${t.border}`,
+    background: `${t.bg}88`,
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    color: t.fg,
+    fontSize: 14,
+    fontFamily: "inherit",
+    outline: "none",
+    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.06)",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+  };
+
+  const glassButtonStyle: React.CSSProperties = {
+    padding: "8px 16px",
+    borderRadius: 10,
+    border: `1px solid ${t.border}`,
+    background: `${t.panel}cc`,
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    color: t.fg,
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 500,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    transition: "all 0.15s ease",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+  };
+
+  const primaryButtonStyle: React.CSSProperties = {
+    ...glassButtonStyle,
+    border: "none",
+    background: t.highlight,
+    color: t.highlightFg,
+    fontWeight: 600,
+    opacity: importing ? 0.7 : 1,
+    cursor: importing ? "default" : "pointer",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, color: t.fg, fontFamily: "system-ui" }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "16px 24px",
-          borderBottom: `1px solid ${t.border}`,
-          background: t.panel,
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, flex: 1 }}>Library</h1>
-        <button
-          onClick={onImport}
-          disabled={importing}
-          style={{
-            padding: "8px 16px",
-            borderRadius: 8,
-            border: "none",
-            background: t.highlight,
-            color: t.highlightFg,
-            cursor: importing ? "default" : "pointer",
-            fontSize: 14,
-            fontWeight: 600,
-            opacity: importing ? 0.7 : 1,
-          }}
-        >
-          {importing ? "Importing…" : "Import EPUB"}
-        </button>
-      </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: `radial-gradient(circle at 10% 10%, ${t.panel}44 0%, transparent 40%), radial-gradient(circle at 90% 90%, ${t.highlight}15 0%, transparent 45%), ${t.bg}`,
+        color: t.fg,
+        fontFamily: settings?.fontFamily ?? "system-ui",
+      }}
+    >
+      {/* Glassmorphic Header */}
+      <header style={glassHeaderStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: `linear-gradient(135deg, ${t.highlight}, ${t.highlight}bb)`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: t.highlightFg,
+              fontSize: 18,
+              fontWeight: 800,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}
+          >
+            ⚡
+          </div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>Library</h1>
+        </div>
+
+        {/* Search Bar with Glassmorphic styling */}
+        <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1, justifyContent: "center", maxWidth: 440 }}>
+          <span
+            style={{
+              position: "absolute",
+              left: 12,
+              color: t.muted,
+              fontSize: 14,
+              pointerEvents: "none",
+            }}
+          >
+            🔍
+          </span>
+          <input
+            type="text"
+            placeholder="Search titles or authors…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={searchInputStyle}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              title="Clear search"
+              style={{
+                position: "absolute",
+                right: 10,
+                background: "transparent",
+                border: "none",
+                color: t.muted,
+                cursor: "pointer",
+                fontSize: 14,
+                padding: 4,
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {settings && onUpdateSettings && (
+            <button
+              onClick={() => setShowSettings(true)}
+              style={glassButtonStyle}
+              title="Global Settings"
+            >
+              <span>⚙️</span>
+              <span className="hide-on-mobile">Settings</span>
+            </button>
+          )}
+
+          <button
+            onClick={onImport}
+            disabled={importing}
+            style={primaryButtonStyle}
+          >
+            <span>➕</span>
+            <span>{importing ? "Importing…" : "Import EPUB"}</span>
+          </button>
+        </div>
+      </header>
 
       {error && (
-        <div style={{ padding: "12px 24px", color: "#e5484d", fontSize: 14 }}>{error}</div>
+        <div
+          style={{
+            margin: "16px 24px 0",
+            padding: "12px 18px",
+            borderRadius: 12,
+            border: "1px solid #e5484d44",
+            background: "#e5484d18",
+            backdropFilter: "blur(12px)",
+            color: "#e5484d",
+            fontSize: 14,
+            fontWeight: 500,
+          }}
+        >
+          {error}
+        </div>
       )}
 
-      {/* Body */}
-      <div style={{ padding: 24 }}>
+      {/* Main Content Body */}
+      <main style={{ padding: "28px 24px" }}>
         {loading ? (
-          <div style={{ color: t.muted, padding: 40, textAlign: "center" }}>Loading library…</div>
+          <div style={{ color: t.muted, padding: 60, textAlign: "center", fontSize: 15 }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>⏳</div>
+            Loading library…
+          </div>
         ) : books.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 80, color: t.muted }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
-            <div style={{ fontSize: 18, marginBottom: 8 }}>Your library is empty</div>
-            <div style={{ fontSize: 14, marginBottom: 24 }}>Import an EPUB to start speedreading.</div>
+          <div
+            style={{
+              textAlign: "center",
+              padding: "80px 24px",
+              borderRadius: 24,
+              border: `1px solid ${t.border}`,
+              background: `${t.panel}66`,
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              maxWidth: 480,
+              margin: "40px auto",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
+            <h2 style={{ fontSize: 20, margin: "0 0 8px", fontWeight: 700 }}>Your library is empty</h2>
+            <p style={{ fontSize: 14, margin: "0 0 24px", color: t.muted, lineHeight: 1.5 }}>
+              Import an EPUB file to start your speedreading journey with centered focal alignment.
+            </p>
             <button
               onClick={onImport}
               disabled={importing}
-              style={{
-                padding: "10px 20px",
-                borderRadius: 8,
-                border: "none",
-                background: t.highlight,
-                color: t.highlightFg,
-                cursor: "pointer",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
+              style={primaryButtonStyle}
             >
               {importing ? "Importing…" : "Import your first EPUB"}
             </button>
+          </div>
+        ) : filteredBooks.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 24px",
+              borderRadius: 20,
+              border: `1px solid ${t.border}`,
+              background: `${t.panel}55`,
+              backdropFilter: "blur(12px)",
+              color: t.muted,
+              maxWidth: 400,
+              margin: "30px auto",
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: t.fg, marginBottom: 4 }}>No matching books</div>
+            <div style={{ fontSize: 13 }}>No books found matching &ldquo;{searchQuery}&rdquo;</div>
           </div>
         ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-              gap: 20,
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 22,
             }}
           >
-            {books.map((book) => (
+            {filteredBooks.map((book) => (
               <BookTile
                 key={book.id}
                 book={book}
@@ -186,8 +383,20 @@ export function LibraryView({ books, loading, importing, error, theme, onImport,
             ))}
           </div>
         )}
-      </div>
+      </main>
 
+      {/* Global Settings Modal */}
+      {settings && onUpdateSettings && (
+        <SettingsModal
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          settings={settings}
+          onChange={onUpdateSettings}
+          theme={theme}
+        />
+      )}
+
+      {/* Context Menu & Confirmation Dialog */}
       <ContextMenu state={menu} onClose={() => setMenu(null)} onRemove={handleRemove} theme={theme} />
       <ConfirmDialog
         open={!!confirmBook}
@@ -197,6 +406,12 @@ export function LibraryView({ books, loading, importing, error, theme, onImport,
         onCancel={() => setConfirmBook(null)}
         theme={theme}
       />
+
+      <style>{`
+        @media (max-width: 600px) {
+          .hide-on-mobile { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -246,35 +461,42 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
       }}
       style={{
         cursor: "pointer",
-        borderRadius: 12,
+        borderRadius: 16,
         overflow: "hidden",
         border: `1px solid ${t.border}`,
-        background: t.panel,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+        background: `${t.panel}99`,
+        backdropFilter: "blur(16px) saturate(1.2)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.2)",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.06), inset 0 1px 1px rgba(255,255,255,0.15)",
+        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         userSelect: "none",
         WebkitUserSelect: "none",
         touchAction: "pan-y",
+        display: "flex",
+        flexDirection: "column",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 6px 18px rgba(0,0,0,0.15)";
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.boxShadow = "0 12px 28px rgba(0,0,0,0.14), inset 0 1px 1px rgba(255,255,255,0.25)";
+        e.currentTarget.style.borderColor = t.highlight;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+        e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.06), inset 0 1px 1px rgba(255,255,255,0.15)";
+        e.currentTarget.style.borderColor = t.border;
       }}
     >
       {/* Cover area */}
       <div
         style={{
           aspectRatio: "2 / 3",
-          background: t.bg,
+          background: `${t.bg}99`,
           position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
+          borderBottom: `1px solid ${t.border}88`,
         }}
       >
         {coverUrl ? (
@@ -293,12 +515,16 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
               position: "absolute",
               top: 8,
               right: 8,
-              background: "rgba(0,0,0,0.6)",
+              background: "rgba(0,0,0,0.55)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.2)",
               color: "#fff",
               borderRadius: 999,
               padding: "2px 8px",
               fontSize: 11,
               fontWeight: 600,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
             }}
           >
             {pct}%
@@ -306,13 +532,13 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
         )}
       </div>
 
-      {/* Title footer */}
-      <div style={{ padding: "10px 12px" }}>
+      {/* Title footer (Glassmorphic panel) */}
+      <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <div
           style={{
             fontSize: 13,
             fontWeight: 600,
-            lineHeight: 1.3,
+            lineHeight: 1.35,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -321,7 +547,17 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
         >
           {book.title}
         </div>
-        <div style={{ fontSize: 12, color: t.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: t.muted,
+            marginTop: 4,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+          title={book.author}
+        >
           {book.author}
         </div>
       </div>
@@ -336,7 +572,7 @@ function TitleCard({ title, theme }: { title: string; theme: Theme }) {
   let hash = 0;
   for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
   const hue = hash % 360;
-  const bg = `linear-gradient(135deg, hsl(${hue}, 55%, 42%), hsl(${(hue + 40) % 360}, 55%, 28%))`;
+  const bg = `linear-gradient(135deg, hsl(${hue}, 60%, 42%), hsl(${(hue + 45) % 360}, 65%, 26%))`;
 
   return (
     <div
@@ -349,12 +585,27 @@ function TitleCard({ title, theme }: { title: string; theme: Theme }) {
         justifyContent: "center",
         padding: 16,
         boxSizing: "border-box",
+        position: "relative",
       }}
     >
-      <div style={{ color: "#fff", textAlign: "center" }}>
-        <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.1, wordBreak: "break-word" }}>
+      {/* Decorative ambient glass ring */}
+      <div
+        style={{
+          position: "absolute",
+          width: 80,
+          height: 80,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,0.1)",
+          backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.2)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ color: "#fff", fontSize: 28, fontWeight: 800, textShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
           {title.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"}
-        </div>
+        </span>
       </div>
     </div>
   );

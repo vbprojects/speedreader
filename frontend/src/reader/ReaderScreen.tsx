@@ -31,18 +31,19 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
   const [navCollapsed, setNavCollapsed] = useState(false);
   const t = themeTokens(settings.theme);
 
-  // Pacing engine recreated when effective WPM/pauses/model change.
+  // Pacing engine recreated when effective WPM/pauses/model/gamma change.
   const pacing = useMemo(
     () =>
       new PacingEngine({
-        backend: selectBackend(settings.pacingModel ?? "naive"),
+        backend: selectBackend(settings.pacingModel ?? "naive", { gamma: settings.bayesianGamma ?? 0.98 }),
         profile: {
           wpm: settings.wpm,
           sentencePauseMs: settings.sentencePauseMs,
           paragraphPauseMs: settings.paragraphPauseMs,
+          gamma: settings.bayesianGamma ?? 0.98,
         },
       }),
-    [settings.pacingModel, settings.wpm, settings.sentencePauseMs, settings.paragraphPauseMs]
+    [settings.pacingModel, settings.bayesianGamma, settings.wpm, settings.sentencePauseMs, settings.paragraphPauseMs]
   );
 
   return (

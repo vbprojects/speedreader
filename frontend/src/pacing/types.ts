@@ -12,6 +12,8 @@ export interface PacingProfile {
   sentencePauseMs: number;
   /** Extra pause (ms) after a paragraph boundary. */
   paragraphPauseMs: number;
+  /** Optional gamma discounting factor for Bayesian adaptive pacing. */
+  gamma?: number;
 }
 
 /** Stream statistics available to a PacingFn (may be partial for lazy streams). */
