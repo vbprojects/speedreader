@@ -4,6 +4,19 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Smooth swipe scrubbing reimplementation
+
+- **`display/SpeedReader.tsx`**:
+  - Reimplemented the swipe gesture handler with explicit pointer capture and horizontal/vertical direction locking.
+  - Eliminated unbounded visual dragging and centering jitter by decoupling the preview updates from `clock.seek()`.
+  - Added RAF-throttled preview frames (`previewIndex()`) during drag so words update at screen refresh rate without restarting clocks or firing high-frequency persistence writes.
+  - Applied bounded logarithmic elastic pull ($\le 48\text{px}$) during swipe so words remain visible and centered on screen.
+  - Applied smoothed release momentum and committed a single `jumpTo()` at release while remaining paused at the destination.
+  - Fixed click-to-play bubbling interference by cleanly suppressing tap toggles whenever a swipe gesture was locked or active.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all experiment test suites pass.
+
+---
+
 ## 2026-08-24 — Aggressive PWA Service Worker updates
 
 - **`vite.config.ts`**: Enabled `workbox.skipWaiting = true` and `workbox.clientsClaim = true` so newly installed service workers immediately bypass the waiting phase and claim all active client tabs.

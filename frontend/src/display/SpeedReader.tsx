@@ -76,20 +76,36 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const clockRef = useRef<SelfCorrectingClock | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
-  // Swipe gesture tracking (horizontal seek).
-  const swipeStartRef = useRef<{
-    x: number;
-    y: number;
-    t: number;
-    index: number;
+
+  // Swipe gesture tracking (smooth accelerated scrub).
+  // Separate swipe preview and visual drag from layout centering.
+  const swipeRef = useRef<{
+    active: boolean;
+    locked: boolean;
+    startX: number;
+    startY: number;
+    startIndex: number;
     lastX: number;
     lastT: number;
-  } | null>(null);
-  // Set true when a swipe consumed the gesture, so the following click
-  // (which fires after pointerup) doesn't also toggle play/pause.
+    velocity: number;
+    pointerId: number | null;
+  }>({
+    active: false,
+    locked: false,
+    startX: 0,
+    startY: 0,
+    startIndex: 0,
+    lastX: 0,
+    lastT: 0,
+    velocity: 0,
+    pointerId: null,
+  });
+
   const swipedRef = useRef(false);
-  // Horizontal drag offset applied while swiping so the text follows the
-  // finger; animates back to 0 on release for a smooth settle.
+  const rafIdRef = useRef<number | null>(null);
+  const pendingIndexRef = useRef<number | null>(null);
+
+  // Visual drag offset: subtle resistance tilt, capped so text never flies off screen.
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
 
@@ -193,82 +209,181 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     jumpTo(next);
   };
 
-  /** Jump to an absolute index: update frame AND chunk in one render so the
-      current word is always in the visible chunk (no flash / empty center). */
+  /** Update visible frame and chunk without stopping clock or persisting every frame. */
+  const previewIndex = (index: number) => {
+    const clamped = Math.max(0, Math.min(index, stream.words.length - 1));
+    const f = buildFrame(stream.words, clamped, cfg);
+    const start = Math.max(0, clamped - Math.floor(CHUNK_SIZE / 2));
+    setChunkStart(start);
+    setFrame(f);
+    setProgress(stream.words.length ? clamped / stream.words.length : 0);
+  };
+
+  /** Jump to an absolute index: update frame, chunk, clock, and notify coordinator. */
   const jumpTo = (index: number) => {
     const clock = clockRef.current!;
     if (!clock) return;
-    clock.seek(index);
-    const f = buildFrame(stream.words, index, cfg);
-    const start = Math.max(0, index - Math.floor(CHUNK_SIZE / 2));
-    setChunkStart(start);
-    setFrame(f);
-    setProgress(stream.words.length ? index / stream.words.length : 0);
-    onPositionChange?.(index);
+    const clamped = Math.max(0, Math.min(index, stream.words.length - 1));
+    clock.seek(clamped);
+    previewIndex(clamped);
+    onPositionChange?.(clamped);
   };
 
   const seekTo = (index: number) => {
-    jumpTo(Math.max(0, Math.min(index, stream.words.length - 1)));
+    jumpTo(index);
   };
 
-  // Swipe left/right to scrub. While dragging, the current word changes live
-// (like scrubbing); the number of words moved per pixel scales with the
-// drag velocity so a fast flick jumps further than a slow drag.
-const SWIPE_THRESHOLD = 40; // px of horizontal travel to trigger a seek
-const PX_PER_WORD = 24; // slow-drag: ~1 word per 24px
-const VELOCITY_BOOST = 0.06; // extra words per px/s of velocity
+  // Clean up RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
 
-const onSwipeStart = (e: React.PointerEvent) => {
-  const clock = clockRef.current;
-  swipeStartRef.current = {
-    x: e.clientX,
-    y: e.clientY,
-    t: Date.now(),
-    index: clock ? clock.index : 0,
-    lastX: e.clientX,
-    lastT: Date.now(),
+  // --- Smooth Swipe Scrubber ---
+  // A horizontal swipe temporarily pauses the clock and smoothly scrubs through words
+  // like high-WPM presentation, pausing at the destination on release.
+  const SWIPE_ACTIVATION_PX = 10;
+  const PX_PER_WORD = 16;
+  const MAX_VISUAL_DRAG_PX = 48; // Subtle resistance, prevents moving text off screen
+
+  const onSwipeStart = (e: React.PointerEvent) => {
+    // Only handle primary button / touches
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const clock = clockRef.current;
+    const currentIndex = clock ? clock.index : (frame?.index ?? initialIndex);
+
+    swipeRef.current = {
+      active: true,
+      locked: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      startIndex: currentIndex,
+      lastX: e.clientX,
+      lastT: performance.now(),
+      velocity: 0,
+      pointerId: e.pointerId,
+    };
   };
-  setDragging(true);
-};
-const onSwipeMove = (e: React.PointerEvent) => {
-  const start = swipeStartRef.current;
-  if (!start) return;
-  const now = Date.now();
-  const dx = e.clientX - start.x;
-  // Text follows the finger horizontally.
-  setDragX(dx);
 
-  // Instantaneous velocity (px/s) from the last move event.
-  const dt = Math.max(1, now - start.lastT);
-  const velocity = ((e.clientX - start.lastX) / dt) * 1000;
-  start.lastX = e.clientX;
-  start.lastT = now;
+  const onSwipeMove = (e: React.PointerEvent) => {
+    const s = swipeRef.current;
+    if (!s.active) return;
 
-  // Words to move: distance-based + velocity boost. Negative dx (swipe
-  // left) → forward.
-  const words = -dx / PX_PER_WORD - velocity * VELOCITY_BOOST;
-  const target = Math.round(start.index + words);
-  const clamped = Math.max(0, Math.min(target, stream.words.length - 1));
-  if (clamped !== (clockRef.current?.index ?? -1)) {
-    jumpTo(clamped);
-  }
-};
-const onSwipeEnd = (e: React.PointerEvent) => {
-  const start = swipeStartRef.current;
-  swipeStartRef.current = null;
-  setDragging(false);
-  setDragX(0);
-  if (!start) return;
-  const dx = e.clientX - start.x;
-  const dy = e.clientY - start.y;
-  // A real swipe (dominant horizontal travel) suppresses the trailing click.
-  if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) >= Math.abs(dy) * 1.5) {
-    swipedRef.current = true;
-  }
-};
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+
+    // Gesture direction lock
+    if (!s.locked) {
+      if (Math.abs(dx) < SWIPE_ACTIVATION_PX && Math.abs(dy) < SWIPE_ACTIVATION_PX) {
+        return;
+      }
+      if (Math.abs(dx) >= Math.abs(dy) * 1.2) {
+        // Horizontal swipe locked
+        s.locked = true;
+        swipedRef.current = true;
+        setDragging(true);
+        // Pause normal reading clock during swipe
+        if (clockRef.current?.running) {
+          clockRef.current.pause();
+          setRunning(false);
+        }
+        try {
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+          // ignore if capture unsupported
+        }
+      } else {
+        // Vertical gesture, ignore swipe
+        s.active = false;
+        return;
+      }
+    }
+
+    // Velocity estimation with exponential smoothing
+    const now = performance.now();
+    const dt = Math.max(1, now - s.lastT);
+    const instVelocity = ((e.clientX - s.lastX) / dt) * 1000;
+    s.velocity = 0.7 * s.velocity + 0.3 * instVelocity;
+    s.lastX = e.clientX;
+    s.lastT = now;
+
+    // Subtle elastic visual pull (bounded so words remain readable and on-screen)
+    const sign = dx < 0 ? -1 : 1;
+    const boundedDrag = sign * Math.min(MAX_VISUAL_DRAG_PX, Math.log1p(Math.abs(dx)) * 8);
+    setDragX(boundedDrag);
+
+    // Target word calculation: swipe left (dx < 0) moves forward, swipe right moves backward
+    const wordDelta = -dx / PX_PER_WORD;
+    const target = Math.round(s.startIndex + wordDelta);
+    const clamped = Math.max(0, Math.min(target, stream.words.length - 1));
+
+    // Schedule RAF update for preview
+    pendingIndexRef.current = clamped;
+    if (rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null;
+        if (pendingIndexRef.current !== null) {
+          previewIndex(pendingIndexRef.current);
+        }
+      });
+    }
+  };
+
+  const onSwipeEnd = (e: React.PointerEvent) => {
+    const s = swipeRef.current;
+    if (!s.active) return;
+
+    const wasLocked = s.locked;
+    const finalPointerId = s.pointerId;
+
+    s.active = false;
+    s.locked = false;
+    s.pointerId = null;
+    setDragging(false);
+    setDragX(0);
+
+    if (finalPointerId !== null) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(finalPointerId);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (wasLocked) {
+      swipedRef.current = true;
+      // Add a controlled momentum flick at release
+      const momentumWords = -s.velocity * 0.035;
+      const finalTarget = (pendingIndexRef.current ?? s.startIndex) + Math.round(momentumWords);
+      const clamped = Math.max(0, Math.min(finalTarget, stream.words.length - 1));
+      jumpTo(clamped);
+    }
+  };
+
+  const onSwipeCancel = (e: React.PointerEvent) => {
+    const s = swipeRef.current;
+    if (!s.active) return;
+    s.active = false;
+    s.locked = false;
+    setDragging(false);
+    setDragX(0);
+    if (s.pointerId !== null) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(s.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    if (pendingIndexRef.current !== null) {
+      jumpTo(pendingIndexRef.current);
+    }
+  };
 
   const onViewportClick = () => {
-    // If a swipe just happened, ignore the trailing click.
+    // If a swipe was active or just completed, do not toggle playback
     if (swipedRef.current) {
       swipedRef.current = false;
       return;
@@ -344,11 +459,7 @@ const onSwipeEnd = (e: React.PointerEvent) => {
             onPointerDown={onSwipeStart}
             onPointerMove={onSwipeMove}
             onPointerUp={onSwipeEnd}
-            onPointerCancel={() => {
-              swipeStartRef.current = null;
-              setDragging(false);
-              setDragX(0);
-            }}
+            onPointerCancel={onSwipeCancel}
             style={{
               flex: 1,
               overflow: "hidden",
@@ -367,7 +478,7 @@ const onSwipeEnd = (e: React.PointerEvent) => {
                 position: "absolute",
                 inset: 0,
                 transform: `translateX(${dragX}px)`,
-                transition: dragging ? "none" : "transform 0.25s ease-out",
+                transition: dragging ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                 pointerEvents: "none",
               }}
             >
