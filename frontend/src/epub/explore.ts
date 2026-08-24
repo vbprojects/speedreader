@@ -20,12 +20,17 @@ interface EpubBook {
   loaded: {
     metadata: Promise<Record<string, any>>;
     navigation: Promise<{ toc: any[] }>;
+    cover: Promise<string>;
+    manifest: Promise<Record<string, { href: string; type: string; properties: string[] }>>;
   };
   spine: {
     spineItems: Array<{ idref: string; index: number; href: string }>;
     get: (i: number) => { load: (req?: unknown) => Promise<HTMLElement> };
   };
   load: (path: string) => Promise<unknown>;
+  archive: {
+    getBlob: (url: string, mimeType?: string) => Promise<Blob>;
+  };
 }
 
 /**

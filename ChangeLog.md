@@ -4,6 +4,55 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-23 — Full-width collapsible bottom drawer & jump-to-word UX
+
+- **Full-width bottom drawer**: Reorganized `SpeedReader.tsx` layout into a vertical flex container. The collapsible bottom drawer is now a full-width bottom bar (spanning 100% of the viewport width when the left navigation drawer is collapsed).
+- **Collapsible on both desktop and mobile**: Added an interactive toggle handle to minimize / expand the bottom controls across all screen sizes.
+- **Scrubber jumping fix**: Fixed horizontal layout jumping by moving the word count percentage label to sit **after** the `SeekBar` scrubber rather than before it.
+- **Jump to word number dialog**:
+  - Clicking the word count label (`word X / Y (Z%)`) opens an interactive "Jump to Word" dialog/modal.
+  - On mobile devices, utilizes numeric keyboard inputs (`inputMode="numeric"`, `pattern="[0-9]*"`).
+  - Handles bounds checking gracefully (values $\le 1$ jump to the beginning, values $\ge \text{total}$ jump to the end).
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
+## 2026-08-23 — Added Bayesian conjugate adaptive pacing model
+
+- **`pacing/bayesian.ts`** — implemented online Bayesian parameter estimation with exponential memory discounting (Shifted Poisson–Gamma model).
+  - Prior: $\lambda \sim \text{Gamma}(\alpha_0 = 50, \beta_0 = 10) \implies \hat{\mu}_0 = 6.0\text{ chars/word}$.
+  - Discount factor: $\gamma = 0.98$ ($\approx 50$-word effective window).
+  - Online step: computes local $\hat{\mu}_t = 1 + \frac{\alpha_{t-1}}{\beta_{t-1}}$, assigns base duration $T_t = \frac{60000}{W \cdot \hat{\mu}_t} \cdot L_t$ (ms) plus boundary pauses, then updates $\alpha_t = \gamma \alpha_{t-1} + (L_t - 1)$ and $\beta_t = \gamma \beta_{t-1} + 1$.
+- **`pacing/select.ts` & `pacing/index.ts`** — registered `bayesian` alongside `naive` in the backend registry.
+- **`settings/` & `reader/`** — added `pacingModel: "naive" | "bayesian"` to settings and UI dropdown in `SettingsPanel.tsx`, wired into `ReaderScreen.tsx`.
+- **`experiments/test-bayesian-pacing.mts`** — synthetic and full-book test suite verifying math, discounting, resets, and throughput stability on *Pride and Prejudice*.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all experiment test suites pass.
+
+---
+
+## 2026-08-23 — PWA library import, cover tiles, and durable reader state
+
+- **PWA-first library**: replaced the single-open-book flow with an IndexedDB-backed library. Books persist across reloads and offline reopen.
+- **`db/` module (new)** — `types.ts` defines the async `Db` interface (`getBook`/`getBooks`/`addBook`/`updateBook`/`deleteBook`, `getStream`/`saveStream`, `getReaderState`/`saveReaderState`/`deleteReaderState`, `deleteBookCascade`). `indexeddb.ts` is the first adapter (versioned DB `speedreader`, stores `books`/`streams`/`readerStates`). `index.ts` is the `createDb()` factory.
+- **`library/` module (new)** — `hash.ts` (SHA-256 book id via `crypto.subtle`), `types.ts` (`Book`, `ImportResult`, `OpenableBook`), `store.ts` (`LibraryStore`: import with dedupe, list, open-by-id cached rehydrate, reader-state get/save, cascade remove). `LibraryView.tsx` renders the grid, empty/loading/error states, cover tiles, title footer, and progress badge.
+- **Cover extraction** — `Parser.getBookInfo(file) → { title, author, cover? }` added to `ingestion/types.ts`; `EpubParser.getBookInfo` reads title/creator from package metadata and cover art via `book.loaded.cover` → `archive.getBlob`. Books without a usable cover render a deterministic styled **title card**; a **title footer** shows on every tile.
+- **Remove-only context menu** — `ContextMenu.tsx` (right-click on desktop, ~500ms long-press on touch, cancels on movement/release/cancel) + `ConfirmDialog.tsx` (confirmation required). Confirmed removal cascades through book + stream + reader state in one IndexedDB transaction.
+- **Reader rehydration** — `ReaderApp.tsx` is now the coordinator: loads the library on mount, imports (opens fresh imports immediately), opens cached streams, hydrates saved position + per-book settings, and persists position **debounced (500ms)** plus flushed on reader exit / `visibilitychange` (hidden) / `pagehide`. Playback opens **paused** at the saved index.
+- **Settings split** — `settings/store.ts` now holds **global** settings only (localStorage, synchronous for startup). Per-book settings + positions moved to IndexedDB keyed by the SHA-256 book id (replacing the old synthetic `book-…` id and the `speedreader.positions.v1` localStorage key).
+- **Decisions**: PWA-first/offline-first is the target; Tauri remains a compatible shell with no native-specific work. EPUB is the only import format for now. Old synthetic localStorage positions can't be safely mapped to SHA-256 ids, so they're not migrated.
+- Verified: `npx tsc --noEmit` + `npm run build` pass (PWA v1.3.0, 15 precached entries).
+
+---
+
+## 2026-08-23 — Fixed reader position resets
+
+- **`display/SpeedReader.tsx`** — seeds each newly created `SelfCorrectingClock` with the current/restored index. Previously, a paused clock retained its internal default index of `0`, so changing WPM or another pacing setting could display the saved word briefly but resume from the beginning.
+- **`ReaderApp.tsx`** — serializes IndexedDB reader-state writes, clears pending debounce timers when leaving a reader, and awaits the final state flush before returning to the library. This prevents an older asynchronous write from overwriting a newer position.
+- **`experiments/test-display.mts`** — added a regression check for restoring and resuming from a non-zero paused index.
+- Verified: display regression test, `npx tsc --noEmit`, and `npm run build` pass. The PWA build continues to generate the service worker and precache entries.
+
+---
+
 ## 2026-08-21 — Reader state persistence (resume position)
 
 - Books now **resume where you left off**: reopening an EPUB jumps to the saved word index.

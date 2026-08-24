@@ -69,7 +69,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [chunkStart, setChunkStart] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(true);
+  const [jumpDialogOpen, setJumpDialogOpen] = useState(false);
+  const [jumpInputVal, setJumpInputVal] = useState("");
   const isMobile = useMediaQuery("(max-width: 640px)");
   const clockRef = useRef<SelfCorrectingClock | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -138,6 +140,10 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       onEnd: () => setRunning(false),
     });
     clockRef.current = clock;
+    // `SelfCorrectingClock` starts with an internal index of 0. Seed it with
+    // the restored/current position even when playback is paused; otherwise a
+    // later resume (or a duration change) would silently restart from 0.
+    clock.seek(prevIndex);
     // Show the current word immediately (preserve position across re-creates).
     setFrame(buildFrame(stream.words, prevIndex, cfgRef.current));
     setProgress(stream.words.length ? prevIndex / stream.words.length : 0);
@@ -270,151 +276,180 @@ const onSwipeEnd = (e: React.PointerEvent) => {
     toggle();
   };
 
+  const handleOpenJump = () => {
+    setJumpInputVal(String((frame?.index ?? clockRef.current?.index ?? 0) + 1));
+    setJumpDialogOpen(true);
+  };
+
+  const handleJumpSubmit = (raw: string) => {
+    setJumpDialogOpen(false);
+    const cleaned = raw.trim();
+    if (!cleaned) return;
+    const num = parseInt(cleaned, 10);
+    if (isNaN(num)) return;
+    // 1-based word number to 0-based index:
+    // If < 1, moves to first (0). If > length, moves to latest (length - 1).
+    const targetIndex = Math.max(0, Math.min(num - 1, stream.words.length - 1));
+    seekTo(targetIndex);
+  };
+
   if (!frame) return null;
 
   return (
-    <div style={{ display: "flex", height: "100%", background: themeStyle.bg, color: themeStyle.fg, fontFamily, overflow: "hidden" }}>
-      {/* Navigation tree — left sidebar, collapsible */}
-      {showNav && (
-        <div style={{ display: "flex", height: "100%" }}>
-          {!navCollapsed && (
-            <NavTreeView
-              stream={stream}
-              currentIndex={frame.index}
-              onSeek={seekTo}
-              maxDepth={navMaxDepth}
-              theme={theme}
-            />
-          )}
-          {/* Collapse toggle rail */}
-          <button
-            onClick={onToggleNav}
-            title={navCollapsed ? "Expand navigation" : "Collapse navigation"}
-            style={{
-              width: 22,
-              alignSelf: "flex-start",
-              marginTop: 8,
-              background: "transparent",
-              border: "none",
-              color: themeStyle.muted,
-              cursor: "pointer",
-              fontSize: 14,
-              padding: "4px 0",
-            }}
-          >
-            {navCollapsed ? "▸" : "◂"}
-          </button>
-        </div>
-      )}
-
-      {/* Reader column: pinned text block + controls */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {/* The reading viewport. The paragraph is TRANSLATED so the current
-            word sits at the exact center of this viewport — a fixed focal
-            point, so the reader's eye never moves. Context flows around it.
-            Clicking anywhere toggles play/pause. */}
-        <div
-          ref={scrollRef}
-          onClick={onViewportClick}
-          onPointerDown={onSwipeStart}
-          onPointerMove={onSwipeMove}
-          onPointerUp={onSwipeEnd}
-          onPointerCancel={() => {
-            swipeStartRef.current = null;
-            setDragging(false);
-            setDragX(0);
-          }}
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            position: "relative",
-            boxSizing: "border-box",
-            cursor: "pointer",
-            touchAction: "none", // let us handle horizontal swipes
-          }}
-        >
-          {/* Drag wrapper: carries the swipe offset + settle transition.
-              Kept separate from the <p> so the centering transform below has
-              NO transition — otherwise the centering useLayoutEffect would
-              measure mid-animation and the word would never settle centered. */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              transform: `translateX(${dragX}px)`,
-              transition: dragging ? "none" : "transform 0.25s ease-out",
-              pointerEvents: "none",
-            }}
-          >
-            <p
-              style={{
-                fontSize,
-                lineHeight: 1.8,
-                margin: 0,
-                position: "absolute",
-                left: "50%",
-                top: "50%",
-                width: "70ch",
-                maxWidth: "80%",
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-                overflowWrap: "normal",
-                wordBreak: "normal",
-              }}
-            >
-              {chunkWords.map((w) =>
-                w.index === frame.index ? (
-                  <span
-                    key={w.index}
-                    ref={currentWordRef}
-                    style={{
-                      color: themeStyle.highlightFg,
-                      background: themeStyle.highlight,
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                    }}
-                  >
-                    {w.text}
-                  </span>
-                ) : (
-                  <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
-                )
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* Controls — inline row on desktop, collapsible bottom drawer on mobile */}
-        {isMobile ? (
-          <div
-            style={{
-              borderTop: `1px solid ${themeStyle.border}`,
-              background: themeStyle.panel,
-            }}
-          >
-            {/* Drawer handle / toggle */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: themeStyle.bg, color: themeStyle.fg, fontFamily, overflow: "hidden" }}>
+      {/* Top area: Nav tree + Reading viewport */}
+      <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
+        {/* Navigation tree — left sidebar, collapsible */}
+        {showNav && (
+          <div style={{ display: "flex", height: "100%", flexShrink: 0 }}>
+            {!navCollapsed && (
+              <NavTreeView
+                stream={stream}
+                currentIndex={frame.index}
+                onSeek={seekTo}
+                maxDepth={navMaxDepth}
+                theme={theme}
+              />
+            )}
+            {/* Collapse toggle rail */}
             <button
-              onClick={() => setDrawerOpen((o) => !o)}
-              aria-expanded={drawerOpen}
+              onClick={onToggleNav}
+              title={navCollapsed ? "Expand navigation" : "Collapse navigation"}
               style={{
-                width: "100%",
-                padding: "8px 0",
+                width: 22,
+                alignSelf: "flex-start",
+                marginTop: 8,
                 background: "transparent",
                 border: "none",
                 color: themeStyle.muted,
-                fontSize: 13,
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
+                fontSize: 14,
+                padding: "4px 0",
               }}
             >
-              <span>{running ? "Pause" : "Play"}</span>
-              <span style={{ fontSize: 10 }}>{drawerOpen ? "▾" : "▴"}</span>
+              {navCollapsed ? "▸" : "◂"}
             </button>
-            {drawerOpen && (
-              <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
-                {/* Transport buttons */}
+          </div>
+        )}
+
+        {/* Reader viewport column */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
+          {/* The reading viewport. The paragraph is TRANSLATED so the current
+              word sits at the exact center of this viewport — a fixed focal
+              point, so the reader's eye never moves. Context flows around it.
+              Clicking anywhere toggles play/pause. */}
+          <div
+            ref={scrollRef}
+            onClick={onViewportClick}
+            onPointerDown={onSwipeStart}
+            onPointerMove={onSwipeMove}
+            onPointerUp={onSwipeEnd}
+            onPointerCancel={() => {
+              swipeStartRef.current = null;
+              setDragging(false);
+              setDragX(0);
+            }}
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              position: "relative",
+              boxSizing: "border-box",
+              cursor: "pointer",
+              touchAction: "none", // let us handle horizontal swipes
+            }}
+          >
+            {/* Drag wrapper: carries the swipe offset + settle transition.
+                Kept separate from the <p> so the centering transform below has
+                NO transition — otherwise the centering useLayoutEffect would
+                measure mid-animation and the word would never settle centered. */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                transform: `translateX(${dragX}px)`,
+                transition: dragging ? "none" : "transform 0.25s ease-out",
+                pointerEvents: "none",
+              }}
+            >
+              <p
+                style={{
+                  fontSize,
+                  lineHeight: 1.8,
+                  margin: 0,
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: "70ch",
+                  maxWidth: "80%",
+                  transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                  overflowWrap: "normal",
+                  wordBreak: "normal",
+                }}
+              >
+                {chunkWords.map((w) =>
+                  w.index === frame.index ? (
+                    <span
+                      key={w.index}
+                      ref={currentWordRef}
+                      style={{
+                        color: themeStyle.highlightFg,
+                        background: themeStyle.highlight,
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                      }}
+                    >
+                      {w.text}
+                    </span>
+                  ) : (
+                    <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
+                  )
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom controls drawer — collapsible across both desktop & mobile, full width when left drawer is collapsed */}
+      <div
+        style={{
+          borderTop: `1px solid ${themeStyle.border}`,
+          background: themeStyle.panel,
+          flexShrink: 0,
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* Minimize / expand toggle handle */}
+        <button
+          onClick={() => setControlsOpen((o) => !o)}
+          aria-expanded={controlsOpen}
+          title={controlsOpen ? "Minimize controls" : "Expand controls"}
+          style={{
+            width: "100%",
+            padding: "4px 12px",
+            background: "transparent",
+            border: "none",
+            color: themeStyle.muted,
+            fontSize: 12,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 500 }}>
+            {controlsOpen ? "Hide Controls" : (running ? "Playing · Show Controls" : "Paused · Show Controls")}
+          </span>
+          <span style={{ fontSize: 10 }}>{controlsOpen ? "▾" : "▴"}</span>
+        </button>
+
+        {controlsOpen && (
+          <div style={{ padding: isMobile ? "0 16px 12px" : "6px 16px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {isMobile ? (
+              <>
+                {/* Mobile transport buttons */}
                 <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center" }}>
                   <button
                     onClick={() => seek(-1)}
@@ -439,10 +474,60 @@ const onSwipeEnd = (e: React.PointerEvent) => {
                   </button>
                 </div>
                 {/* Full-width scrub bar */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+                  <SeekBar
+                    value={frame.index}
+                    max={stream.words.length - 1}
+                    onSeek={seekTo}
+                    maxWidth="100%"
+                    colors={{
+                      track: themeStyle.border,
+                      fill: themeStyle.highlight,
+                      thumb: themeStyle.highlightFg,
+                      thumbBorder: themeStyle.highlight,
+                    }}
+                  />
+                </div>
+                {/* Word count percentage placed AFTER scrubber, clickable to jump */}
+                <div style={{ textAlign: "center" }}>
+                  <button
+                    onClick={handleOpenJump}
+                    title="Click to jump to word number"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: themeStyle.muted,
+                      fontSize: 12,
+                      cursor: "pointer",
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      textDecoration: "underline",
+                      textDecorationStyle: "dotted",
+                    }}
+                  >
+                    word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Desktop layout: transport buttons, full scrubber, then word count percentage AFTER scrubber */
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                <button onClick={toggle} style={{ minWidth: 70 }}>{running ? "Pause" : "Play"}</button>
+                <button onClick={() => seek(-1)}>◀</button>
+                <button onClick={() => seek(1)}>▶</button>
                 <SeekBar
                   value={frame.index}
                   max={stream.words.length - 1}
                   onSeek={seekTo}
+                  maxWidth="100%"
                   colors={{
                     track: themeStyle.border,
                     fill: themeStyle.highlight,
@@ -450,42 +535,143 @@ const onSwipeEnd = (e: React.PointerEvent) => {
                     thumbBorder: themeStyle.highlight,
                   }}
                 />
-                <div style={{ color: themeStyle.muted, fontSize: 12, textAlign: "center" }}>
-                  word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)
-                </div>
+                {/* Word count percentage placed AFTER scrubber, clickable to jump */}
+                <button
+                  onClick={handleOpenJump}
+                  title="Click to jump to word number"
+                  style={{
+                    background: "transparent",
+                    border: `1px solid transparent`,
+                    color: themeStyle.muted,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.border = `1px solid ${themeStyle.border}`;
+                    e.currentTarget.style.color = themeStyle.fg;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.border = "1px solid transparent";
+                    e.currentTarget.style.color = themeStyle.muted;
+                  }}
+                >
+                  <span>word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)</span>
+                  <span style={{ fontSize: 10 }}>✎</span>
+                </button>
               </div>
             )}
           </div>
-        ) : (
-          <div
-            style={{
-              padding: "10px 16px",
-              borderTop: `1px solid ${themeStyle.border}`,
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
-            }}
-          >
-            <button onClick={toggle}>{running ? "Pause" : "Play"}</button>
-            <button onClick={() => seek(-1)}>◀</button>
-            <button onClick={() => seek(1)}>▶</button>
-            <span style={{ color: themeStyle.muted, fontSize: 13 }}>
-              word {frame.index + 1} / {stream.words.length} ({Math.round(progress * 100)}%)
-            </span>
-            <SeekBar
-              value={frame.index}
-              max={stream.words.length - 1}
-              onSeek={seekTo}
-              colors={{
-                track: themeStyle.border,
-                fill: themeStyle.highlight,
-                thumb: themeStyle.highlightFg,
-                thumbBorder: themeStyle.highlight,
-              }}
-            />
-          </div>
         )}
       </div>
+
+      {/* Jump to Word Number Modal / Input Dialog */}
+      {jumpDialogOpen && (
+        <div
+          onClick={() => setJumpDialogOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: isMobile ? "min(90vw, 320px)" : "360px",
+              borderRadius: 16,
+              border: `1px solid ${themeStyle.border}`,
+              background: `${themeStyle.panel}f2`,
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              padding: 20,
+              color: themeStyle.fg,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              fontFamily,
+            }}
+          >
+            <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Jump to Word</h3>
+            <p style={{ margin: "0 0 16px", color: themeStyle.muted, fontSize: 13 }}>
+              Enter a word number between 1 and {stream.words.length.toLocaleString()}:
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleJumpSubmit(jumpInputVal);
+              }}
+            >
+              <input
+                type="number"
+                min={1}
+                max={stream.words.length}
+                autoFocus
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={jumpInputVal}
+                onChange={(e) => setJumpInputVal(e.target.value)}
+                placeholder={`1 - ${stream.words.length}`}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${themeStyle.border}`,
+                  background: themeStyle.bg,
+                  color: themeStyle.fg,
+                  fontSize: 16,
+                  outline: "none",
+                  marginBottom: 16,
+                }}
+              />
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setJumpDialogOpen(false)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: `1px solid ${themeStyle.border}`,
+                    background: themeStyle.panel,
+                    color: themeStyle.fg,
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: themeStyle.highlight,
+                    color: themeStyle.highlightFg,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  Jump
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -497,11 +683,13 @@ function SeekBar({
   value,
   max,
   onSeek,
+  maxWidth = 320,
   colors,
 }: {
   value: number;
   max: number;
   onSeek: (index: number) => void;
+  maxWidth?: string | number;
   colors: { track: string; fill: string; thumb: string; thumbBorder: string };
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -563,7 +751,7 @@ function SeekBar({
       }}
       style={{
         flex: 1,
-        maxWidth: 320,
+        maxWidth,
         height: 16,
         display: "flex",
         alignItems: "center",

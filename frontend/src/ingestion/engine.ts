@@ -24,9 +24,14 @@ export class IngestionEngine {
     return this.parsers.map((p) => p.format);
   }
 
+  /** The parser that would handle a file, or null if none. */
+  parserFor(file: FileInfo): Parser | null {
+    return this.parsers.find((p) => p.canParse(file)) ?? null;
+  }
+
   /** Parse a file into a flat WordStream using the first matching parser. */
   async ingest(file: FileInfo): Promise<WordStream> {
-    const parser = this.parsers.find((p) => p.canParse(file));
+    const parser = this.parserFor(file);
     if (!parser) throw new UnsupportedFormatError(file);
     return parser.parse(file);
   }

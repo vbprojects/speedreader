@@ -110,17 +110,21 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
 
 ##### Import & persistence flow (decision)
 
-- **Book identity**: `bookId = hash(fileBytes)` (SHA-256 via `crypto.subtle`). Deterministic — re-importing the same file **dedupes** instead of duplicating. `parserVersion` is stored with each book so a parser change triggers re-ingest.
-- **Metadata extraction**: the `Parser` interface gains an optional `getBookInfo(file) → { title, author }`. `EpubParser` implements it via `book.loaded.metadata` (title, creator); fallback is the filename.
+- **Book identity**: `bookId = SHA-256(fileBytes)` via `crypto.subtle`. Deterministic — re-importing the same file **dedupes** instead of duplicating. `parserVersion` is stored with each book so a parser change triggers re-ingest.
+- **Metadata extraction**: the `Parser` interface gains an optional `getBookInfo(file) → { title, author, cover? }`. `EpubParser` implements it via `book.loaded.metadata` (title, creator) + `book.loaded.cover` (cover art); fallback is the filename.
+- **Cover extraction**: EPUB cover art is resolved via epubjs (`loaded.cover` → `archive.getBlob`), stored as a browser-safe `Blob`. Books without a usable cover render a deterministic styled **title card**; a **title footer** is shown on every library tile.
 - **Storage — IndexedDB (first `db` adapter)**:
   - **Why IndexedDB, not localStorage**: localStorage has a ~5MB limit; a 130k-word stream is ~1.5–2MB JSON, so multiple books exceed it. IndexedDB handles large blobs, is async, and uses structured clone.
   - DB `speedreader`, object stores:
-    - `books` (keyPath `id`) — metadata: title, author, format, addedAt, wordCount, chapterCount.
+    - `books` (keyPath `id`) — metadata: title, author, format, addedAt, wordCount, chapterCount, parserVersion, cover.
     - `streams` (keyPath `bookId`) — the full `WordStream` (words + chapterIndex + meta).
-  - Settings stay in localStorage (small). This is the foundation of the `db` abstraction (IndexedDB adapter).
-- **Import flow**: pick file → `engine.ingest(file)` → `WordStream` → `parser.getBookInfo(file)` → title/author → `bookId = hash(bytes)` → `libraryStore.addBook(book, stream)` → library refreshes.
-- **Launch flow**: click book → `libraryStore.getStream(bookId)` → **cached** = instant rehydrate (no re-parse); **missing** (parser version bump) = prompt re-import (storing source bytes deferred) → mount `SpeedReader`.
-- **Deferred**: storing source file bytes (enables automatic re-ingest on parser change), cover images, per-book progress display (M5).
+    - `readerStates` (keyPath `bookId`) — durable per-book reader state: `{ position, lastOpenedAt, settings }`.
+  - Global settings stay in localStorage (small, synchronous — needed at startup). Per-book settings + positions live in IndexedDB keyed by the stable book id.
+- **Import flow**: pick file → `engine.ingest(file)` → `WordStream` → `parser.getBookInfo(file)` → title/author/cover → `bookId = SHA-256(bytes)` → `libraryStore.importFile` persists book + stream → library refreshes.
+- **Launch flow**: click book → `libraryStore.openBook(bookId)` → **cached** = instant rehydrate (no re-parse); **missing** (parser version bump) = prompt re-import → mount `ReaderScreen`.
+- **Reader state lifecycle**: position + per-book settings are persisted to IndexedDB **debounced** (500ms) while reading, **plus flushed** on reader exit, `visibilitychange` (hidden), and `pagehide`. Reopening a book hydrates the saved position (playback starts **paused** at that index) and effective per-book settings.
+- **Removal**: right-click (desktop) or long-press (touch) on a tile opens a themed context menu with a single **"Remove from library"** action. Confirmation is required; confirmed removal cascades through book + stream + reader state in one IndexedDB transaction.
+- **Deferred**: storing source file bytes (enables automatic re-ingest on parser change), chunked/lazy streams, bookmarks, cover editing.
 
 #### 6. Reader Component (One per Book)
 - **Responsibility**: A single, self-contained reader for one book. Owns the word stream, pacing engine, display, and reading state.
@@ -204,56 +208,61 @@ SQLite is inherently cross-platform, but **where the database file lives** deter
 ```
 speedreader/
 ├── package.json
-├── server/                 # Node.js backend
+├── server/                 # Node.js backend (optional, not yet built)
 │   ├── index.js            # Express app
 │   ├── routes/books.js
 │   └── cache/              # SQLite / disk cache
-├── src/                    # Shared / frontend code
-│   ├── db/
-│   │   ├── index.js        # factory: createDb(type)
-│   │   ├── server-sqlite.js  # better-sqlite3 adapter (backend)
-│   │   ├── wasm-sqlite.js    # sql.js adapter (browser)
-│   │   ├── indexeddb.js      # IndexedDB adapter (browser)
-│   │   └── schema.js         # shared table/object-store schema
-│   ├── ingestion/
-│   │   ├── index.js        # dispatcher
-│   │   ├── epub.js
-│   │   ├── pdf.js
-│   │   └── normalize.js    # → WordStream
-│   ├── pacing/
-│   │   ├── engine.js       # calls PacingFn, manages clock
-│   │   ├── select.js       # selectBackend(name) factory
-│   │   ├── length.js       # default length-based backend
-│   │   ├── syllables.js    # syllable-splitting backend
-│   │   └── bayesian.js     # Bayesian conjugate model backend
-│   ├── display/
-│   │   ├── renderer.js     # word + context rendering
-│   │   └── clock.js        # timer loop
-│   ├── settings/
-│   │   ├── types.js        # GlobalSettings, ReaderSettings, merge
-│   │   ├── store.js        # SettingsStore (global + per-reader, persisted)
-│   │   └── SettingsPanel.jsx # reusable settings form
-│   ├── library/
-│   │   ├── types.js        # Book metadata
-│   │   ├── store.js        # LibraryStore (IndexedDB: books + streams)
-│   │   └── LibraryView.jsx # grid/list UI + import + launch
-│   ├── db/
-│   │   ├── index.js        # factory: createDb(type)
-│   │   ├── indexeddb.js    # IndexedDB adapter (browser) — first adapter
-│   │   ├── wasm-sqlite.js  # sql.js adapter (browser, later)
-│   │   ├── server-sqlite.js  # better-sqlite3 adapter (backend, later)
-│   │   └── schema.js       # shared table/object-store schema
-│   ├── reader/
-│   │   ├── reader.js       # one Reader per book (init/reinit from SQLite)
-│   │   └── view.js         # reader UI (word flash, controls)
-│   ├── platform/
-│   │   ├── detect.js       # OS/platform detection
-│   │   └── tokens.js       # per-platform design tokens (fonts, colors, spacing)
-│   └── ui/
-│       ├── app.js            # root: library hosts reader views
-│       └── components/       # controls, settings
-├── public/                 # static assets
-├── src-tauri/              # Tauri shell + Rust commands (desktop + mobile)
+├── frontend/               # Vite + React + TypeScript (PWA-first)
+│   ├── src/
+│   │   ├── db/
+│   │   │   ├── index.ts        # factory: createDb(type)
+│   │   │   ├── indexeddb.ts    # IndexedDB adapter (browser) — first adapter
+│   │   │   ├── wasm-sqlite.ts  # sql.js adapter (browser, later)
+│   │   │   ├── server-sqlite.ts  # better-sqlite3 adapter (backend, later)
+│   │   │   └── types.ts        # shared Db interface + Book/ReaderState
+│   │   ├── ingestion/
+│   │   │   ├── index.ts        # dispatcher
+│   │   │   ├── engine.ts       # IngestionEngine (parser selection)
+│   │   │   ├── epub-parser.ts  # EpubParser (TOC→stream + getBookInfo/cover)
+│   │   │   ├── pdf.ts          # (later)
+│   │   │   ├── normalize.ts    # → WordStream
+│   │   │   └── file-source.ts  # browser/iOS file picker
+│   │   ├── pacing/
+│   │   │   ├── engine.ts       # calls PacingFn, manages clock
+│   │   │   ├── select.ts       # selectBackend(name) factory
+│   │   │   ├── naive.ts        # default length-based backend
+│   │   │   ├── syllables.ts    # (later)
+│   │   │   └── bayesian.ts     # (later)
+│   │   ├── display/
+│   │   │   ├── renderer.ts     # word + context rendering
+│   │   │   ├── clock.ts        # self-correcting timer loop
+│   │   │   └── SpeedReader.tsx # reading view
+│   │   ├── settings/
+│   │   │   ├── types.ts        # GlobalSettings, ReaderSettings, merge
+│   │   │   ├── store.ts        # SettingsStore (global, localStorage)
+│   │   │   ├── SettingsPanel.tsx
+│   │   │   └── SettingsModal.tsx
+│   │   ├── library/
+│   │   │   ├── types.ts        # Book metadata + import result
+│   │   │   ├── store.ts        # LibraryStore (IndexedDB: books + streams + state)
+│   │   │   ├── hash.ts         # SHA-256 book id
+│   │   │   ├── LibraryView.tsx # grid UI + import + launch + remove
+│   │   │   ├── ContextMenu.tsx # themed remove-only context menu
+│   │   │   └── ConfirmDialog.tsx
+│   │   ├── reader/
+│   │   │   ├── ReaderScreen.tsx # one reader per book (rehydrated)
+│   │   │   └── index.ts
+│   │   ├── navigation/
+│   │   │   ├── tree.ts         # buildNavTree from word metadata
+│   │   │   └── NavTreeView.tsx
+│   │   ├── epub/
+│   │   │   ├── types.ts        # Word/WordStream/Metadata
+│   │   │   └── explore.ts      # epubjs loading surface
+│   │   ├── ReaderApp.tsx       # root coordinator (library ↔ reader)
+│   │   ├── App.tsx
+│   │   └── main.tsx            # PWA SW registration
+│   ├── experiments/            # headless conformance tests + fixtures
+│   └── src-tauri/              # Tauri shell (compatible, not expanded)
 └── tests/
 ```
 
@@ -359,9 +368,13 @@ speedreader/
 
 ## Suggested Milestones
 
-1. **M1 — Core pipeline**: Ingestion (EPUB) → normalized stream → basic pacing → simple word-flash display. ✅ *mostly done — ingestion, pacing, display, settings wired.*
-2. **M2 — Library**: Book metadata store + library view that lists books and launches the reader. **In progress** — IndexedDB store (books + streams), import flow with hash-based dedupe, launch flow with cached rehydrate.
-3. **M3 — PDF support**: Add PDF parser; unify output with EPUB.
+1. **M1 — Core pipeline**: Ingestion (EPUB) → normalized stream → basic pacing → simple word-flash display. ✅ *done — ingestion, pacing, display, settings wired.*
+2. **M2 — Library**: Book metadata store + library view that lists books and launches the reader. ✅ *done — IndexedDB store (books + streams + reader state), import flow with SHA-256 dedupe, launch flow with cached rehydrate, cover tiles + title footer, remove-only context menu (right-click / long-press).*
+3. **M3 — PDF support**: Add PDF parser; unify output with EPUB. *Not started.*
 4. **M4 — Context window + highlighting**: Surrounding words, configurable window, styling. ✅ *done — adaptive + configurable window, themes.*
-5. **M5 — Caching & persistence**: Cache streams, save reading position, resume from library.
-6. **M6 — Polish**: Settings UI, keyboard controls, accessibility, packaging.
+5. **M5 — Caching & persistence**: Cache streams, save reading position, resume from library. ✅ *done — IndexedDB-backed library + reader state (position + per-book settings), debounced writes + flush on exit/visibilitychange/pagehide.*
+6. **M6 — Polish**: Settings UI, keyboard controls, accessibility, packaging. *Partial — settings UI + keyboard controls done; packaging deferred.*
+
+### Deployment note (PWA-first)
+
+The app is currently deployed as a **PWA** (offline-first, installable). Tauri remains a compatible shell (the same web codebase), but no native-specific persistence or dialog work is included yet. The `db` abstraction keeps the door open for a Tauri/desktop adapter later without changing Library/Reader code.

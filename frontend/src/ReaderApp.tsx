@@ -1,144 +1,243 @@
 // src/ReaderApp.tsx
-// Wires the full pipeline: pick file → IngestionEngine → PacingEngine → SpeedReader.
-// Uses a SettingsStore: global settings for the library view, per-reader
-// settings for each reader instance. A settings panel is available in both.
+// Root coordinator: owns the LibraryStore (IndexedDB-backed), the global
+// SettingsStore, and the current reader session. Handles import, open
+// (cached rehydrate), reader-state persistence (debounced + flushed), and
+// removal. Renders either the LibraryView or the ReaderScreen.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createDb } from "./db";
+import type { Book } from "./db";
 import { IngestionEngine, EpubParser, pickFileBrowser } from "./ingestion";
-import type { WordStream } from "./ingestion";
-import { PacingEngine, naiveBackend } from "./pacing";
-import { SpeedReader } from "./display";
-import { SettingsStore, SettingsModal, themeTokens } from "./settings";
-import type { GlobalSettings } from "./settings";
+import { LibraryStore } from "./library";
+import { LibraryView } from "./library/LibraryView";
+import { ReaderScreen } from "./reader";
+import { SettingsStore, mergeSettings } from "./settings";
+import type { GlobalSettings, ReaderSettings } from "./settings";
 
 export default function ReaderApp() {
-  const [stream, setStream] = useState<WordStream | null>(null);
+  // ---- Stores (created once) ----
+  const [settingsStore] = useState(() => new SettingsStore());
+  const [library] = useState(() => new LibraryStore(createDb("indexeddb"), new IngestionEngine([new EpubParser()])));
+
+  // ---- Global settings ----
+  const [global, setGlobal] = useState<GlobalSettings>(() => settingsStore.global);
+  useEffect(() => settingsStore.subscribe(() => setGlobal(settingsStore.global)), [settingsStore]);
+
+  // ---- Library state ----
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [positions, setPositions] = useState<Record<string, number>>({});
 
-  // Settings store (persists to localStorage).
-  const [store] = useState(() => new SettingsStore());
-  const [global, setGlobal] = useState<GlobalSettings>(() => store.global);
+  // ---- Reader session ----
+  const [openBookId, setOpenBookId] = useState<string | null>(null);
+  const [openStream, setOpenStream] = useState<import("./epub/types").WordStream | null>(null);
   const [readerSettings, setReaderSettings] = useState<GlobalSettings | null>(null);
+  const [initialIndex, setInitialIndex] = useState(0);
 
-  // Book id for per-reader settings (use the stream identity).
-  const bookId = stream ? `book-${stream.meta.totalWords}-${stream.chapterIndex.length}` : null;
+  // Debounced position persistence.
+  const positionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestPosition = useRef<number>(0);
+  const latestSettings = useRef<ReaderSettings>({});
+  // Serialize IndexedDB writes so an older async transaction cannot finish
+  // after and overwrite a newer reader position/settings snapshot.
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
-  // Subscribe to store changes.
-  useEffect(() => {
-    return store.subscribe(() => {
-      setGlobal(store.global);
-      if (bookId) setReaderSettings(store.forReader(bookId));
-    });
-  }, [store, bookId]);
-
-  // One engine instance for the app.
-  const engine = useMemo(() => new IngestionEngine([new EpubParser()]), []);
-
-  // Effective settings for the current reader (global + per-reader overrides).
-  const effective = bookId ? store.forReader(bookId) : global;
-
-  // Pacing engine recreated when effective WPM/pauses change.
-  const pacing = useMemo(
-    () =>
-      new PacingEngine({
-        backend: naiveBackend,
-        profile: {
-          wpm: effective.wpm,
-          sentencePauseMs: effective.sentencePauseMs,
-          paragraphPauseMs: effective.paragraphPauseMs,
-        },
-      }),
-    [effective.wpm, effective.sentencePauseMs, effective.paragraphPauseMs]
+  const enqueueReaderState = useCallback(
+    (bookId: string, position: number, settings: ReaderSettings): Promise<void> => {
+      const snapshot = {
+        bookId,
+        position,
+        lastOpenedAt: Date.now(),
+        settings: { ...settings },
+      };
+      saveQueue.current = saveQueue.current
+        .catch(() => undefined)
+        .then(() => library.saveReaderState(snapshot));
+      return saveQueue.current;
+    },
+    [library]
   );
 
-  async function handlePick() {
-    setBusy(true);
+  const refreshBooks = useCallback(async () => {
+    try {
+      const list = await library.getBooks();
+      setBooks(list);
+      // Load saved positions for progress display.
+      const pos: Record<string, number> = {};
+      for (const b of list) {
+        const st = await library.getReaderState(b.id);
+        if (st) pos[b.id] = st.position;
+      }
+      setPositions(pos);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [library]);
+
+  // Load the library on mount.
+  useEffect(() => {
+    refreshBooks();
+  }, [refreshBooks]);
+
+  // ---- Import ----
+  const handleImport = useCallback(async () => {
+    setImporting(true);
     setError(null);
     try {
       const file = await pickFileBrowser(".epub");
       if (!file) return;
-      const s = await engine.ingest(file);
-      setStream(s);
+      const result = await library.importFile(file);
+      await refreshBooks();
+      // If it was a fresh import, open it immediately.
+      if (!result.existed) {
+        await openBook(result.book.id);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setImporting(false);
     }
-  }
+  }, [library, refreshBooks]);
 
-  // ---- Library view (no book open) ----
-  if (!stream) {
-    const t = themeTokens(global.theme);
+  // ---- Open a book (cached rehydrate) ----
+  const openBook = useCallback(
+    async (bookId: string) => {
+      setError(null);
+      try {
+        const opened = await library.openBook(bookId);
+        if (!opened) {
+          setError("Book stream not found. Please re-import it.");
+          return;
+        }
+        // Hydrate reader state (position + per-book settings).
+        const state = await library.getReaderState(bookId);
+        const effective = mergeSettings(global, state?.settings);
+        setReaderSettings(effective);
+        setInitialIndex(state?.position ?? 0);
+        latestPosition.current = state?.position ?? 0;
+        latestSettings.current = state?.settings ?? {};
+        setOpenStream(opened.stream);
+        setOpenBookId(bookId);
+        // Update lastOpenedAt.
+        await enqueueReaderState(bookId, state?.position ?? 0, state?.settings ?? {});
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [enqueueReaderState, library, global]
+  );
+
+  // ---- Reader position change (debounced persist) ----
+  const handlePositionChange = useCallback(
+    (index: number) => {
+      latestPosition.current = index;
+      if (positionTimer.current) clearTimeout(positionTimer.current);
+      const bookId = openBookId;
+      if (!bookId) return;
+      positionTimer.current = setTimeout(() => {
+        positionTimer.current = null;
+        void enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+      }, 500);
+    },
+    [enqueueReaderState, openBookId]
+  );
+
+  // ---- Reader settings change ----
+  const handleSettingsChange = useCallback(
+    (patch: ReaderSettings) => {
+      if (!openBookId) return;
+      const next = { ...latestSettings.current, ...patch };
+      latestSettings.current = next;
+      setReaderSettings((prev) => (prev ? mergeSettings(prev, patch) : prev));
+      void enqueueReaderState(openBookId, latestPosition.current, next);
+    },
+    [enqueueReaderState, openBookId]
+  );
+
+  const handleSettingsReset = useCallback(() => {
+    if (!openBookId) return;
+    latestSettings.current = {};
+    setReaderSettings(global);
+    void enqueueReaderState(openBookId, latestPosition.current, {});
+  }, [enqueueReaderState, openBookId, global]);
+
+  // ---- Flush latest state on exit / visibility change / pagehide ----
+  const flushState = useCallback((): Promise<void> => {
+    if (positionTimer.current) {
+      clearTimeout(positionTimer.current);
+      positionTimer.current = null;
+    }
+    if (!openBookId) return Promise.resolve();
+    return enqueueReaderState(openBookId, latestPosition.current, latestSettings.current);
+  }, [enqueueReaderState, openBookId]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushState();
+    };
+    const onPageHide = () => flushState();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [flushState]);
+
+  // ---- Back to library ----
+  const handleBack = useCallback(async () => {
+    await flushState();
+    setOpenBookId(null);
+    setOpenStream(null);
+    setReaderSettings(null);
+    await refreshBooks();
+  }, [flushState, refreshBooks]);
+
+  // ---- Remove a book ----
+  const handleRemove = useCallback(
+    async (bookId: string) => {
+      setError(null);
+      try {
+        await library.removeBook(bookId);
+        await refreshBooks();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [library, refreshBooks]
+  );
+
+  // ---- Render ----
+  if (openStream && openBookId && readerSettings) {
     return (
-      <div style={{ fontFamily: global.fontFamily, textAlign: "center", padding: 48, background: t.bg, color: t.fg, minHeight: "100vh" }}>
-        <h1>Speedreader</h1>
-        <button onClick={handlePick} disabled={busy}>
-          {busy ? "Parsing..." : "Open an EPUB"}
-        </button>
-        <button onClick={() => setShowSettings((s) => !s)} style={{ marginLeft: 8 }}>
-          Settings
-        </button>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-
-        <SettingsModal
-          open={showSettings}
-          onClose={() => setShowSettings(false)}
-          settings={global}
-          onChange={(patch) => store.updateGlobal(patch)}
-          theme={global.theme}
-        />
-      </div>
+      <ReaderScreen
+        stream={openStream}
+        title={books.find((b) => b.id === openBookId)?.title ?? "Book"}
+        settings={readerSettings}
+        initialIndex={initialIndex}
+        onBack={handleBack}
+        onPositionChange={handlePositionChange}
+        onSettingsChange={handleSettingsChange}
+        onSettingsReset={handleSettingsReset}
+      />
     );
   }
 
-  // ---- Reader view ----
-  const t = themeTokens(global.theme);
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-      <div style={{ fontFamily: global.fontFamily, padding: "8px 16px", display: "flex", gap: 12, alignItems: "center", borderBottom: `1px solid ${t.border}`, background: t.panel, color: t.fg, flexShrink: 0 }}>
-        <button onClick={() => setStream(null)}>← Library</button>
-        <span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {stream.chapterIndex[0]?.title ?? "Book"}
-        </span>
-        <span style={{ color: t.muted, fontSize: 13 }} className="word-count">
-          {stream.meta.totalWords.toLocaleString()} words · {stream.chapterIndex.length} chapters
-        </span>
-        <button onClick={() => setShowSettings(true)}>Settings</button>
-      </div>
-
-      <SettingsModal
-        open={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={readerSettings ?? effective}
-        isReader
-        onChange={(patch) => bookId && store.updateReader(bookId, patch)}
-        onReset={() => bookId && store.resetReader(bookId)}
-        theme={effective.theme}
-      />
-
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <SpeedReader
-          stream={stream}
-          pacing={pacing}
-          config={{ wpm: effective.wpm }}
-          fontFamily={effective.fontFamily}
-          fontSize={effective.fontSize}
-          theme={effective.theme}
-          navCollapsed={navCollapsed}
-          onToggleNav={() => setNavCollapsed((c) => !c)}
-          initialIndex={bookId ? (store.getPosition(bookId)?.index ?? 0) : 0}
-          onPositionChange={(index) => bookId && store.setPosition(bookId, index)}
-        />
-      </div>
-
-      <style>{`
-        @media (max-width: 640px) {
-          .word-count { display: none !important; }
-        }
-      `}</style>
-    </div>
+    <LibraryView
+      books={books}
+      loading={loading}
+      importing={importing}
+      error={error}
+      theme={global.theme}
+      onImport={handleImport}
+      onOpen={openBook}
+      onRemove={handleRemove}
+      positions={positions}
+    />
   );
 }

@@ -3,23 +3,30 @@
 
 import type { PacingBackend } from "./types";
 import { naiveBackend } from "./naive";
+import { createBayesianBackend } from "./bayesian";
 
-const REGISTRY: Record<string, PacingBackend> = {
-  [naiveBackend.name]: naiveBackend,
+const REGISTRY: Record<string, () => PacingBackend> = {
+  [naiveBackend.name]: () => naiveBackend,
+  bayesian: () => createBayesianBackend(),
 };
 
 /** Select a pacing backend by name. Throws on unknown names. */
 export function selectBackend(name: string): PacingBackend {
-  const backend = REGISTRY[name];
-  if (!backend) {
+  const factory = REGISTRY[name];
+  if (!factory) {
     throw new Error(`Unknown pacing backend "${name}". Available: ${Object.keys(REGISTRY).join(", ")}`);
   }
-  return backend;
+  return factory();
 }
 
-/** Register an additional backend (e.g., syllables, bayesian later). */
-export function registerBackend(backend: PacingBackend): void {
-  REGISTRY[backend.name] = backend;
+/** Register an additional backend (e.g., syllables, custom models). */
+export function registerBackend(backend: PacingBackend | (() => PacingBackend)): void {
+  if (typeof backend === "function") {
+    const instance = backend();
+    REGISTRY[instance.name] = backend;
+  } else {
+    REGISTRY[backend.name] = () => backend;
+  }
 }
 
 /** List available backend names. */

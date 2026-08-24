@@ -3,6 +3,7 @@
 // Per-reader settings override global ones for that reader instance.
 
 export type Theme = "light" | "dark" | "sepia" | "high-contrast";
+export type PacingAlgorithm = "naive" | "bayesian";
 
 /** Global settings — apply to the whole app / library view. */
 export interface GlobalSettings {
@@ -17,6 +18,8 @@ export interface GlobalSettings {
   sentencePauseMs: number;
   /** Paragraph pause (ms). */
   paragraphPauseMs: number;
+  /** Pacing algorithm model. */
+  pacingModel: PacingAlgorithm;
 }
 
 /** Per-reader settings — override global for one reader instance. */
@@ -25,21 +28,6 @@ export type ReaderSettings = Partial<GlobalSettings>;
 /** The full settings state: global + per-reader overrides. */
 export interface SettingsState {
   global: GlobalSettings;
-  /** Keyed by book id (or stream id). */
-  perReader: Record<string, ReaderSettings>;
-}
-
-/** A saved reading position for a book. */
-export interface ReaderPosition {
-  /** Word index in the stream. */
-  index: number;
-  /** When the position was last saved (epoch ms). */
-  updatedAt: number;
-}
-
-/** The full reader-state map: book id → saved position. */
-export interface ReaderStateMap {
-  positions: Record<string, ReaderPosition>;
 }
 
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
@@ -49,6 +37,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   wpm: 600,
   sentencePauseMs: 150,
   paragraphPauseMs: 200,
+  pacingModel: "naive",
 };
 
 /** Merge per-reader overrides onto global settings → effective settings. */

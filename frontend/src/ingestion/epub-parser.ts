@@ -7,7 +7,7 @@
 //   - map TOC anchors (href#fragment) → word indices
 //   - build chapter_index + assign chapterIds via shared normalize helpers
 
-import type { FileInfo, Parser, Word, WordStream } from "./types";
+import type { FileInfo, Parser, Word, WordStream, BookInfo } from "./types";
 import { buildChapterIndex, assignChapterIds, computeMeta, type TocEntry } from "./normalize";
 import { openBook } from "../epub/explore";
 
@@ -110,6 +110,34 @@ export class EpubParser implements Parser {
 
   canParse(file: FileInfo): boolean {
     return file.extension === "epub" || file.mimeType === "application/epub+zip";
+  }
+
+  /**
+   * Extract book metadata (title, author, optional cover). Falls back to the
+   * filename for title/author when the package metadata is missing.
+   */
+  async getBookInfo(file: FileInfo): Promise<BookInfo> {
+    const book = openBook(file.data);
+    await book.ready;
+
+    const raw = await book.loaded.metadata;
+    const title = (raw.title as string)?.trim() || file.name.replace(/\.epub$/i, "");
+    const author = (raw.creator as string)?.trim() || "Unknown author";
+
+    let cover: BookInfo["cover"];
+    try {
+      const coverPath = await book.loaded.cover;
+      if (coverPath) {
+        const blob = await book.archive.getBlob(coverPath);
+        if (blob && blob.size > 0) {
+          cover = { blob, mimeType: blob.type || "image/jpeg" };
+        }
+      }
+    } catch {
+      // No usable cover — leave undefined (library renders a title card).
+    }
+
+    return { title, author, cover };
   }
 
   async parse(file: FileInfo): Promise<WordStream> {

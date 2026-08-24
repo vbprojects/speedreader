@@ -42,6 +42,19 @@ async function main() {
   console.log("ticks:", ticks.join(","));
   console.log("final index:", clock.index, "running:", clock.running);
   clock.destroy();
+
+  // --- Restored paused position ---
+  // This mirrors SpeedReader's initialization path: the clock must retain a
+  // non-zero restored index even before playback starts.
+  const restored = new SelfCorrectingClock({
+    durations: [100, 100, 100, 100, 100],
+    onTick: () => undefined,
+  });
+  restored.seek(3);
+  console.log("\nRestored paused index:", restored.index === 3 ? "PASS" : `FAIL (${restored.index})`);
+  restored.resume();
+  console.log("Resume keeps restored index:", restored.index === 3 ? "PASS" : `FAIL (${restored.index})`);
+  restored.destroy();
 }
 
 main().catch((e) => {

@@ -2,7 +2,7 @@
 // Reusable settings form. Used for both global (library) settings and
 // per-reader (local) settings. Calls onChange with partial updates.
 
-import type { GlobalSettings, ReaderSettings, Theme } from "./types";
+import type { GlobalSettings, PacingAlgorithm, ReaderSettings, Theme } from "./types";
 import { themeTokens } from "./themes";
 
 export interface SettingsPanelProps {
@@ -67,6 +67,17 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
           {FONTS.map((f) => (
             <option style={optionStyle} key={f} value={f}>{f.split(",")[0]}</option>
           ))}
+        </select>
+      </Field>
+
+      <Field label="Pacing Model" color={t.muted}>
+        <select
+          style={selectStyle}
+          value={settings.pacingModel ?? "naive"}
+          onChange={(e) => set({ pacingModel: e.target.value as PacingAlgorithm })}
+        >
+          <option style={optionStyle} value="naive">Naive (Fixed WPM)</option>
+          <option style={optionStyle} value="bayesian">Bayesian Adaptive (Poisson–Gamma)</option>
         </select>
       </Field>
 
