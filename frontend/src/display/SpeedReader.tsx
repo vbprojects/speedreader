@@ -731,37 +731,39 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                 )}
                 {traditionalWords.map((w) =>
                   w.index === frame.index ? (
-                    <span
-                      key={w.index}
-                      ref={traditionalCurrentWordRef}
-                      data-word-index={w.index}
-                      data-word-text={w.text}
-                      style={{
-                        color: themeStyle.highlightFg,
-                        background: themeStyle.highlight,
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        fontWeight: 600,
-                        display: "inline-block",
-                        margin: "0 1px",
-                      }}
-                    >
-                      {w.text}
+                    <span key={w.index}>
+                      <span
+                        ref={traditionalCurrentWordRef}
+                        data-word-index={w.index}
+                        data-word-text={w.text}
+                        style={{
+                          color: themeStyle.highlightFg,
+                          background: themeStyle.highlight,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          fontWeight: 600,
+                          display: "inline-block",
+                        }}
+                      >
+                        {w.text}
+                      </span>
+                      {" "}
                     </span>
                   ) : (
-                    <span
-                      key={w.index}
-                      data-word-index={w.index}
-                      data-word-text={w.text}
-                      style={{
-                        color: themeStyle.fg,
-                        display: "inline-block",
-                        margin: "0 1px",
-                        borderRadius: 3,
-                        padding: "0 1px",
-                      }}
-                    >
-                      {w.text}{" "}
+                    <span key={w.index}>
+                      <span
+                        data-word-index={w.index}
+                        data-word-text={w.text}
+                        style={{
+                          color: themeStyle.fg,
+                          display: "inline-block",
+                          borderRadius: 3,
+                          padding: "0 1px",
+                        }}
+                      >
+                        {w.text}
+                      </span>
+                      {" "}
                     </span>
                   )
                 )}

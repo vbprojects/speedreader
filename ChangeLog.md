@@ -4,6 +4,13 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Fix word spacing in traditional view
+
+- **`display/SpeedReader.tsx`**: Fixed missing inter-word whitespace in the traditional e-reader view caused by HTML whitespace collapsing between `inline-block` spans. Added explicit inter-word space nodes between rendered word spans.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all experiment test suites pass.
+
+---
+
 ## 2026-08-24 — Settings panel latest changelog display
 
 - **`settings/changelog.ts`**: Added parser utility to dynamically extract the latest changelog entry (title, release date, and detailed bullet points) from `ChangeLog.md`.
