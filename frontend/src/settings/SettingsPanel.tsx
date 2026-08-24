@@ -2,8 +2,10 @@
 // Reusable settings form. Used for both global (library) settings and
 // per-reader (local) settings. Calls onChange with partial updates.
 
+import { useState } from "react";
 import type { GlobalSettings, PacingAlgorithm, ReaderSettings, Theme } from "./types";
 import { themeTokens } from "./themes";
+import { getLatestChangeLog } from "./changelog";
 
 export interface SettingsPanelProps {
   /** Current effective settings to display. */
@@ -19,8 +21,10 @@ export interface SettingsPanelProps {
 const FONTS = ["system-ui", "Georgia, serif", "Arial, sans-serif", "Courier New, monospace", "Verdana, sans-serif"];
 
 export function SettingsPanel({ settings, isReader, onChange, onReset }: SettingsPanelProps) {
+  const [showChangelog, setShowChangelog] = useState(false);
   const set = (patch: ReaderSettings) => onChange(patch);
   const t = themeTokens(settings.theme);
+  const latestLog = getLatestChangeLog();
 
   // Blended native controls: soft, theme-aware, no stark white boxes.
   const selectStyle: React.CSSProperties = {
@@ -145,8 +149,68 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
         />
       </Field>
 
+      {/* Changelog display */}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${t.border}88` }}>
+        <button
+          type="button"
+          onClick={() => setShowChangelog((v) => !v)}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: `1px solid ${t.border}`,
+            background: `${t.panel}ee`,
+            color: t.fg,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          <span>📜 {showChangelog ? "Hide Changelog" : "View Latest Changelog"}</span>
+          <span style={{ fontSize: 11, color: t.muted }}>{showChangelog ? "▲" : "▼"}</span>
+        </button>
+
+        {showChangelog && (
+          <div
+            className="glass-scroll"
+            style={{
+              marginTop: 10,
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: `1px solid ${t.border}`,
+              background: `${t.bg}cc`,
+              maxHeight: 200,
+              overflowY: "auto",
+              fontSize: 12,
+              lineHeight: 1.6,
+            }}
+          >
+            {latestLog ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 13, color: t.highlight, marginBottom: 4 }}>
+                  {latestLog.title}
+                </div>
+                {latestLog.date && (
+                  <div style={{ fontSize: 11, color: t.muted, marginBottom: 8 }}>
+                    Release Date: {latestLog.date}
+                  </div>
+                )}
+                <div style={{ whiteSpace: "pre-wrap", color: t.fg, opacity: 0.9 }}>
+                  {latestLog.body}
+                </div>
+              </>
+            ) : (
+              <div style={{ color: t.muted }}>No changelog entries found.</div>
+            )}
+          </div>
+        )}
+      </div>
+
       {isReader && onReset && (
-        <button onClick={onReset} style={{ marginTop: 8, background: t.panel, color: t.fg, border: `1px solid ${t.border}`, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>
+        <button onClick={onReset} style={{ marginTop: 12, background: t.panel, color: t.fg, border: `1px solid ${t.border}`, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>
           Reset to global
         </button>
       )}

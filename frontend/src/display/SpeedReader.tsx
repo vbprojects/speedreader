@@ -15,7 +15,8 @@ import { themeTokens } from "../settings/themes";
 import { NavTreeView } from "../navigation";
 import { SelfCorrectingClock } from "./clock";
 import { buildFrame } from "./renderer";
-import type { DisplayConfig, DisplayFrame } from "./types";
+import type { DisplayConfig, DisplayFrame, ReaderViewMode } from "./types";
+import { WordContextMenu, type WordContextMenuState } from "./WordContextMenu";
 
 /** True when the viewport is at or below the given breakpoint. */
 function useMediaQuery(query: string): boolean {
@@ -56,26 +57,53 @@ const DEFAULT_CONFIG: DisplayConfig = {
   wpm: 600,
 };
 
-/** Size of the stable text chunk rendered around the current word. */
+/** Size of the stable text chunk rendered around the current word in RSVP mode. */
 const CHUNK_SIZE = 400;
-/** When the current word gets within this distance of a chunk edge, re-chunk. */
+/** When the current word gets within this distance of a chunk edge, re-chunk in RSVP mode. */
 const CHUNK_REFRESH_MARGIN = 100;
+
+/** Initial number of words to render around current position in traditional infinite-scroll mode. */
+const TRADITIONAL_BATCH_SIZE = 400;
+/** Distance from top/bottom scroll boundary (in px) before loading more words. */
+const TRADITIONAL_SCROLL_THRESHOLD = 300;
 
 export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
   const [frame, setFrame] = useState<DisplayFrame | null>(null);
+  const [viewMode, setViewMode] = useState<ReaderViewMode>("rsvp");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [chunkStart, setChunkStart] = useState(0);
+  const [traditionalRange, setTraditionalRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const [controlsOpen, setControlsOpen] = useState(true);
+  const [wordMenu, setWordMenu] = useState<WordContextMenuState | null>(null);
   const [jumpDialogOpen, setJumpDialogOpen] = useState(false);
   const [jumpInputVal, setJumpInputVal] = useState("");
   const isMobile = useMediaQuery("(max-width: 640px)");
   const clockRef = useRef<SelfCorrectingClock | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
+  const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
+
+  // Long-press detection on words in traditional view
+  const wordLongPressRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    wordIndex: number | null;
+    wordText: string;
+    startX: number;
+    startY: number;
+    triggered: boolean;
+  }>({
+    timer: null,
+    wordIndex: null,
+    wordText: "",
+    startX: 0,
+    startY: 0,
+    triggered: false,
+  });
 
   // Swipe gesture tracking (smooth accelerated scrub).
   // Separate swipe preview and visual drag from layout centering.
@@ -114,7 +142,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const cfgRef = useRef(cfg);
   cfgRef.current = cfg;
 
-  // The stable chunk of words rendered around the current position. Only
+  // The stable chunk of words rendered around the current position in RSVP mode. Only
   // re-chunks when the current word nears the chunk edge — between refreshes
   // the text is static, so nothing reflows or shifts while reading.
   const chunkWords = useMemo(() => {
@@ -122,6 +150,23 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     const end = Math.min(stream.words.length, start + CHUNK_SIZE);
     return stream.words.slice(start, end);
   }, [stream, chunkStart]);
+
+  // Words slice for the traditional view (supports infinite scrolling in both directions).
+  const traditionalWords = useMemo(() => {
+    const start = Math.max(0, Math.min(traditionalRange.start, stream.words.length - 1));
+    const end = Math.min(stream.words.length, Math.max(start, traditionalRange.end));
+    return stream.words.slice(start, end);
+  }, [stream, traditionalRange]);
+
+  // Initialize or center traditional range when entering traditional mode or when frame index jumps
+  useEffect(() => {
+    if (viewMode === "traditional") {
+      const cur = frame?.index ?? initialIndex;
+      const start = Math.max(0, cur - Math.floor(TRADITIONAL_BATCH_SIZE / 2));
+      const end = Math.min(stream.words.length, start + TRADITIONAL_BATCH_SIZE);
+      setTraditionalRange({ start, end });
+    }
+  }, [viewMode, stream.words.length]);
 
   // Re-chunk when the current word drifts near the chunk's edge.
   useEffect(() => {
@@ -193,6 +238,10 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   }, [frame]);
 
   const toggle = () => {
+    // If we're in traditional mode, playing immediately returns to RSVP mode
+    if (viewMode === "traditional") {
+      setViewMode("rsvp");
+    }
     const clock = clockRef.current!;
     if (clock.running) {
       clock.pause();
@@ -233,6 +282,51 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     jumpTo(index);
   };
 
+  // When switching to traditional mode, auto-scroll the current word into view
+  useEffect(() => {
+    if (viewMode === "traditional") {
+      const el = traditionalCurrentWordRef.current;
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "auto" });
+      }
+    }
+  }, [viewMode]);
+
+  // Handle infinite scroll in traditional view
+  const onTraditionalScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+
+    // Load more subsequent words when scrolling near the bottom
+    if (scrollHeight - (scrollTop + clientHeight) < TRADITIONAL_SCROLL_THRESHOLD) {
+      setTraditionalRange((prev) => {
+        if (prev.end >= stream.words.length) return prev;
+        const nextEnd = Math.min(stream.words.length, prev.end + TRADITIONAL_BATCH_SIZE);
+        return { ...prev, end: nextEnd };
+      });
+    }
+
+    // Load more previous words when scrolling near the top
+    if (scrollTop < TRADITIONAL_SCROLL_THRESHOLD) {
+      setTraditionalRange((prev) => {
+        if (prev.start <= 0) return prev;
+        const nextStart = Math.max(0, prev.start - TRADITIONAL_BATCH_SIZE);
+        if (nextStart === prev.start) return prev;
+
+        // Preserve scroll position when prepending words above
+        const previousScrollHeight = el.scrollHeight;
+        requestAnimationFrame(() => {
+          const addedHeight = el.scrollHeight - previousScrollHeight;
+          if (addedHeight > 0) {
+            el.scrollTop += addedHeight;
+          }
+        });
+
+        return { ...prev, start: nextStart };
+      });
+    }
+  };
+
   // Clean up RAF on unmount
   useEffect(() => {
     return () => {
@@ -242,10 +336,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     };
   }, []);
 
-  // --- Smooth Swipe Scrubber ---
-  // A horizontal swipe temporarily pauses the clock and smoothly scrubs through words
-  // like high-WPM presentation, pausing at the destination on release.
+  // --- Smooth Swipe Scrubber & Vertical E-Reader Mode Gesture ---
+  // - A horizontal swipe scrubs through words like high-WPM presentation.
+  // - A vertical swipe (up/down) when paused switches between RSVP and traditional e-reader mode
+  //   without altering the clock position, pacing engine, or saved index.
   const SWIPE_ACTIVATION_PX = 10;
+  const VERTICAL_MODE_SWIPE_PX = 36;
   const PX_PER_WORD = 16;
   const MAX_VISUAL_DRAG_PX = 48; // Subtle resistance, prevents moving text off screen
 
@@ -280,6 +376,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       if (Math.abs(dx) < SWIPE_ACTIVATION_PX && Math.abs(dy) < SWIPE_ACTIVATION_PX) {
         return;
       }
+      // Check for horizontal swipe
       if (Math.abs(dx) >= Math.abs(dy) * 1.2) {
         // Horizontal swipe locked
         s.locked = true;
@@ -295,8 +392,16 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         } catch {
           // ignore if capture unsupported
         }
+      } else if (Math.abs(dy) >= Math.abs(dx) * 1.2 && !running) {
+        // Vertical swipe detected while paused -> toggle / switch traditional e-reader mode
+        if (Math.abs(dy) >= VERTICAL_MODE_SWIPE_PX) {
+          s.active = false;
+          swipedRef.current = true;
+          setViewMode((m) => (m === "rsvp" ? "traditional" : "rsvp"));
+        }
+        return;
       } else {
-        // Vertical gesture, ignore swipe
+        // Active playback or uncommitted diagonal -> cancel swipe tracking
         s.active = false;
         return;
       }
@@ -382,10 +487,92 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     }
   };
 
+  // --- Long-Press Context Menu on Traditional View Words ---
+  const WORD_LONG_PRESS_MS = 400;
+
+  const clearWordLongPress = () => {
+    const wlp = wordLongPressRef.current;
+    if (wlp.timer) clearTimeout(wlp.timer);
+    wlp.timer = null;
+    wlp.wordIndex = null;
+    wlp.wordText = "";
+  };
+
+  const handleWordPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const target = (e.target as HTMLElement).closest("[data-word-index]");
+    if (!target) return;
+
+    const idxStr = target.getAttribute("data-word-index");
+    if (idxStr === null) return;
+    const wordIndex = parseInt(idxStr, 10);
+    const wordText = target.getAttribute("data-word-text") || (stream.words[wordIndex]?.text ?? "");
+
+    clearWordLongPress();
+    const wlp = wordLongPressRef.current;
+    wlp.wordIndex = wordIndex;
+    wlp.wordText = wordText;
+    wlp.startX = e.clientX;
+    wlp.startY = e.clientY;
+    wlp.triggered = false;
+
+    wlp.timer = setTimeout(() => {
+      wlp.triggered = true;
+      swipedRef.current = true; // suppress viewport click toggle
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(25);
+      }
+      setWordMenu({
+        x: e.clientX,
+        y: e.clientY,
+        wordIndex,
+        wordText,
+      });
+      clearWordLongPress();
+    }, WORD_LONG_PRESS_MS);
+  };
+
+  const handleWordPointerMove = (e: React.PointerEvent) => {
+    const wlp = wordLongPressRef.current;
+    if (wlp.timer && wlp.wordIndex !== null) {
+      const dx = e.clientX - wlp.startX;
+      const dy = e.clientY - wlp.startY;
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        clearWordLongPress();
+      }
+    }
+  };
+
+  const handleWordPointerUp = () => {
+    clearWordLongPress();
+  };
+
+  const handleWordPointerCancel = () => {
+    clearWordLongPress();
+  };
+
+  const handleWordContextMenu = (e: React.MouseEvent) => {
+    const target = (e.target as HTMLElement).closest("[data-word-index]");
+    if (!target) return;
+    const idxStr = target.getAttribute("data-word-index");
+    if (idxStr === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const wordIndex = parseInt(idxStr, 10);
+    const wordText = target.getAttribute("data-word-text") || (stream.words[wordIndex]?.text ?? "");
+    setWordMenu({
+      x: e.clientX,
+      y: e.clientY,
+      wordIndex,
+      wordText,
+    });
+  };
+
   const onViewportClick = () => {
-    // If a swipe was active or just completed, do not toggle playback
-    if (swipedRef.current) {
+    // If a swipe or long-press was active or menu is open, do not toggle playback
+    if (swipedRef.current || wordLongPressRef.current.triggered || wordMenu !== null) {
       swipedRef.current = false;
+      wordLongPressRef.current.triggered = false;
       return;
     }
     toggle();
@@ -449,75 +636,210 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
         {/* Reader viewport column */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
-          {/* The reading viewport. The paragraph is TRANSLATED so the current
-              word sits at the exact center of this viewport — a fixed focal
-              point, so the reader's eye never moves. Context flows around it.
-              Clicking anywhere toggles play/pause. */}
-          <div
-            ref={scrollRef}
-            onClick={onViewportClick}
-            onPointerDown={onSwipeStart}
-            onPointerMove={onSwipeMove}
-            onPointerUp={onSwipeEnd}
-            onPointerCancel={onSwipeCancel}
-            style={{
-              flex: 1,
-              overflow: "hidden",
-              position: "relative",
-              boxSizing: "border-box",
-              cursor: "pointer",
-              touchAction: "none", // let us handle horizontal swipes
-            }}
-          >
-            {/* Drag wrapper: carries the swipe offset + settle transition.
-                Kept separate from the <p> so the centering transform below has
-                NO transition — otherwise the centering useLayoutEffect would
-                measure mid-animation and the word would never settle centered. */}
+          {viewMode === "traditional" ? (
+            /* Traditional e-reader scrollable view with infinite scrolling, tap-to-resume, and long-press word context menu */
             <div
+              ref={traditionalContainerRef}
+              className="glass-scroll"
+              onClick={onViewportClick}
+              onScroll={(e) => {
+                clearWordLongPress();
+                onTraditionalScroll(e);
+              }}
+              onContextMenu={handleWordContextMenu}
+              onPointerDown={(e) => {
+                handleWordPointerDown(e);
+                onSwipeStart(e);
+              }}
+              onPointerMove={(e) => {
+                handleWordPointerMove(e);
+                onSwipeMove(e);
+              }}
+              onPointerUp={(e) => {
+                handleWordPointerUp();
+                onSwipeEnd(e);
+              }}
+              onPointerCancel={(e) => {
+                handleWordPointerCancel();
+                onSwipeCancel(e);
+              }}
               style={{
-                position: "absolute",
-                inset: 0,
-                transform: `translateX(${dragX}px)`,
-                transition: dragging ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                pointerEvents: "none",
+                flex: 1,
+                overflowY: "auto",
+                padding: "36px 24px 60px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                background: themeStyle.bg,
+                color: themeStyle.fg,
+                boxSizing: "border-box",
+                cursor: "pointer",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                WebkitTouchCallout: "none",
               }}
             >
-              <p
+              <div
                 style={{
-                  fontSize,
-                  lineHeight: 1.8,
-                  margin: 0,
-                  position: "absolute",
-                  left: "50%",
-                  top: "50%",
-                  width: "70ch",
-                  maxWidth: "80%",
-                  transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-                  overflowWrap: "normal",
-                  wordBreak: "normal",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  maxWidth: "68ch",
+                  marginBottom: 20,
+                  paddingBottom: 10,
+                  borderBottom: `1px solid ${themeStyle.border}88`,
                 }}
               >
-                {chunkWords.map((w) =>
+                <span style={{ fontSize: 13, color: themeStyle.muted }}>
+                  📖 Traditional View (Tap to play · Long-press word for options)
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewMode("rsvp");
+                  }}
+                  style={{
+                    background: `${themeStyle.panel}ee`,
+                    border: `1px solid ${themeStyle.border}`,
+                    color: themeStyle.fg,
+                    borderRadius: 8,
+                    padding: "4px 12px",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  ⚡ Return to RSVP
+                </button>
+              </div>
+
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "68ch",
+                  fontSize,
+                  lineHeight: 1.85,
+                  wordBreak: "normal",
+                  overflowWrap: "normal",
+                }}
+              >
+                {traditionalRange.start > 0 && (
+                  <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
+                    ··· Scrolling to earlier text ···
+                  </div>
+                )}
+                {traditionalWords.map((w) =>
                   w.index === frame.index ? (
                     <span
                       key={w.index}
-                      ref={currentWordRef}
+                      ref={traditionalCurrentWordRef}
+                      data-word-index={w.index}
+                      data-word-text={w.text}
                       style={{
                         color: themeStyle.highlightFg,
                         background: themeStyle.highlight,
                         padding: "2px 6px",
                         borderRadius: 4,
+                        fontWeight: 600,
+                        display: "inline-block",
+                        margin: "0 1px",
                       }}
                     >
                       {w.text}
                     </span>
                   ) : (
-                    <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
+                    <span
+                      key={w.index}
+                      data-word-index={w.index}
+                      data-word-text={w.text}
+                      style={{
+                        color: themeStyle.fg,
+                        display: "inline-block",
+                        margin: "0 1px",
+                        borderRadius: 3,
+                        padding: "0 1px",
+                      }}
+                    >
+                      {w.text}{" "}
+                    </span>
                   )
                 )}
-              </p>
+                {traditionalRange.end < stream.words.length && (
+                  <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
+                    ··· Scroll for more ···
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* RSVP centered reading viewport */
+            <div
+              ref={scrollRef}
+              onClick={onViewportClick}
+              onPointerDown={onSwipeStart}
+              onPointerMove={onSwipeMove}
+              onPointerUp={onSwipeEnd}
+              onPointerCancel={onSwipeCancel}
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                position: "relative",
+                boxSizing: "border-box",
+                cursor: "pointer",
+                touchAction: "none", // let us handle horizontal swipes
+              }}
+            >
+              {/* Drag wrapper: carries the swipe offset + settle transition.
+                  Kept separate from the <p> so the centering transform below has
+                  NO transition — otherwise the centering useLayoutEffect would
+                  measure mid-animation and the word would never settle centered. */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: `translateX(${dragX}px)`,
+                  transition: dragging ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                  pointerEvents: "none",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize,
+                    lineHeight: 1.8,
+                    margin: 0,
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    width: "70ch",
+                    maxWidth: "80%",
+                    transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                    overflowWrap: "normal",
+                    wordBreak: "normal",
+                  }}
+                >
+                  {chunkWords.map((w) =>
+                    w.index === frame.index ? (
+                      <span
+                        key={w.index}
+                        ref={currentWordRef}
+                        style={{
+                          color: themeStyle.highlightFg,
+                          background: themeStyle.highlight,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                        }}
+                      >
+                        {w.text}
+                      </span>
+                    ) : (
+                      <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
+                    )
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -783,6 +1105,25 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           </div>
         </div>
       )}
+
+      {/* Traditional view word context menu */}
+      <WordContextMenu
+        state={wordMenu}
+        onClose={() => setWordMenu(null)}
+        onSetPosition={(idx) => {
+          jumpTo(idx);
+        }}
+        onResumeFromHere={(idx) => {
+          jumpTo(idx);
+          setViewMode("rsvp");
+          const clock = clockRef.current;
+          if (clock && !clock.running) {
+            clock.resume();
+            setRunning(true);
+          }
+        }}
+        theme={theme}
+      />
     </div>
   );
 }

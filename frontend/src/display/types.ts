@@ -4,6 +4,9 @@
 
 import type { Word } from "../epub/types";
 
+/** Presentation mode for the reader view. */
+export type ReaderViewMode = "rsvp" | "traditional";
+
 /** Display configuration. */
 export interface DisplayConfig {
   /** Base WPM used for pacing. */

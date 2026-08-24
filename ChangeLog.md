@@ -4,6 +4,47 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Settings panel latest changelog display
+
+- **`settings/changelog.ts`**: Added parser utility to dynamically extract the latest changelog entry (title, release date, and detailed bullet points) from `ChangeLog.md`.
+- **`settings/SettingsPanel.tsx`**: Added a collapsible "View Latest Changelog" button and glassmorphic card display inside the settings panel.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
+## 2026-08-24 — Traditional view word long-press & context menu
+
+- **`display/WordContextMenu.tsx`**: Created a themed glassmorphic context menu for words in traditional view offering **"Set Position Here"** (updates reading playhead while remaining in traditional view) and **"Jump & Resume RSVP"** (updates position and immediately resumes RSVP speedreading).
+- **`display/SpeedReader.tsx`**:
+  - Implemented event-delegated pointer tracking with a $400\text{ms}$ long-press detection and $>8\text{px}$ movement cancellation to prevent scroll conflicts.
+  - Added desktop right-click (`onContextMenu`) support for words in traditional view.
+  - Added haptic feedback (`navigator.vibrate`) upon long-press activation on supported mobile devices.
+  - Suppressed tap-to-resume click triggers when invoking or interacting with the context menu.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
+## 2026-08-24 — Infinite scrolling in traditional view & tap-to-resume RSVP
+
+- **`display/SpeedReader.tsx`**:
+  - Implemented bidirectional infinite scrolling in traditional e-reader mode (`traditionalRange` with dynamic loading at top and bottom thresholds while preserving scroll offset).
+  - Tapping/clicking anywhere in the traditional view canvas immediately starts playback and transitions seamlessly back to centered RSVP mode from the current word position.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
+## 2026-08-24 — Paused traditional e-reader view mode
+
+- **`display/types.ts`**: Added `ReaderViewMode = "rsvp" | "traditional"`.
+- **`display/SpeedReader.tsx`**:
+  - Implemented vertical swipe gesture detection (swiping up/down with $|\Delta y| \ge 1.2 \cdot |\Delta x|$ and $\ge 36\text{px}$) when playback is paused to switch into traditional e-reader scrollable view.
+  - Traditional view displays the stable chunk block with full surrounding context in normal vertical scrollable document flow, with the current word highlighted and auto-scrolled to center.
+  - Transitions are presentation-only: they do not affect or reset the pacing engine, clock position, or saved reading progress.
+  - Toggling play or clicking "Return to RSVP" immediately switches back to centered RSVP mode and continues playback from the exact same word index.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all experiment test suites pass.
+
+---
+
 ## 2026-08-24 — Smooth swipe scrubbing reimplementation
 
 - **`display/SpeedReader.tsx`**:
