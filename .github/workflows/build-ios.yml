@@ -45,9 +45,9 @@ jobs:
         working-directory: frontend
         run: npx tauri ios build --no-sign
 
-      - name: Upload iOS app
+      - name: Upload iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ios-app
-          path: frontend/src-tauri/gen/apple/build/Release-iphonesimulator/*.app
+          name: ios-ipa
+          path: frontend/src-tauri/gen/apple/build/**/*.ipa
           if-no-files-found: error
