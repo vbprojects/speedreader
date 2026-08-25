@@ -78,7 +78,7 @@ const TRADITIONAL_BATCH_SIZE = 400;
 /** Distance from top/bottom scroll boundary (in px) before loading more words. */
 const TRADITIONAL_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
