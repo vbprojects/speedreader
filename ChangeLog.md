@@ -4,6 +4,13 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Fix iOS CI artifact upload
+
+- **iOS workflow**: Tauri’s iOS build emits an unsigned IPA under the architecture-specific build directory, not a Release-iphonesimulator/*.app path. The workflow now uploads build/**/*.ipa and keeps missing artifacts as a hard failure.
+- **GitHub Actions runtime**: Updated the iOS workflow’s checkout, setup-node, and upload-artifact actions to Node 24-compatible major versions.
+
+---
+
 ## 2026-08-25 — Interactive reader foundation
 
 - **JSON interaction protocol**: Added schema-versioned text-input, single-choice, and continue descriptors plus response validation. Interactions attach to word-count boundaries, so ingestion engines can pause the reader without embedding HTML or a runtime.
