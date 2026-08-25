@@ -4,6 +4,12 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Register PDF.js ingestion in the app
+
+- **`ReaderApp.tsx`**: Registered `PdfJsParser` alongside `EpubParser` in the application’s `IngestionEngine`. PDF files selected from the library can now reach the conservative PDF.js ingestion path rather than failing with “No parser registered”.
+
+---
+
 ## 2026-08-24 — Dynamic word streams & InteractiveFormat architecture
 
 - **`epub/types.ts` & `ingestion/types.ts`**:

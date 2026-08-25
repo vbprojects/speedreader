@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDb } from "./db";
 import type { Book } from "./db";
-import { IngestionEngine, EpubParser, pickFileBrowser } from "./ingestion";
+import { IngestionEngine, EpubParser, PdfJsParser, pickFileBrowser } from "./ingestion";
 import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
 import { ReaderScreen } from "./reader";
@@ -17,7 +17,7 @@ import type { GlobalSettings, ReaderSettings } from "./settings";
 export default function ReaderApp() {
   // ---- Stores (created once) ----
   const [settingsStore] = useState(() => new SettingsStore());
-  const [library] = useState(() => new LibraryStore(createDb("indexeddb"), new IngestionEngine([new EpubParser()])));
+  const [library] = useState(() => new LibraryStore(createDb("indexeddb"), new IngestionEngine([new EpubParser(), new PdfJsParser()])));
 
   // ---- Global settings ----
   const [global, setGlobal] = useState<GlobalSettings>(() => settingsStore.global);
