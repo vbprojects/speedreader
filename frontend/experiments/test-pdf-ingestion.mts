@@ -3,7 +3,7 @@
 // These do not require a browser, a worker, or a network-backed PDF service.
 
 import assert from "node:assert/strict";
-import { classifyTextItems } from "../src/ingestion/pdf/suitability.ts";
+import { classifyTextItems, isToleratedPdfJsLayout, toleratedLayoutWarning } from "../src/ingestion/pdf/suitability.ts";
 import { extractPageWords, reconstructLines } from "../src/ingestion/pdf/reading-order.ts";
 
 function item(str: string, x: number, y: number, width: number, extra: Record<string, unknown> = {}) {
@@ -52,15 +52,17 @@ function testAdvancedLayoutGate() {
     items.push(item("left-column-text", 72, y, 90));
     items.push(item("right-column-text", 360, y, 90));
   }
-  assert.deepEqual(classifyTextItems(items), { route: "advanced", reason: "multi-column" });
+  const suitability = classifyTextItems(items);
+  assert.deepEqual(suitability, { route: "advanced", reason: "multi-column" });
+  assert.equal(isToleratedPdfJsLayout(suitability), true);
+  assert.match(toleratedLayoutWarning(suitability) ?? "", /reading order may be inaccurate/i);
 }
 
 function testImageOnlyAndDirection() {
   assert.deepEqual(classifyTextItems([]), { route: "advanced", reason: "image-only" });
-  assert.deepEqual(
-    classifyTextItems([item("مرحبا بالعالم", 72, 700, 80, { dir: "rtl" })]),
-    { route: "advanced", reason: "vertical-or-rtl" }
-  );
+  const rtl = classifyTextItems([item("مرحبا بالعالم", 72, 700, 80, { dir: "rtl" })]);
+  assert.deepEqual(rtl, { route: "advanced", reason: "vertical-or-rtl" });
+  assert.equal(isToleratedPdfJsLayout(rtl), false);
 }
 
 testSimplePage();

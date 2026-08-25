@@ -63,6 +63,7 @@ export class LibraryStore {
       chapterCount: stream.chapterIndex.length,
       parserVersion: PARSER_VERSION,
       cover,
+      ingestionWarnings: stream.meta.ingestionWarnings,
     };
 
     await this.db.addBook(book);

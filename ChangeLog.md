@@ -4,6 +4,14 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Tolerant PDF.js multi-column imports
+
+- **`PdfJsParser`**: Multi-column PDFs with a native text layer now proceed through PDF.js extraction instead of being rejected. Their reading order can be inaccurate, so the parser records a non-fatal warning. Image-only PDFs and unsupported text directions remain blocked because they cannot yield reliable local text.
+- **Library import UI**: The warning is shown immediately after import and persists as a “Check layout” badge on the book tile.
+- **PDF ingestion experiment**: Added coverage for the tolerated multi-column policy.
+
+---
+
 ## 2026-08-25 — Register PDF.js ingestion in the app
 
 - **`ReaderApp.tsx`**: Registered `PdfJsParser` alongside `EpubParser` in the application’s `IngestionEngine`. PDF files selected from the library can now reach the conservative PDF.js ingestion path rather than failing with “No parser registered”.

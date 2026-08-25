@@ -28,6 +28,7 @@ export default function ReaderApp() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [positions, setPositions] = useState<Record<string, number>>({});
 
   // ---- Reader session ----
@@ -87,13 +88,17 @@ export default function ReaderApp() {
   const handleImport = useCallback(async () => {
     setImporting(true);
     setError(null);
+    setNotice(null);
     try {
       const file = await pickFileBrowser(".epub,.pdf");
       if (!file) return;
       const result = await library.importFile(file);
       await refreshBooks();
-      // If it was a fresh import, open it immediately.
-      if (!result.existed) {
+      // Non-fatal parser warnings need an explicit user acknowledgement in the
+      // library before opening. Simple imports continue straight to the reader.
+      if (!result.existed && result.book.ingestionWarnings?.length) {
+        setNotice(result.book.ingestionWarnings.join(" "));
+      } else if (!result.existed) {
         await openBook(result.book.id);
       }
     } catch (e) {
@@ -233,6 +238,7 @@ export default function ReaderApp() {
       loading={loading}
       importing={importing}
       error={error}
+      notice={notice}
       theme={global.theme}
       settings={global}
       onUpdateSettings={(patch) => settingsStore.updateGlobal(patch)}

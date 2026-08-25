@@ -41,3 +41,20 @@ export function advancedReasonMessage(reason: PdfAdvancedReason): string {
       return "This PDF contains a layout the local parser does not support.";
   }
 }
+
+
+/**
+ * Multi-column native-text PDFs can still yield useful text from PDF.js, but
+ * the line reconstruction is not column-aware. Other advanced layouts remain
+ * hard failures until a dedicated parser is available.
+ */
+export function isToleratedPdfJsLayout(suitability: PdfSuitability): boolean {
+  return suitability.route === "pdfjs" || suitability.reason === "multi-column";
+}
+
+export function toleratedLayoutWarning(suitability: PdfSuitability): string | undefined {
+  if (suitability.route === "advanced" && suitability.reason === "multi-column") {
+    return "This PDF appears to use multiple columns. It was imported with PDF.js, but reading order may be inaccurate.";
+  }
+  return undefined;
+}

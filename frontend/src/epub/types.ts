@@ -35,6 +35,8 @@ export interface StreamMeta {
   totalWordsExpected?: number;
   /** Which metadata attribute is the "chapter" level for this format. */
   chapterAttribute: string;
+  /** Non-fatal caveats produced during ingestion, shown to the reader. */
+  ingestionWarnings?: string[];
 }
 
 export interface WordStream {

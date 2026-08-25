@@ -1,13 +1,13 @@
 // src/ingestion/pdf/parser.ts
-// PDF.js-backed parser for simple, native-text PDFs. It intentionally returns
-// a complete deterministic WordStream; advanced PDFs are rejected for the
-// future Marker/Docling service rather than being silently misordered.
+// PDF.js-backed parser for native-text PDFs. It returns a complete deterministic
+// WordStream; multi-column layouts are best-effort with a persistent warning,
+// while layouts that cannot yield reliable local text remain rejected.
 
 import type { ChapterEntry, Word, WordStream } from "../../epub/types";
 import { computeMeta } from "../normalize";
 import type { BookInfo, FileInfo, Parser } from "../types";
 import { extractPageWords } from "./reading-order";
-import { classifyTextItems } from "./suitability";
+import { classifyTextItems, isToleratedPdfJsLayout, toleratedLayoutWarning } from "./suitability";
 import {
   PdfAdvancedLayoutError,
   type PdfDocumentLike,
@@ -100,20 +100,23 @@ export class PdfJsParser implements Parser {
     try {
       const labels = await loaded.document.getPageLabels?.();
       const samplePages = Math.min(this.options.samplePages ?? 5, loaded.document.numPages);
-      let usableSamplePages = 0;
+      let extractableSamplePages = 0;
+      const ingestionWarnings = new Set<string>();
 
       for (let pageNumber = 1; pageNumber <= samplePages; pageNumber++) {
         const page = await loaded.document.getPage(pageNumber);
         const items = await textItems(page);
         const suitability = classifyTextItems(items);
         page.cleanup?.();
-        if (suitability.route === "advanced" && suitability.reason !== "image-only") {
+        const warning = toleratedLayoutWarning(suitability);
+        if (warning) ingestionWarnings.add(warning);
+        if (suitability.route === "advanced" && suitability.reason !== "image-only" && !isToleratedPdfJsLayout(suitability)) {
           throw new PdfAdvancedLayoutError(suitability);
         }
-        if (suitability.route === "pdfjs") usableSamplePages++;
+        if (isToleratedPdfJsLayout(suitability)) extractableSamplePages++;
       }
 
-      if (usableSamplePages === 0) {
+      if (extractableSamplePages === 0) {
         throw new PdfAdvancedLayoutError({ route: "advanced", reason: "image-only" });
       }
 
@@ -125,7 +128,9 @@ export class PdfJsParser implements Parser {
         const suitability = classifyTextItems(items);
         const label = pageLabel(labels, pageNumber);
 
-        if (suitability.route === "advanced" && suitability.reason !== "image-only") {
+        const warning = toleratedLayoutWarning(suitability);
+        if (warning) ingestionWarnings.add(warning);
+        if (suitability.route === "advanced" && suitability.reason !== "image-only" && !isToleratedPdfJsLayout(suitability)) {
           page.cleanup?.();
           throw new PdfAdvancedLayoutError(suitability);
         }
@@ -157,7 +162,11 @@ export class PdfJsParser implements Parser {
       return {
         words,
         chapterIndex: chapters,
-        meta: { ...computeMeta(words), chapterAttribute: "page" },
+        meta: {
+          ...computeMeta(words),
+          chapterAttribute: "page",
+          ...(ingestionWarnings.size > 0 ? { ingestionWarnings: [...ingestionWarnings] } : {}),
+        },
       };
     } finally {
       await loaded.destroy();
