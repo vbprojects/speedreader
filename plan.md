@@ -344,10 +344,11 @@ speedreader/
 6. **Cross-platform packaging**
    - **Decision**: **Tauri only** (desktop + mobile) with Tauri 2.x native mobile support. No consistent UI — platform-adaptive design tokens per OS. Remaining question: how much of the chrome should use native widgets (via Tauri's native APIs/capabilities) vs. styled HTML?
 
-7. **PDF specifics**
-   - PDFs are page-based and often have multi-column layouts. Do we extract text in reading order, or just page order? How to handle scanned/image-only PDFs (OCR needed)?
-   - **Decision direction**: complex PDF extraction (multi-column reading order, scanned/image-only documents) may rely on **external services** — e.g., **MarkItDown** or **VLM-based text extraction** (vision-language-model OCR + layout). This is a **future endeavor** and is handled entirely **inside the Ingestion component** — the parser for PDFs is a facade that can call a local extractor *or* a remote service, both producing the same flat `WordStream`. The rest of the app (Reader, Display, Library) is unaware.
-   - **Concern — pricing / membership**: external extraction services may cost money. Plan for a **pricing model or memberships** (e.g., free tier covers EPUB and plain-text PDFs; premium tier unlocks ML/OCR extraction). Core functionality — **EPUB and normal text-based books** — must remain fully free and local. Long-term: consider a graceful degradation path where scanned PDFs show a clear upgrade prompt instead of failing.
+7. **PDF specifics & Interactive Ingestion**
+   - PDFs are page-based and often have multi-column layouts or require OCR.
+   - **Architecture via `InteractiveFormat`**: PDF extraction (local text extraction, VLM/MarkItDown OCR) is implemented as an `InteractiveFormat`. Ingestion proceeds asynchronously in the background on a page-by-page basis, emitting `StreamChunk` objects containing words, page numbers, and incremental chapter updates.
+   - **Live Reading & Resume**: Users can begin speedreading immediate pages as soon as they are processed without waiting for the full PDF to finish. The accumulated stream is persisted incrementally in IndexedDB alongside the PDF's current page processing cursor in `formatState`, ensuring instant offline resume.
+   - **Pricing / membership**: External extraction services can be modularly configured behind this same `InteractiveFormat` interface. Core EPUB and local parsers remain local and free.
 
 8. **Progress & persistence**
    - **Decision**: Yes — reading position is saved **per book, client-side** so users can resume.
