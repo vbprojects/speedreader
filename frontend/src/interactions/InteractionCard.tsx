@@ -33,7 +33,7 @@ export function InteractionCard({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      aria-describedby={interaction.prompt ? descriptionId : undefined}
+      aria-describedby={interaction.prompt && interaction.kind !== "single-choice" ? descriptionId : undefined}
       style={{
         width: "min(92vw, 520px)",
         boxSizing: "border-box",
