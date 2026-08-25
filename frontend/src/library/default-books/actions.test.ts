@@ -27,6 +27,9 @@ test("Actions is a stable, JSON-safe interactive WordStream", () => {
     ["continue", "text-input", "single-choice", "continue"]
   );
   ok(interactions.some((interaction) => interaction.kind === "text-input"));
+  equal(interactions.find((interaction) => interaction.id === "actions:name")?.editPolicy, "mutable");
+  equal(interactions.find((interaction) => interaction.id === "actions:path")?.editPolicy, "immutable");
+  ok(interactions.every((interaction) => interaction.kind !== "text-input" || interaction.history?.kind === "value"));
 
   const roundTripped = JSON.parse(JSON.stringify(stream));
   deepStrictEqual(roundTripped, JSON.parse(JSON.stringify(stream)));

@@ -20,6 +20,20 @@ export interface InteractionBase {
   boundary: number;
   prompt?: string;
   sourceRef?: string;
+  /** Whether a completed action may be edited from native reading. */
+  editPolicy?: "immutable" | "mutable";
+}
+
+export interface ValueHistoryPresentation {
+  kind: "value";
+  prefix: string;
+  suffix?: string;
+  quoteValue?: boolean;
+}
+
+export interface StatementHistoryPresentation {
+  kind: "statement";
+  text: string;
 }
 
 export interface TextInputInteraction extends InteractionBase {
@@ -29,6 +43,7 @@ export interface TextInputInteraction extends InteractionBase {
   defaultValue?: string;
   constraints?: InteractionConstraints;
   submitLabel?: string;
+  history?: ValueHistoryPresentation;
 }
 
 export interface ChoiceOption {
@@ -36,6 +51,8 @@ export interface ChoiceOption {
   label: string;
   description?: string;
   disabled?: boolean;
+  /** Complete past-tense sentence shown after this option is selected. */
+  resolvedText?: string;
 }
 
 export interface ChoiceInteraction extends InteractionBase {
@@ -48,6 +65,7 @@ export interface ContinueInteraction extends InteractionBase {
   kind: "continue";
   label?: string;
   description?: string;
+  history?: StatementHistoryPresentation;
 }
 
 export type ReaderInteraction =
@@ -79,3 +97,13 @@ export type InteractionResponse =
   | TextInputResponse
   | ChoiceResponse
   | ContinueResponse;
+
+/** The persisted answer for the interaction node at a stream boundary. */
+export interface InteractionRecord {
+  schemaVersion: typeof INTERACTION_SCHEMA_VERSION;
+  interactionId: string;
+  response: InteractionResponse;
+  answeredAt: number;
+  updatedAt: number;
+  revision: number;
+}

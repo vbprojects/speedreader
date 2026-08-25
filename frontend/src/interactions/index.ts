@@ -1,7 +1,10 @@
 export * from "./types";
 export * from "./validation";
+export * from "./flow";
+export * from "./history";
 export { InteractionCard } from "./InteractionCard";
 export { InteractionOverlay } from "./InteractionOverlay";
 export { TextInputInteraction } from "./TextInputInteraction";
 export { ChoiceInteraction } from "./ChoiceInteraction";
 export { ContinueInteraction } from "./ContinueInteraction";
+export { InlineInteraction } from "./InlineInteraction";

@@ -10,12 +10,14 @@ export function TextInputInteraction({
   busy = false,
   error,
   onSubmit,
+  inline = false,
 }: {
   interaction: TextInputDescriptor;
   theme?: Theme;
   busy?: boolean;
   error?: string | null;
   onSubmit: (response: TextInputResponse) => Promise<void> | void;
+  inline?: boolean;
 }) {
   const [value, setValue] = useState(interaction.defaultValue ?? "");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function TextInputInteraction({
   };
 
   return (
-    <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error ?? validationError}>
+    <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error ?? validationError} inline={inline}>
       <form
         onSubmit={(event) => {
           event.preventDefault();

@@ -4,7 +4,7 @@
 // depend on this interface, so storage can be swapped without touching them.
 
 import type { WordStream, Word, ChapterEntry } from "../epub/types";
-import type { ReaderInteraction } from "../interactions/types";
+import type { InteractionRecord, ReaderInteraction } from "../interactions/types";
 import type { ReaderSettings } from "../settings/types";
 
 /** A cover image stored with a book (browser-safe Blob). */
@@ -52,6 +52,8 @@ export interface ReaderState {
   formatState?: Record<string, unknown>;
   /** IDs of blocking interactions completed by this reader. */
   completedInteractionIds?: string[];
+  /** Persisted responses for the interaction nodes in the cached stream. */
+  interactionRecords?: InteractionRecord[];
 }
 
 /** A stored stream record (full stream for now; chunked later). */
