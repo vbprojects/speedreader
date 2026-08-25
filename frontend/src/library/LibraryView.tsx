@@ -18,6 +18,8 @@ export interface LibraryViewProps {
   /** True while an import is in progress. */
   importing: boolean;
   error: string | null;
+  /** Non-fatal import caveat that the reader should review. */
+  notice?: string | null;
   theme: Theme;
   settings?: GlobalSettings;
   onUpdateSettings?: (patch: ReaderSettings) => void;
@@ -36,6 +38,7 @@ export function LibraryView({
   loading,
   importing,
   error,
+  notice,
   theme,
   settings,
   onUpdateSettings,
@@ -288,6 +291,25 @@ export function LibraryView({
         </div>
       </header>
 
+      {notice && (
+        <div
+          role="status"
+          style={{
+            margin: "16px 24px 0",
+            padding: "12px 18px",
+            borderRadius: 12,
+            border: "1px solid #d9890044",
+            background: "#d9890018",
+            backdropFilter: "blur(12px)",
+            color: "#8a5600",
+            fontSize: 14,
+            fontWeight: 500,
+          }}
+        >
+          ⚠️ {notice}
+        </div>
+      )}
+
       {error && (
         <div
           style={{
@@ -509,6 +531,28 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
         ) : (
           <TitleCard title={book.title} theme={theme} />
         )}
+        {book.ingestionWarnings?.length ? (
+          <div
+            title={book.ingestionWarnings.join(" ")}
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              background: "rgba(138,86,0,0.88)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              color: "#fff",
+              borderRadius: 999,
+              padding: "2px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            }}
+          >
+            ⚠️ Check layout
+          </div>
+        ) : null}
         {pct > 0 && (
           <div
             style={{
