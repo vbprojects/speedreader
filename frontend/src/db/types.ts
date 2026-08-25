@@ -28,6 +28,8 @@ export interface Book {
   parserVersion: number;
   /** Optional embedded cover art. */
   cover?: CoverImage;
+  /** Non-fatal caveats reported while importing this book. */
+  ingestionWarnings?: string[];
   /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
   formatState?: Record<string, unknown>;
 }
