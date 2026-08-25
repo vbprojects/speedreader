@@ -311,7 +311,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     word.scrollIntoView({ block: "center", behavior: "auto" });
     const nudge = traditionalEntryNudgeRef.current;
     requestAnimationFrame(() => {
-      container.scrollBy({ top: nudge, behavior: "auto" });
+      container.scrollBy({ top: nudge, behavior: "smooth" });
       traditionalEntryNudgeRef.current = null;
     });
   }, [viewMode, traditionalRange]);
@@ -417,7 +417,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           // ignore if capture unsupported
         }
       } else if (Math.abs(dy) >= Math.abs(dx) * 1.2 && !running) {
-        // Vertical swipe detected while paused -> toggle / switch traditional e-reader mode
+        // Vertical swipe detected while paused -> enter traditional e-reader mode near the current word
         if (Math.abs(dy) >= VERTICAL_MODE_SWIPE_PX) {
           s.active = false;
           swipedRef.current = true;
