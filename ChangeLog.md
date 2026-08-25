@@ -4,6 +4,14 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Native reader gesture boundaries
+
+- **Traditional/native reader mode**: Removed RSVP horizontal swipe scrubbing from the scrollable reader. It now uses normal vertical browser scrolling only.
+- **Vertical entry gesture**: A paused vertical swipe from RSVP enters native reading with the current word centered, followed by a small, capped directional nudge. Subsequent gestures scroll normally, so the entry gesture cannot carry the reader far away from the current position.
+- **Display experiment**: Added pure coverage for the capped entry-scroll calculation.
+
+---
+
 ## 2026-08-25 — Tolerant PDF.js multi-column imports
 
 - **`PdfJsParser`**: Multi-column PDFs with a native text layer now proceed through PDF.js extraction instead of being rejected. Their reading order can be inaccurate, so the parser records a non-fatal warning. Image-only PDFs and unsupported text directions remain blocked because they cannot yield reliable local text.

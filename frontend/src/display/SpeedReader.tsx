@@ -15,6 +15,7 @@ import { themeTokens } from "../settings/themes";
 import { NavTreeView } from "../navigation";
 import { SelfCorrectingClock } from "./clock";
 import { buildFrame } from "./renderer";
+import { traditionalEntryScrollNudge } from "./traditional-gesture";
 import type { DisplayConfig, DisplayFrame, ReaderViewMode } from "./types";
 import { WordContextMenu, type WordContextMenuState } from "./WordContextMenu";
 
@@ -89,6 +90,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
   const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
+  // A pending bounded scroll adjustment from the gesture that entered native reading.
+  const traditionalEntryNudgeRef = useRef<number | null>(null);
 
   // Sync running state to parent coordinator
   useEffect(() => {
@@ -296,15 +299,22 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     jumpTo(index);
   };
 
-  // When switching to traditional mode, auto-scroll the current word into view
-  useEffect(() => {
-    if (viewMode === "traditional") {
-      const el = traditionalCurrentWordRef.current;
-      if (el) {
-        el.scrollIntoView({ block: "center", behavior: "auto" });
-      }
-    }
-  }, [viewMode]);
+  // The first vertical gesture centers the current word in traditional mode,
+  // then applies only a small directional nudge. Once there, subsequent
+  // gestures use ordinary native vertical scrolling.
+  useLayoutEffect(() => {
+    if (viewMode !== "traditional" || traditionalEntryNudgeRef.current === null) return;
+    const word = traditionalCurrentWordRef.current;
+    const container = traditionalContainerRef.current;
+    if (!word || !container) return;
+
+    word.scrollIntoView({ block: "center", behavior: "auto" });
+    const nudge = traditionalEntryNudgeRef.current;
+    requestAnimationFrame(() => {
+      container.scrollBy({ top: nudge, behavior: "smooth" });
+      traditionalEntryNudgeRef.current = null;
+    });
+  }, [viewMode, traditionalRange]);
 
   // Handle infinite scroll in traditional view
   const onTraditionalScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -350,10 +360,10 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     };
   }, []);
 
-  // --- Smooth Swipe Scrubber & Vertical E-Reader Mode Gesture ---
-  // - A horizontal swipe scrubs through words like high-WPM presentation.
-  // - A vertical swipe (up/down) when paused switches between RSVP and traditional e-reader mode
-  //   without altering the clock position, pacing engine, or saved index.
+  // --- RSVP swipe scrubber and entry gesture ---
+  // - Horizontal swipes scrub only in RSVP mode.
+  // - The first paused vertical swipe enters traditional reading near the
+  //   current word; traditional mode then uses the browser's native scrolling.
   const SWIPE_ACTIVATION_PX = 10;
   const VERTICAL_MODE_SWIPE_PX = 36;
   const PX_PER_WORD = 16;
@@ -407,11 +417,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           // ignore if capture unsupported
         }
       } else if (Math.abs(dy) >= Math.abs(dx) * 1.2 && !running) {
-        // Vertical swipe detected while paused -> toggle / switch traditional e-reader mode
+        // Vertical swipe detected while paused -> enter traditional e-reader mode near the current word
         if (Math.abs(dy) >= VERTICAL_MODE_SWIPE_PX) {
           s.active = false;
           swipedRef.current = true;
-          setViewMode((m) => (m === "rsvp" ? "traditional" : "rsvp"));
+          traditionalEntryNudgeRef.current = traditionalEntryScrollNudge(dy);
+          setViewMode("traditional");
         }
         return;
       } else {
@@ -673,22 +684,10 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                 onTraditionalScroll(e);
               }}
               onContextMenu={handleWordContextMenu}
-              onPointerDown={(e) => {
-                handleWordPointerDown(e);
-                onSwipeStart(e);
-              }}
-              onPointerMove={(e) => {
-                handleWordPointerMove(e);
-                onSwipeMove(e);
-              }}
-              onPointerUp={(e) => {
-                handleWordPointerUp();
-                onSwipeEnd(e);
-              }}
-              onPointerCancel={(e) => {
-                handleWordPointerCancel();
-                onSwipeCancel(e);
-              }}
+              onPointerDown={handleWordPointerDown}
+              onPointerMove={handleWordPointerMove}
+              onPointerUp={handleWordPointerUp}
+              onPointerCancel={handleWordPointerCancel}
               style={{
                 flex: 1,
                 overflowY: "auto",
@@ -703,6 +702,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                 userSelect: "none",
                 WebkitUserSelect: "none",
                 WebkitTouchCallout: "none",
+                touchAction: "pan-y",
+                overscrollBehaviorX: "none",
               }}
             >
               <div
