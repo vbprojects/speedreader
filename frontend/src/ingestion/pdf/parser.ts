@@ -1,7 +1,7 @@
 // src/ingestion/pdf/parser.ts
-// PDF.js-backed parser for simple, native-text PDFs. It intentionally returns
-// a complete deterministic WordStream; advanced PDFs are rejected for the
-// future Marker/Docling service rather than being silently misordered.
+// PDF.js-backed parser for native-text PDFs. It returns a complete deterministic
+// WordStream; multi-column layouts are best-effort with a persistent warning,
+// while layouts that cannot yield reliable local text remain rejected.
 
 import type { ChapterEntry, Word, WordStream } from "../../epub/types";
 import { computeMeta } from "../normalize";
