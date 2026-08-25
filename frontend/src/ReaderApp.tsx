@@ -36,22 +36,30 @@ export default function ReaderApp() {
   const [openStream, setOpenStream] = useState<import("./epub/types").WordStream | null>(null);
   const [readerSettings, setReaderSettings] = useState<GlobalSettings | null>(null);
   const [initialIndex, setInitialIndex] = useState(0);
+  const [completedInteractionIds, setCompletedInteractionIds] = useState<string[]>([]);
 
   // Debounced position persistence.
   const positionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestPosition = useRef<number>(0);
   const latestSettings = useRef<ReaderSettings>({});
+  const latestCompletedInteractionIds = useRef<string[]>([]);
   // Serialize IndexedDB writes so an older async transaction cannot finish
   // after and overwrite a newer reader position/settings snapshot.
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   const enqueueReaderState = useCallback(
-    (bookId: string, position: number, settings: ReaderSettings): Promise<void> => {
+    (
+      bookId: string,
+      position: number,
+      settings: ReaderSettings,
+      completedIds: string[] = latestCompletedInteractionIds.current
+    ): Promise<void> => {
       const snapshot = {
         bookId,
         position,
         lastOpenedAt: Date.now(),
         settings: { ...settings },
+        completedInteractionIds: [...completedIds],
       };
       saveQueue.current = saveQueue.current
         .catch(() => undefined)
@@ -125,6 +133,9 @@ export default function ReaderApp() {
         setInitialIndex(state?.position ?? 0);
         latestPosition.current = state?.position ?? 0;
         latestSettings.current = state?.settings ?? {};
+        const completed = state?.completedInteractionIds ?? [];
+        latestCompletedInteractionIds.current = [...completed];
+        setCompletedInteractionIds([...completed]);
         setOpenStream(opened.stream);
         setOpenBookId(bookId);
         // Update lastOpenedAt.
@@ -147,6 +158,19 @@ export default function ReaderApp() {
         positionTimer.current = null;
         void enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
       }, 500);
+    },
+    [enqueueReaderState, openBookId]
+  );
+
+  // ---- Reader interaction completion ----
+  const handleInteractionResolved = useCallback(
+    (interactionId: string) => {
+      const next = Array.from(new Set([...latestCompletedInteractionIds.current, interactionId]));
+      latestCompletedInteractionIds.current = next;
+      setCompletedInteractionIds(next);
+      if (openBookId) {
+        void enqueueReaderState(openBookId, latestPosition.current, latestSettings.current, next);
+      }
     },
     [enqueueReaderState, openBookId]
   );
@@ -228,6 +252,8 @@ export default function ReaderApp() {
         onPositionChange={handlePositionChange}
         onSettingsChange={handleSettingsChange}
         onSettingsReset={handleSettingsReset}
+        initialCompletedInteractionIds={completedInteractionIds}
+        onInteractionResolved={handleInteractionResolved}
       />
     );
   }
