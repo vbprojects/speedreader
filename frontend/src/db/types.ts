@@ -33,6 +33,10 @@ export interface Book {
   ingestionWarnings?: string[];
   /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
   formatState?: Record<string, unknown>;
+  /** True for content bundled by the application rather than imported by the user. */
+  builtIn?: boolean;
+  /** Revision of the bundled content used to seed this book. */
+  builtInRevision?: number;
 }
 
 /** Durable per-book reader state (rehydrated on reopen). */

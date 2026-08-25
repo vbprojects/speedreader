@@ -89,7 +89,14 @@ export default function ReaderApp() {
 
   // Load the library on mount.
   useEffect(() => {
-    refreshBooks();
+    void (async () => {
+      try {
+        await library.ensureBuiltInBooks();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+      await refreshBooks();
+    })();
   }, [refreshBooks]);
 
   // ---- Import ----
@@ -240,6 +247,20 @@ export default function ReaderApp() {
     [library, refreshBooks]
   );
 
+  const handleRestart = useCallback(
+    async (bookId: string) => {
+      setError(null);
+      try {
+        await library.resetReaderState(bookId);
+        setNotice("Actions was restarted. Its interactive prompts are ready again.");
+        await refreshBooks();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [library, refreshBooks]
+  );
+
   // ---- Render ----
   if (openStream && openBookId && readerSettings) {
     return (
@@ -271,6 +292,7 @@ export default function ReaderApp() {
       onImport={handleImport}
       onOpen={openBook}
       onRemove={handleRemove}
+      onRestart={handleRestart}
       positions={positions}
     />
   );

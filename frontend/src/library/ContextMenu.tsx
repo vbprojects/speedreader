@@ -1,8 +1,10 @@
 // src/library/ContextMenu.tsx
 // A themed context menu anchored to the pointer. Used for library tiles:
-// right-click (desktop) or long-press (touch). Remove-only for now.
+// right-click (desktop) or long-press (touch). Built-in books expose a
+// restart action instead of removal.
 
 import { useEffect, useRef } from "react";
+import type { Book } from "../db/types";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 
@@ -14,12 +16,14 @@ export interface ContextMenuState {
 
 export interface ContextMenuProps {
   state: ContextMenuState | null;
+  book?: Book;
   onClose: () => void;
   onRemove: (bookId: string) => void;
+  onRestart?: (bookId: string) => void;
   theme: Theme;
 }
 
-export function ContextMenu({ state, onClose, onRemove, theme }: ContextMenuProps) {
+export function ContextMenu({ state, book, onClose, onRemove, onRestart, theme }: ContextMenuProps) {
   const t = themeTokens(theme);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -73,7 +77,10 @@ export function ContextMenu({ state, onClose, onRemove, theme }: ContextMenuProp
     >
       <button
         role="menuitem"
-        onClick={() => onRemove(state.bookId)}
+        onClick={() => {
+          if (book?.builtIn && onRestart) onRestart(state.bookId);
+          else onRemove(state.bookId);
+        }}
         style={{
           display: "block",
           width: "100%",
@@ -89,7 +96,7 @@ export function ContextMenu({ state, onClose, onRemove, theme }: ContextMenuProp
         onMouseEnter={(e) => (e.currentTarget.style.background = t.hover)}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        Remove from library
+        {book?.builtIn ? "Restart demo" : "Remove from library"}
       </button>
     </div>
   );
