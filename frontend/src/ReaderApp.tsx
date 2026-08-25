@@ -88,7 +88,7 @@ export default function ReaderApp() {
     setImporting(true);
     setError(null);
     try {
-      const file = await pickFileBrowser(".epub");
+      const file = await pickFileBrowser(".epub,.pdf");
       if (!file) return;
       const result = await library.importFile(file);
       await refreshBooks();

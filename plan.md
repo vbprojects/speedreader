@@ -107,7 +107,8 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
 
 - **Format parsers & sources**:
   - **EPUB**: unzip container, parse `content.opf` for spine/reading order, extract XHTML chapters, strip markup, split into words. Derived from TOC/nav (`isDeterministic: true`).
-  - **PDF (Local & OCR/VLM)**: Implemented as an `InteractiveFormat` with background page extraction and incremental word append (`isDeterministic: false`).
+  - **PDF (local)**: `PdfJsParser` handles deterministic, native-text, single-flow PDFs page by page and emits the normal complete `WordStream`. A conservative suitability gate routes image-only, multi-column, RTL/vertical, and broken-font PDFs to the future Marker/Docling service.
+  - **PDF (advanced)**: Marker/Docling/VLM extraction remains behind the same ingestion boundary and can later use `InteractiveFormat` when remote processing or live chunks are needed.
   - Future: interactive LLM generators, MOBI, TXT, HTML, DOCX.
 
 #### 2. Cache / Persistence Layer
