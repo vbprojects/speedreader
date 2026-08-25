@@ -33,8 +33,6 @@ export interface Book {
   ingestionWarnings?: string[];
   /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
   formatState?: Record<string, unknown>;
-  /** IDs of blocking interactions completed by this reader. */
-  completedInteractionIds?: string[];
 }
 
 /** Durable per-book reader state (rehydrated on reopen). */
