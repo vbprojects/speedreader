@@ -3,7 +3,8 @@
 // (IndexedDB first; WASM/desktop/server later). The Library and Reader only
 // depend on this interface, so storage can be swapped without touching them.
 
-import type { WordStream } from "../epub/types";
+import type { WordStream, Word, ChapterEntry } from "../epub/types";
+import type { ReaderInteraction } from "../interactions/types";
 import type { ReaderSettings } from "../settings/types";
 
 /** A cover image stored with a book (browser-safe Blob). */
@@ -32,6 +33,8 @@ export interface Book {
   ingestionWarnings?: string[];
   /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
   formatState?: Record<string, unknown>;
+  /** IDs of blocking interactions completed by this reader. */
+  completedInteractionIds?: string[];
 }
 
 /** Durable per-book reader state (rehydrated on reopen). */
@@ -71,9 +74,10 @@ export interface Db {
   /** Append words incrementally to an existing stream or initialize if none exists. */
   appendStreamWords(
     bookId: string,
-    words: import("../epub/types").Word[],
+    words: Word[],
     options?: {
-      chapterUpdates?: import("../epub/types").ChapterEntry[];
+      chapterUpdates?: ChapterEntry[];
+      interactions?: ReaderInteraction[];
       isComplete?: boolean;
       totalWordsExpected?: number;
     }
