@@ -4,6 +4,17 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Optimal Recognition Point (ORP) focal letter highlighting & centering
+
+- **`display/SpeedReader.tsx`**:
+  - Implemented standard Optimal Recognition Point (ORP) focal letter calculation (`getOrpIndex()` based on word length).
+  - Highlighted the single focal letter with a contrasting accent badge within the active word pill.
+  - Aligned viewport centering to pin the exact focal character element (`focalCharRef`) at the screen center rather than whole-word bounding boxes, eliminating eye saccades and gaze drift.
+- **`experiments/test-display.mts`**: Added unit verification suite for ORP index calculation across varied word lengths.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all experiment test suites pass.
+
+---
+
 ## 2026-08-24 — Dynamic word streams & InteractiveFormat architecture
 
 - **`epub/types.ts` & `ingestion/types.ts`**:

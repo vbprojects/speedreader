@@ -137,7 +137,7 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
 #### 4. Display Component
 - **Responsibility**: Render the current word and surrounding context, driven by the pacing engine's clock.
 - **Features**:
-  - **Centered RSVP Focal Point**: Current word highlighted inline and translated to the exact center of the viewport via `useLayoutEffect` to minimize eye saccades.
+  - **Centered RSVP Focal Point (Optimal Recognition Point / ORP)**: Highlights the single focal letter (ORP) in an inverted contrast badge inside the active word pill, and aligns the layout transform to pin that exact character element to the viewport center. This keeps the user's eye anchored to a single fixation point across words of varying lengths.
   - **Traditional E-Reader View (Paused)**: Vertical swipe gesture (up/down) while paused switches into a scrollable, traditional reading layout with bidirectional infinite scrolling and long-press word context menu. Tapping unpauses and instantly transitions back to RSVP mode.
   - **Clock**: A **self-correcting timer** using `performance.now()` to compensate for `setInterval`/`setTimeout` drift. Supports `appendDurations()` for dynamically growing streams.
   - **Controls**: Full-width collapsible bottom drawer with seekbar scrubber, word count percentage indicator, direct "Jump to Word Number" dialog, and auto-hide while playing.

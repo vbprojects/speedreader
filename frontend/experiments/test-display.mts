@@ -7,6 +7,7 @@
 
 import { SelfCorrectingClock } from "../src/display/clock.ts";
 import { buildFrame } from "../src/display/renderer.ts";
+import { getOrpIndex } from "../src/display/SpeedReader.tsx";
 import type { Word } from "../src/epub/types.ts";
 
 function makeWords(n: number): Word[] {
@@ -55,6 +56,14 @@ async function main() {
   restored.resume();
   console.log("Resume keeps restored index:", restored.index === 3 ? "PASS" : `FAIL (${restored.index})`);
   restored.destroy();
+
+  // --- ORP Focal Index Tests ---
+  console.log("\n=== ORP (Optimal Recognition Point) ===");
+  console.log("ORP 'a' (len 1):", getOrpIndex("a") === 0 ? "PASS" : `FAIL (${getOrpIndex("a")})`);
+  console.log("ORP 'the' (len 3):", getOrpIndex("the") === 1 ? "PASS" : `FAIL (${getOrpIndex("the")})`);
+  console.log("ORP 'reading' (len 7):", getOrpIndex("reading") === 2 ? "PASS" : `FAIL (${getOrpIndex("reading")})`);
+  console.log("ORP 'speedreader' (len 11):", getOrpIndex("speedreader") === 3 ? "PASS" : `FAIL (${getOrpIndex("speedreader")})`);
+  console.log("ORP 'incomprehensible' (len 16):", getOrpIndex("incomprehensible") === 4 ? "PASS" : `FAIL (${getOrpIndex("incomprehensible")})`);
 }
 
 main().catch((e) => {

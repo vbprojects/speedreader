@@ -69,6 +69,28 @@ const TRADITIONAL_BATCH_SIZE = 400;
 /** Distance from top/bottom scroll boundary (in px) before loading more words. */
 const TRADITIONAL_SCROLL_THRESHOLD = 300;
 
+/**
+ * Calculates the Optimal Recognition Point (ORP) / focal character index
+ * for a given word string (0-based index of character to center and highlight).
+ * Standard RSVP algorithm:
+ * - Length 0-1: 0 (1st letter)
+ * - Length 2-5: 1 (2nd letter)
+ * - Length 6-9: 2 (3rd letter)
+ * - Length 10-13: 3 (4th letter)
+ * - Length > 13: 4 (5th letter)
+ */
+export function getOrpIndex(word: string): number {
+  const len = word.length;
+  if (len <= 1) return 0;
+  if (len <= 5) return 1;
+  if (len <= 9) return 2;
+  if (len <= 13) return 3;
+  return 4;
+}
+
+/** When false, words are highlighted as a cohesive whole pill without focal character badge split. */
+const ENABLE_ORP_SPLIT = false;
+
 export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
@@ -89,6 +111,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
   const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
+  const focalCharRef = useRef<HTMLSpanElement | null>(null);
 
   // Sync running state to parent coordinator
   useEffect(() => {
@@ -230,9 +253,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durations, stream]);
 
-  // Pin the current word to the exact center of the viewport (both axes) by
-  // translating the whole text block. Unlike scrolling, this guarantees the
-  // word is at a FIXED point — the eye never has to move (true speedreader).
+  // Pin the focal character (ORP) of the current word to the exact center of the viewport (both axes)
+  // by translating the whole text block. Unlike scrolling, this guarantees the
+  // focal point is at a FIXED point — the eye never has to move (true speedreader).
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
   // useLayoutEffect (not useEffect): it runs synchronously BEFORE paint, so the
@@ -241,13 +264,14 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   // first (the "shadow" flash) before the text moved to center it.
   useLayoutEffect(() => {
     const viewport = scrollRef.current;
-    const word = currentWordRef.current;
-    if (!viewport || !word) return;
+    // Prefer the exact focal letter element (ORP character) when enabled; fallback to word
+    const anchor = (ENABLE_ORP_SPLIT && focalCharRef.current) ? focalCharRef.current : currentWordRef.current;
+    if (!viewport || !anchor) return;
     const vr = viewport.getBoundingClientRect();
-    const wr = word.getBoundingClientRect();
-    // Where the word's center currently is vs. where we want it (viewport center).
-    const dx = vr.left + vr.width / 2 - (wr.left + wr.width / 2);
-    const dy = vr.top + vr.height / 2 - (wr.top + wr.height / 2);
+    const ar = anchor.getBoundingClientRect();
+    // Where the focal anchor center currently is vs. where we want it (viewport center).
+    const dx = vr.left + vr.width / 2 - (ar.left + ar.width / 2);
+    const dy = vr.top + vr.height / 2 - (ar.top + ar.height / 2);
     setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
   }, [frame]);
 
@@ -846,24 +870,65 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     wordBreak: "normal",
                   }}
                 >
-                  {chunkWords.map((w) =>
-                    w.index === frame.index ? (
-                      <span
-                        key={w.index}
-                        ref={currentWordRef}
-                        style={{
-                          color: themeStyle.highlightFg,
-                          background: themeStyle.highlight,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                        }}
-                      >
-                        {w.text}
-                      </span>
-                    ) : (
+                  {chunkWords.map((w) => {
+                    if (w.index === frame.index) {
+                      if (!ENABLE_ORP_SPLIT) {
+                        return (
+                          <span
+                            key={w.index}
+                            ref={currentWordRef}
+                            style={{
+                              color: themeStyle.highlightFg,
+                              background: themeStyle.highlight,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              display: "inline-block",
+                            }}
+                          >
+                            {w.text}
+                          </span>
+                        );
+                      }
+
+                      const orp = getOrpIndex(w.text);
+                      const before = w.text.slice(0, orp);
+                      const char = w.text[orp] ?? "";
+                      const after = w.text.slice(orp + 1);
+
+                      return (
+                        <span
+                          key={w.index}
+                          ref={currentWordRef}
+                          style={{
+                            color: themeStyle.highlightFg,
+                            background: themeStyle.highlight,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            display: "inline-block",
+                          }}
+                        >
+                          <span>{before}</span>
+                          <span
+                            ref={focalCharRef}
+                            style={{
+                              color: themeStyle.highlight,
+                              background: themeStyle.highlightFg,
+                              fontWeight: 800,
+                              borderRadius: 2,
+                              padding: "0 1px",
+                              display: "inline-block",
+                            }}
+                          >
+                            {char}
+                          </span>
+                          <span>{after}</span>
+                        </span>
+                      );
+                    }
+                    return (
                       <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
-                    )
-                  )}
+                    );
+                  })}
                 </p>
               </div>
             </div>
