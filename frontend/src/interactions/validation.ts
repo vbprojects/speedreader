@@ -110,7 +110,7 @@ export function validateInteraction(
     case "continue":
       optionalString(value.label, "label");
       optionalString(value.description, "description");
-      return value as ReaderInteraction;
+      return value as unknown as ReaderInteraction;
     default:
       throw new InteractionValidationError("unsupported interaction kind: " + String(value.kind));
   }
