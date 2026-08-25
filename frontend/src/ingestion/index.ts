@@ -8,3 +8,5 @@ export { appendToWordStream } from "./interactive";
 export type { StreamChunk, InteractiveFormat } from "./interactive";
 export * from "./types";
 export * from "./normalize";
+export { PdfJsParser, PdfAdvancedLayoutError } from "./pdf";
+export * from "./pdf";
