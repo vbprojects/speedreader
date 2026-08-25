@@ -80,6 +80,7 @@ export class LibraryStore {
     newWords: import("../epub/types").Word[],
     options?: {
       chapterUpdates?: import("../epub/types").ChapterEntry[];
+      interactions?: import("../interactions/types").ReaderInteraction[];
       isComplete?: boolean;
       totalWordsExpected?: number;
       formatState?: Record<string, unknown>;
