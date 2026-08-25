@@ -9,16 +9,18 @@ export function ContinueInteraction({
   busy = false,
   error,
   onSubmit,
+  inline = false,
 }: {
   interaction: ContinueDescriptor;
   theme?: Theme;
   busy?: boolean;
   error?: string | null;
   onSubmit: (response: ContinueResponse) => Promise<void> | void;
+  inline?: boolean;
 }) {
   const t = themeTokens(theme);
   return (
-    <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error}>
+    <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error} inline={inline}>
       {interaction.description && <p style={{ margin: "0 0 18px", color: t.muted }}>{interaction.description}</p>}
       <button
         type="button"

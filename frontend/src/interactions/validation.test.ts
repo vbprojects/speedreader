@@ -1,6 +1,6 @@
 import { deepStrictEqual, equal, rejects, throws } from "node:assert/strict";
 import { test } from "node:test";
-import { validateInteraction, validateInteractionResponse, validateInteractions } from "./validation";
+import { validateInteraction, validateInteractionRecord, validateInteractionResponse, validateInteractions } from "./validation";
 
 test("interaction descriptors survive JSON round trips", () => {
   const source = {
@@ -33,4 +33,14 @@ test("responses are validated independently of the UI", () => {
   });
   equal(response.kind, "single-choice");
   rejects(async () => validateInteractionResponse({ schemaVersion: 1, interactionId: "", kind: "continue" }));
+});
+
+test("records must match the descriptor and preserve mutable revisions", () => {
+  const interaction = validateInteraction({ schemaVersion: 1, id: "name", boundary: 0, kind: "text-input", label: "Name", editPolicy: "mutable" });
+  const record = validateInteractionRecord({
+    schemaVersion: 1, interactionId: "name", response: { schemaVersion: 1, interactionId: "name", kind: "text-input", value: "Ada" },
+    answeredAt: 10, updatedAt: 20, revision: 2,
+  }, interaction);
+  equal(record.revision, 2);
+  throws(() => validateInteractionRecord({ ...record, response: { schemaVersion: 1, interactionId: "other", kind: "text-input", value: "x" } }, interaction));
 });

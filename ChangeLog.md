@@ -4,6 +4,14 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Inline interaction history
+
+- **Natural reading flow**: Actions now render as first-class inline nodes between words. Answered actions remain in place as safe, past-tense text in native and RSVP views instead of disappearing into a modal overlay.
+- **Answer records**: Reader state stores JSON-safe response records with timestamps and revisions. Mutable actions can be edited from native reading, then restart RSVP at that action boundary; immutable actions remain visibly locked.
+- **Coverage**: Added flow projection, history formatting, persisted-record validation, and demo policy tests.
+
+---
+
 ## 2026-08-25 — Bundled Actions interaction demo
 
 - **Offline demo book**: Added a small built-in “Actions” WordStream that demonstrates the continue, text-input, and single-choice reader controls through the normal persisted interaction path.

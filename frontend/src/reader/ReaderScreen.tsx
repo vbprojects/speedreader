@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from "react";
 import type { WordStream } from "../epub/types";
-import type { InteractionResponse } from "../interactions/types";
+import type { InteractionRecord, InteractionResponse } from "../interactions/types";
 import { PacingEngine, selectBackend } from "../pacing";
 import { SpeedReader } from "../display";
 import { SettingsModal, themeTokens } from "../settings";
@@ -29,11 +29,13 @@ export interface ReaderScreenProps {
   initialCompletedInteractionIds?: string[];
   /** Called when an interaction is completed. */
   onInteractionResolved?: (interactionId: string) => void;
+  initialInteractionRecords?: InteractionRecord[];
+  onInteractionCommitted?: (record: InteractionRecord) => void;
   /** Optional format-owned interaction responder. */
   onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
 }
 
-export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, onInteractionSubmit }: ReaderScreenProps) {
+export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit }: ReaderScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [running, setRunning] = useState(false);
@@ -110,6 +112,8 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           onRunningChange={setRunning}
           initialCompletedInteractionIds={initialCompletedInteractionIds}
           onInteractionResolved={onInteractionResolved}
+          initialInteractionRecords={initialInteractionRecords}
+          onInteractionCommitted={onInteractionCommitted}
           onInteractionSubmit={onInteractionSubmit}
         />
       </div>

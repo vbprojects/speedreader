@@ -9,8 +9,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
-import { InteractionOverlay } from "../interactions";
-import type { InteractionResponse, ReaderInteraction } from "../interactions/types";
+import { InlineInteraction, buildReaderFlowRange } from "../interactions";
+import { validateInteractionRecord } from "../interactions/validation";
+import type { InteractionRecord, InteractionResponse, ReaderInteraction } from "../interactions/types";
 import type { PacingEngine } from "../pacing/engine";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
@@ -62,6 +63,10 @@ export interface SpeedReaderProps {
   initialCompletedInteractionIds?: string[];
   /** Called after an interaction response is accepted. */
   onInteractionResolved?: (interactionId: string) => void;
+  /** Persisted answers, including mutable revisions. */
+  initialInteractionRecords?: InteractionRecord[];
+  /** Called after an answer is accepted and recorded in the flow. */
+  onInteractionCommitted?: (record: InteractionRecord) => void;
 }
 
 const DEFAULT_CONFIG: DisplayConfig = {
@@ -78,7 +83,7 @@ const TRADITIONAL_BATCH_SIZE = 400;
 /** Distance from top/bottom scroll boundary (in px) before loading more words. */
 const TRADITIONAL_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -95,6 +100,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [pendingInteraction, setPendingInteraction] = useState<ReaderInteraction | null>(null);
   const [interactionBusy, setInteractionBusy] = useState(false);
   const [interactionError, setInteractionError] = useState<string | null>(null);
+  const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null);
+  const [recordsVersion, setRecordsVersion] = useState(0);
   const isMobile = useMediaQuery("(max-width: 640px)");
   const clockRef = useRef<SelfCorrectingClock | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -104,11 +111,14 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   // A pending bounded scroll adjustment from the gesture that entered native reading.
   const traditionalEntryNudgeRef = useRef<number | null>(null);
   const resolvedInteractionIdsRef = useRef(new Set(initialCompletedInteractionIds ?? []));
+  const interactionRecordsRef = useRef(new Map(initialInteractionRecords.map((record) => [record.interactionId, record])));
   const resumeAfterInteractionRef = useRef(false);
   const onInteractionSubmitRef = useRef(onInteractionSubmit);
   const onInteractionResolvedRef = useRef(onInteractionResolved);
+  const onInteractionCommittedRef = useRef(onInteractionCommitted);
   onInteractionSubmitRef.current = onInteractionSubmit;
   onInteractionResolvedRef.current = onInteractionResolved;
+  onInteractionCommittedRef.current = onInteractionCommitted;
 
   // Sync running state to parent coordinator
   useEffect(() => {
@@ -172,18 +182,15 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   // The stable chunk of words rendered around the current position in RSVP mode. Only
   // re-chunks when the current word nears the chunk edge — between refreshes
   // the text is static, so nothing reflows or shifts while reading.
-  const chunkWords = useMemo(() => {
-    const start = Math.max(0, Math.min(chunkStart, stream.words.length - 1));
-    const end = Math.min(stream.words.length, start + CHUNK_SIZE);
-    return stream.words.slice(start, end);
-  }, [stream, chunkStart]);
-
-  // Words slice for the traditional view (supports infinite scrolling in both directions).
-  const traditionalWords = useMemo(() => {
-    const start = Math.max(0, Math.min(traditionalRange.start, stream.words.length - 1));
-    const end = Math.min(stream.words.length, Math.max(start, traditionalRange.end));
-    return stream.words.slice(start, end);
-  }, [stream, traditionalRange]);
+  const persistedRecords = useMemo(() => Array.from(interactionRecordsRef.current.values()), [stream, frame, pendingInteraction, editingInteractionId, recordsVersion]);
+  const traditionalFlow = useMemo(
+    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, traditionalRange.start, traditionalRange.end),
+    [stream, traditionalRange, persistedRecords]
+  );
+  const rsvpFlow = useMemo(
+    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, chunkStart, Math.min(stream.words.length, chunkStart + CHUNK_SIZE)),
+    [stream, chunkStart, persistedRecords]
+  );
 
   // Initialize or center traditional range when entering traditional mode or when frame index jumps
   useEffect(() => {
@@ -215,7 +222,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const interactionAtBoundary = (boundary: number): ReaderInteraction | null =>
     (stream.interactions ?? []).find(
       (interaction) =>
-        interaction.boundary === boundary && !resolvedInteractionIdsRef.current.has(interaction.id)
+        interaction.boundary === boundary && !resolvedInteractionIdsRef.current.has(interaction.id) && !interactionRecordsRef.current.has(interaction.id)
     ) ?? null;
 
   // Create the clock. Recreated when durations change (e.g. WPM/settings),
@@ -655,25 +662,52 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     seekTo(targetIndex);
   };
 
-  const handleInteractionSubmit = async (response: InteractionResponse) => {
-    const current = pendingInteraction;
-    if (!current || response.interactionId !== current.id || interactionBusy) return;
+  const handleInteractionSubmit = async (interaction: ReaderInteraction, response: InteractionResponse) => {
+    const current = interaction;
+    if (response.interactionId !== current.id || interactionBusy) return;
     setInteractionBusy(true);
     setInteractionError(null);
     try {
       await onInteractionSubmitRef.current?.(response);
+      const previous = interactionRecordsRef.current.get(current.id);
+      const now = Date.now();
+      const record = validateInteractionRecord({
+        schemaVersion: 1,
+        interactionId: current.id,
+        response,
+        answeredAt: previous?.answeredAt ?? now,
+        updatedAt: now,
+        revision: (previous?.revision ?? 0) + 1,
+      }, current);
+      interactionRecordsRef.current.set(current.id, record);
+      setRecordsVersion((version) => version + 1);
       resolvedInteractionIdsRef.current.add(current.id);
       onInteractionResolvedRef.current?.(current.id);
-      const next = interactionAtBoundary(current.boundary);
-      if (next) {
-        setPendingInteraction(next);
-      } else {
+      onInteractionCommittedRef.current?.(record);
+      const editing = editingInteractionId === current.id;
+      if (editing) {
+        setEditingInteractionId(null);
         setPendingInteraction(null);
-        if (resumeAfterInteractionRef.current) {
-          const clock = clockRef.current;
-          if (clock && !clock.running) {
-            clock.resume();
-            setRunning(clock.running);
+        const restartIndex = Math.min(current.boundary, Math.max(0, stream.words.length - 1));
+        jumpTo(restartIndex);
+        setViewMode("rsvp");
+        resumeAfterInteractionRef.current = true;
+        const clock = clockRef.current;
+        if (clock && !clock.running) {
+          clock.resume();
+          setRunning(clock.running);
+        }
+      } else if (pendingInteraction?.id === current.id) {
+        const next = interactionAtBoundary(current.boundary);
+        if (next) setPendingInteraction(next);
+        else {
+          setPendingInteraction(null);
+          if (resumeAfterInteractionRef.current) {
+            const clock = clockRef.current;
+            if (clock && !clock.running) {
+              clock.resume();
+              setRunning(clock.running);
+            }
           }
         }
       }
@@ -683,6 +717,32 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       setInteractionBusy(false);
     }
   };
+
+  const beginInteractionEdit = (interaction: ReaderInteraction) => {
+    if (interaction.editPolicy !== "mutable") return;
+    if (clockRef.current?.running) {
+      clockRef.current.pause();
+      setRunning(false);
+    }
+    setPendingInteraction(null);
+    setInteractionError(null);
+    setEditingInteractionId(interaction.id);
+  };
+
+  const renderInlineInteraction = (interaction: ReaderInteraction, record?: InteractionRecord) => (
+    <InlineInteraction
+      key={interaction.id}
+      interaction={interaction}
+      record={record}
+      theme={theme}
+      busy={interactionBusy && (pendingInteraction?.id === interaction.id || editingInteractionId === interaction.id)}
+      error={(pendingInteraction?.id === interaction.id || editingInteractionId === interaction.id) ? interactionError : null}
+      editing={editingInteractionId === interaction.id}
+      onSubmit={(response) => handleInteractionSubmit(interaction, response)}
+      onEdit={() => beginInteractionEdit(interaction)}
+      onCancelEdit={() => setEditingInteractionId(null)}
+    />
+  );
 
   if (!frame) return null;
 
@@ -820,44 +880,42 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     ··· Scrolling to earlier text ···
                   </div>
                 )}
-                {traditionalWords.map((w) =>
-                  w.index === frame.index ? (
-                    <span key={w.index}>
-                      <span
-                        ref={traditionalCurrentWordRef}
-                        data-word-index={w.index}
-                        data-word-text={w.text}
-                        style={{
-                          color: themeStyle.highlightFg,
-                          background: themeStyle.highlight,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          display: "inline-block",
-                        }}
-                      >
-                        {w.text}
-                      </span>
-                      {" "}
+                {traditionalFlow.map((node) => node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
+                  <span key={node.word.index}>
+                    <span
+                      ref={traditionalCurrentWordRef}
+                      data-word-index={node.word.index}
+                      data-word-text={node.word.text}
+                      style={{
+                        color: themeStyle.highlightFg,
+                        background: themeStyle.highlight,
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        fontWeight: 600,
+                        display: "inline-block",
+                      }}
+                    >
+                      {node.word.text}
                     </span>
-                  ) : (
-                    <span key={w.index}>
-                      <span
-                        data-word-index={w.index}
-                        data-word-text={w.text}
-                        style={{
-                          color: themeStyle.fg,
-                          display: "inline-block",
-                          borderRadius: 3,
-                          padding: "0 1px",
-                        }}
-                      >
-                        {w.text}
-                      </span>
-                      {" "}
+                    {" "}
+                  </span>
+                ) : (
+                  <span key={node.word.index}>
+                    <span
+                      data-word-index={node.word.index}
+                      data-word-text={node.word.text}
+                      style={{
+                        color: themeStyle.fg,
+                        display: "inline-block",
+                        borderRadius: 3,
+                        padding: "0 1px",
+                      }}
+                    >
+                      {node.word.text}
                     </span>
-                  )
-                )}
+                    {" "}
+                  </span>
+                ))}
                 {traditionalRange.end < stream.words.length && (
                   <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
                     ··· Scroll for more ···
@@ -893,10 +951,10 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                   inset: 0,
                   transform: `translateX(${dragX}px)`,
                   transition: dragging ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                  pointerEvents: "none",
+                  pointerEvents: "auto",
                 }}
               >
-                <p
+                <div
                   style={{
                     fontSize,
                     lineHeight: 1.8,
@@ -911,10 +969,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     wordBreak: "normal",
                   }}
                 >
-                  {chunkWords.map((w) =>
-                    w.index === frame.index ? (
+                  {rsvpFlow.map((node) => node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
                       <span
-                        key={w.index}
+                        key={node.word.index}
                         ref={currentWordRef}
                         style={{
                           color: themeStyle.highlightFg,
@@ -923,13 +980,13 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                           borderRadius: 4,
                         }}
                       >
-                        {w.text}
+                        {node.word.text}
                       </span>
                     ) : (
-                      <span key={w.index} style={{ color: themeStyle.muted }}>{w.text} </span>
+                      <span key={node.word.index} style={{ color: themeStyle.muted }}>{node.word.text} </span>
                     )
                   )}
-                </p>
+                </div>
               </div>
             </div>
           )}
@@ -1205,14 +1262,6 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           </div>
         </div>
       )}
-
-      <InteractionOverlay
-        interaction={pendingInteraction}
-        theme={theme}
-        busy={interactionBusy}
-        error={interactionError}
-        onSubmit={handleInteractionSubmit}
-      />
 
       {/* Traditional view word context menu */}
       <WordContextMenu

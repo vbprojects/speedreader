@@ -9,6 +9,7 @@ export interface InteractionCardProps {
   children: ReactNode;
   busy?: boolean;
   error?: string | null;
+  inline?: boolean;
 }
 
 export function InteractionCard({
@@ -17,6 +18,7 @@ export function InteractionCard({
   children,
   busy = false,
   error,
+  inline = false,
 }: InteractionCardProps) {
   const t = themeTokens(theme);
   const titleId = "interaction-title-" + interaction.id;
@@ -30,8 +32,8 @@ export function InteractionCard({
 
   return (
     <section
-      role="dialog"
-      aria-modal="true"
+      role={inline ? "group" : "dialog"}
+      aria-modal={inline ? undefined : "true"}
       aria-labelledby={titleId}
       aria-describedby={interaction.prompt && interaction.kind !== "single-choice" ? descriptionId : undefined}
       style={{
@@ -42,12 +44,13 @@ export function InteractionCard({
         border: "1px solid " + t.border + "99",
         background: t.panel + "ef",
         color: t.fg,
-        boxShadow: "0 24px 80px rgba(0, 0, 0, 0.28)",
+        boxShadow: inline ? "0 10px 30px rgba(0, 0, 0, 0.14)" : "0 24px 80px rgba(0, 0, 0, 0.28)",
         backdropFilter: "blur(22px) saturate(130%)",
         WebkitBackdropFilter: "blur(22px) saturate(130%)",
         opacity: busy ? 0.75 : 1,
       }}
-      data-interaction-id={interaction.id}
+        data-interaction-id={interaction.id}
+        data-interaction-inline={inline ? "true" : undefined}
     >
       <h2 id={titleId} style={{ margin: 0, fontSize: 20, lineHeight: 1.3 }}>
         {title}

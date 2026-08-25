@@ -71,6 +71,7 @@ function validateChoiceOptions(value: unknown): ChoiceOption[] {
     if (ids.has(id)) throw new InteractionValidationError("duplicate choice option id: " + id);
     ids.add(id);
     optionalString(option.description, "options[" + index + "].description");
+    optionalString(option.resolvedText, "options[" + index + "].resolvedText");
     optionalBoolean(option.disabled, "options[" + index + "].disabled");
     requireString(option.label, "options[" + index + "].label");
     return option as unknown as ChoiceOption;
@@ -94,6 +95,9 @@ export function validateInteraction(
   }
   optionalString(value.prompt, "prompt");
   optionalString(value.sourceRef, "sourceRef");
+  if (value.editPolicy !== undefined && value.editPolicy !== "immutable" && value.editPolicy !== "mutable") {
+    throw new InteractionValidationError("editPolicy must be immutable or mutable");
+  }
 
   switch (value.kind) {
     case "text-input":
@@ -101,6 +105,14 @@ export function validateInteraction(
       optionalString(value.placeholder, "placeholder");
       optionalString(value.defaultValue, "defaultValue");
       optionalString(value.submitLabel, "submitLabel");
+      if (value.history !== undefined) {
+        if (!isRecord(value.history) || value.history.kind !== "value") {
+          throw new InteractionValidationError("text-input history must be a value presentation");
+        }
+        requireString(value.history.prefix, "history.prefix");
+        optionalString(value.history.suffix, "history.suffix");
+        optionalBoolean(value.history.quoteValue, "history.quoteValue");
+      }
       validateConstraints(value.constraints);
       return value as unknown as ReaderInteraction;
     case "single-choice":
@@ -110,10 +122,39 @@ export function validateInteraction(
     case "continue":
       optionalString(value.label, "label");
       optionalString(value.description, "description");
+      if (value.history !== undefined) {
+        if (!isRecord(value.history) || value.history.kind !== "statement") {
+          throw new InteractionValidationError("continue history must be a statement presentation");
+        }
+        requireString(value.history.text, "history.text");
+      }
       return value as unknown as ReaderInteraction;
     default:
       throw new InteractionValidationError("unsupported interaction kind: " + String(value.kind));
   }
+}
+
+/** Validate a persisted response against the interaction it resolves. */
+export function validateInteractionRecord(
+  value: unknown,
+  interaction: ReaderInteraction
+): import("./types").InteractionRecord {
+  if (!isRecord(value)) throw new InteractionValidationError("interaction record must be an object");
+  if (value.schemaVersion !== INTERACTION_SCHEMA_VERSION) throw new InteractionValidationError("unsupported interaction record schemaVersion");
+  const interactionId = requireString(value.interactionId, "interactionId");
+  if (interactionId !== interaction.id) throw new InteractionValidationError("interaction record id does not match descriptor");
+  if (!Number.isFinite(value.answeredAt) || !Number.isFinite(value.updatedAt) || !Number.isInteger(value.revision) || (value.revision as number) < 1) {
+    throw new InteractionValidationError("interaction record timestamps and revision are invalid");
+  }
+  const response = validateInteractionResponse(value.response);
+  if (response.kind !== interaction.kind || response.interactionId !== interaction.id) {
+    throw new InteractionValidationError("interaction record response does not match descriptor");
+  }
+  if (response.kind === "single-choice" && interaction.kind === "single-choice") {
+    const option = interaction.options.find((candidate) => candidate.id === response.optionId);
+    if (!option || option.disabled) throw new InteractionValidationError("interaction record selects an unavailable option");
+  }
+  return { schemaVersion: 1, interactionId, response, answeredAt: value.answeredAt as number, updatedAt: value.updatedAt as number, revision: value.revision as number };
 }
 
 export function validateInteractions(

@@ -10,12 +10,14 @@ export function ChoiceInteraction({
   busy = false,
   error,
   onSubmit,
+  inline = false,
 }: {
   interaction: ChoiceDescriptor;
   theme?: Theme;
   busy?: boolean;
   error?: string | null;
   onSubmit: (response: ChoiceResponse) => Promise<void> | void;
+  inline?: boolean;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function ChoiceInteraction({
   };
 
   return (
-    <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error ?? localError}>
+    <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error ?? localError} inline={inline}>
       <div role="group" aria-label={interaction.prompt ?? "Choices"} style={{ display: "grid", gap: 10 }}>
         {interaction.options.map((option) => (
           <button
