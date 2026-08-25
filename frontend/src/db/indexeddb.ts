@@ -140,8 +140,8 @@ export class IndexedDb implements Db {
           isComplete: options?.isComplete ?? false,
           totalWordsExpected: options?.totalWordsExpected,
           chapterAttribute: "chapterId",
-          ...(options?.interactions && options.interactions.length > 0 ? { interactions: options.interactions } : {}),
         },
+        ...(options?.interactions && options.interactions.length > 0 ? { interactions: options.interactions } : {}),
       };
     }
 
