@@ -10,7 +10,8 @@ export type {
   StreamMeta,
 } from "../epub/types";
 
-export type { StreamChunk, InteractiveFormat } from "./interactive";
+export type { StreamChunk, InteractiveFormat, RespondableInteractiveFormat } from "./interactive";
+export type { InteractionResponse, ReaderInteraction } from "../interactions/types";
 
 import type { WordStream } from "../epub/types";
 
