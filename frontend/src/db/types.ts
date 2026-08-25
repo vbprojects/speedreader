@@ -48,6 +48,8 @@ export interface ReaderState {
   settings: ReaderSettings;
   /** Format-specific interactive/resumption state (e.g., page cursor, session ID). */
   formatState?: Record<string, unknown>;
+  /** IDs of blocking interactions completed by this reader. */
+  completedInteractionIds?: string[];
 }
 
 /** A stored stream record (full stream for now; chunked later). */
