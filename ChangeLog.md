@@ -4,6 +4,14 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Bundled Actions interaction demo
+
+- **Offline demo book**: Added a small built-in “Actions” WordStream that demonstrates the continue, text-input, and single-choice reader controls through the normal persisted interaction path.
+- **Library lifecycle**: Actions is seeded automatically, marked as built-in, and protected from removal. Its saved reader state can be reset with “Restart demo” so every prompt can be tried again.
+- **Coverage**: Added fixture, JSON round-trip, seeding, repair, revision, restart, and deletion-protection tests.
+
+---
+
 ## 2026-08-25 — Fix iOS CI artifact upload
 
 - **iOS workflow**: Tauri’s iOS build emits an unsigned IPA under the architecture-specific build directory, not a Release-iphonesimulator/*.app path. The workflow now uploads build/**/*.ipa and keeps missing artifacts as a hard failure.

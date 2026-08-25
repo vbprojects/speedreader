@@ -7,6 +7,7 @@ import type { Db, Book, ReaderState } from "../db/types";
 import type { FileInfo, IngestionEngine } from "../ingestion";
 import { sha256 } from "./hash";
 import type { ImportResult, OpenableBook } from "./types";
+import { ACTIONS_BOOK_ID, ACTIONS_BOOK_REVISION, createActionsFixture } from "./default-books/actions";
 
 /** Bump when the parser output shape changes → cached streams re-ingest. */
 export const PARSER_VERSION = 1;
@@ -21,6 +22,32 @@ export class LibraryStore {
   async getBooks(): Promise<Book[]> {
     const books = await this.db.getBooks();
     return books.sort((a, b) => b.addedAt - a.addedAt);
+  }
+
+  /** Ensure the bundled Actions smoke-test book exists and is current. */
+  async ensureBuiltInBooks(): Promise<void> {
+    const fixture = createActionsFixture();
+    const existing = await this.db.getBook(ACTIONS_BOOK_ID);
+    const stream = await this.db.getStream(ACTIONS_BOOK_ID);
+
+    if (!existing || !existing.builtIn || existing.builtInRevision !== ACTIONS_BOOK_REVISION) {
+      await this.db.addBook({
+        ...fixture.book,
+        addedAt: existing?.addedAt ?? fixture.book.addedAt,
+      });
+      await this.db.saveStream(ACTIONS_BOOK_ID, fixture.stream);
+      return;
+    }
+
+    // Repair a partially cleared browser database without touching reader state.
+    if (!stream) {
+      await this.db.saveStream(ACTIONS_BOOK_ID, fixture.stream);
+      await this.db.updateBook(ACTIONS_BOOK_ID, {
+        wordCount: fixture.book.wordCount,
+        chapterCount: fixture.book.chapterCount,
+        parserVersion: fixture.book.parserVersion,
+      });
+    }
   }
 
   /** Import a file: hash → ingest → metadata → persist. Dedupes by hash. */
@@ -116,6 +143,15 @@ export class LibraryStore {
 
   /** Remove a book and all its owned data (stream + state). */
   async removeBook(bookId: string): Promise<void> {
+    const book = await this.db.getBook(bookId);
+    if (book?.builtIn) throw new Error("Built-in books cannot be removed");
     await this.db.deleteBookCascade(bookId);
+  }
+
+  /** Clear only reader progress for a bundled demonstration book. */
+  async resetReaderState(bookId: string): Promise<void> {
+    const book = await this.db.getBook(bookId);
+    if (!book?.builtIn) throw new Error("Only built-in books can be restarted");
+    await this.db.deleteReaderState(bookId);
   }
 }

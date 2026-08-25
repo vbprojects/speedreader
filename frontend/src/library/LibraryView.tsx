@@ -1,7 +1,7 @@
 // src/library/LibraryView.tsx
 // The root library screen: grid of glassmorphic book tiles (cover + title footer),
-// search bar, import action, settings modal, and a remove-only context menu
-// (right-click / long-press). Opening a book calls onOpen(bookId).
+// search bar, import action, settings modal, and a context menu (right-click /
+// long-press). Built-in demo books can be restarted; imported books can be removed.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Book } from "../db/types";
@@ -26,6 +26,7 @@ export interface LibraryViewProps {
   onImport: () => void;
   onOpen: (bookId: string) => void;
   onRemove: (bookId: string) => void;
+  onRestart?: (bookId: string) => void;
   /** Saved position per book id (for progress display). */
   positions?: Record<string, number>;
 }
@@ -45,6 +46,7 @@ export function LibraryView({
   onImport,
   onOpen,
   onRemove,
+  onRestart,
   positions,
 }: LibraryViewProps) {
   const t = themeTokens(theme);
@@ -123,6 +125,11 @@ export function LibraryView({
     setMenu(null);
     const book = books.find((b) => b.id === bookId);
     if (book) setConfirmBook(book);
+  };
+
+  const handleRestart = (bookId: string) => {
+    setMenu(null);
+    onRestart?.(bookId);
   };
 
   const confirmRemove = () => {
@@ -419,7 +426,14 @@ export function LibraryView({
       )}
 
       {/* Context Menu & Confirmation Dialog */}
-      <ContextMenu state={menu} onClose={() => setMenu(null)} onRemove={handleRemove} theme={theme} />
+      <ContextMenu
+        state={menu}
+        book={menu ? books.find((book) => book.id === menu.bookId) : undefined}
+        onClose={() => setMenu(null)}
+        onRemove={handleRemove}
+        onRestart={handleRestart}
+        theme={theme}
+      />
       <ConfirmDialog
         open={!!confirmBook}
         title="Remove from library?"
@@ -553,6 +567,27 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
             ⚠️ Check layout
           </div>
         ) : null}
+        {book.builtIn && (
+          <div
+            title="Bundled offline demonstration"
+            style={{
+              position: "absolute",
+              bottom: 8,
+              left: 8,
+              background: "rgba(0,0,0,0.55)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              color: "#fff",
+              borderRadius: 999,
+              padding: "2px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            Built-in
+          </div>
+        )}
         {pct > 0 && (
           <div
             style={{
