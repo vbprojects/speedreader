@@ -70,6 +70,29 @@ export class LibraryStore {
     return { book, stream, existed: false };
   }
 
+  /**
+   * Append a batch of new words to a book's stream in the background, updating
+   * wordCount, stream cache, and optional formatState in the database.
+   */
+  async appendWords(
+    bookId: string,
+    newWords: import("../epub/types").Word[],
+    options?: {
+      chapterUpdates?: import("../epub/types").ChapterEntry[];
+      isComplete?: boolean;
+      totalWordsExpected?: number;
+      formatState?: Record<string, unknown>;
+    }
+  ): Promise<import("../epub/types").WordStream> {
+    const updatedStream = await this.db.appendStreamWords(bookId, newWords, options);
+    await this.db.updateBook(bookId, {
+      wordCount: updatedStream.meta.totalWords,
+      chapterCount: updatedStream.chapterIndex.length,
+      formatState: options?.formatState,
+    });
+    return updatedStream;
+  }
+
   /** Open a book by id: load its cached stream (no re-parse). */
   async openBook(bookId: string): Promise<OpenableBook | null> {
     const book = await this.db.getBook(bookId);

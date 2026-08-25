@@ -4,6 +4,24 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-24 — Dynamic word streams & InteractiveFormat architecture
+
+- **`epub/types.ts` & `ingestion/types.ts`**:
+  - Expanded `StreamMeta` with streaming lifecycle flags (`isComplete?: boolean`, `totalWordsExpected?: number`).
+- **`ingestion/interactive.ts` (new)**:
+  - Added `InteractiveFormat` contract for asynchronous, interactive, or background streams (e.g. PDF page-by-page OCR, LLM interactive generation).
+  - Added `appendToWordStream()` helper to merge incoming word chunks, reindex global monotonic indices, and update TOC/chapter entries incrementally.
+- **`db/` & `library/store.ts`**:
+  - Added `appendStreamWords()` and `appendWords()` for incremental stream persistence in IndexedDB.
+  - Added polymorphic `formatState` property to `Book` and `ReaderState` so interactive format subclasses can save and restore their processing cursors (e.g., current page, token checkpoints) independently of the reader's word position.
+- **`display/clock.ts` & `pacing/engine.ts`**:
+  - Added `appendDurations()` to `SelfCorrectingClock` and `durationsForChunk()` to `PacingEngine` for seamless live RSVP continuation as words arrive in the background.
+- **`experiments/test-dynamic-stream.mts` (new)**:
+  - Added comprehensive simulation and verification suite for background chunk ingestion, dynamic clock extension, and resumption state persistence.
+- Verified: `npx tsc --noEmit`, `npm run build`, and all test suites pass.
+
+---
+
 ## 2026-08-24 — Clean fullscreen reading mode & UI polish
 
 - **Default collapsed left sidebar**: The navigation tree starts collapsed by default when opening a book, providing an immediate full-width reading view.

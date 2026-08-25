@@ -35,17 +35,12 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
 ### Component Breakdown
 
 #### 1. Ingestion Component
-- **Responsibility**: Accept an uploaded file, parse it, and emit a single normalized stream of words regardless of source format.
-- **Interface**: `ingest(file) → WordStream`
-  - `WordStream` is an ordered, indexable sequence of words.
-  - Each word carries **flexible structural metadata** (see Option B below): `{ text, index, metadata: Metadata[] }` where the ordered metadata list determines the hierarchy.
-- **Format parsers** (pluggable):
-  - **EPUB**: unzip container, parse `content.opf` for spine/reading order, extract XHTML chapters, strip markup, split into words. **Chapters are derived from the TOC/nav, not the spine files** (see open question #13) — spine files act as physical locators.
-  - **PDF**: extract text per page (via a library like `pdf-parse` or `pdfjs-dist`), preserve page boundaries as structural markers.
-  - Future: MOBI, TXT, HTML, DOCX.
-- **Output**: a canonical, format-agnostic stream. This is the single source of truth for everything downstream.
+- **Responsibility**: Accept an uploaded file or interactive input, parse/generate content, and emit a normalized stream of words regardless of source format.
+- **Interface**:
+  - Deterministic/batch parsers: `ingest(file) → Promise<WordStream>` (e.g. EPUB, plain text).
+  - Interactive/asynchronous sources: `InteractiveFormat<TInput, TState>` (e.g. background PDF OCR, LLM interactive generation).
 - **Stream model — flat, tagged words (Option B)**:
-  - The stream is a **single flat, ordered array of `Word` objects** — homogeneous, streamable, and cacheable as one blob.
+  - The stream is a **single flat, ordered array of `Word` objects** — homogeneous, streamable, and cacheable.
   - Every `Word` carries **structural metadata** inline. The `Word` shape is **format-agnostic and intentionally flexible** — it does not hard-code any specific ebook structure, so different formats (EPUB, PDF, dynamic content) can express their own hierarchy without the model being tied to one format:
     ```ts
     interface Word {
@@ -58,12 +53,62 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
       attribute: string;   // e.g. "chapterId", "sectionId", "paragraphId", "page"
       value: string | number;
     }
+
+    interface StreamMeta {
+      totalWords: number;
+      avgWordLength: number;
+      isDeterministic: boolean;     // true for EPUB, false for OCR / dynamic formats
+      isComplete?: boolean;         // true when full book/stream is finished
+      totalWordsExpected?: number;  // estimated/known total during background streaming
+      chapterAttribute: string;
+    }
+
+    interface WordStream {
+      words: Word[];
+      chapterIndex: ChapterEntry[];
+      meta: StreamMeta;
+    }
     ```
-  - **The list of metadata and its order determine the hierarchy.** The array is ordered **most-important → least-important** (top of the navigation tree → leaf). For example, `[{ chapterId: 1 }, { sectionId: 1 }]` means "chapter 1, section 1" — the navigation tree renders `chapterId` as the top level and `sectionId` nested under it. This enables **dynamic hierarchical navigation** derived from whatever attributes a format provides, and does **not** enforce an ebook structure on other formats.
-  - **Navigation tree depth = metadata array length.** The first attribute is the root level of the tree; each subsequent attribute is one level deeper. Attributes later in the array are finer-grained (e.g., paragraph < section < chapter).
-  - Because the hierarchy is data-driven, navigation (chapter jumps, TOC, progress) is built by scanning the metadata, not by assuming fixed fields. The `chapter_index` table is derived from whichever attribute is designated as the "chapter" level per format.
-  - **Note**: this interface is a starting point and **can change** — the exact metadata scheme is an open design question (see open question #13) to be settled empirically during ingestion work.
-- **Determinism scope**: determinism (same bytes → same stream) applies to the **local, self-contained parsers** (EPUB, plain-text PDF). Formats that depend on **external services or on-demand extraction** (scanned PDFs, dynamic content) are explicitly **non-deterministic** — their streams are marked `isDeterministic: false` and are cached for performance but not treated as reproducible.
+  - **The list of metadata and its order determine the hierarchy.** The array is ordered **most-important → least-important** (top of the navigation tree → leaf). For example, `[{ chapterId: 1 }, { sectionId: 1 }]` means "chapter 1, section 1" — the navigation tree renders `chapterId` as the top level and `sectionId` nested under it. This enables **dynamic hierarchical navigation** derived from whatever attributes a format provides.
+  - **Navigation tree depth = metadata array length.** The first attribute is the root level of the tree; each subsequent attribute is one level deeper.
+
+- **Dynamic Word Streams & The `InteractiveFormat` Abstraction**:
+  - For formats that cannot be ingested in a single synchronous/deterministic batch (e.g. background page-by-page PDF OCR, on-demand VLM extraction, or generative text), ingestion is modeled as an **`InteractiveFormat<TInput, TState>`**:
+    ```ts
+    interface StreamChunk<TState = Record<string, unknown>> {
+      words: Word[];
+      chapterUpdates?: ChapterEntry[];
+      state: TState;
+      isComplete: boolean;
+      totalWordsExpected?: number;
+    }
+
+    interface InteractiveFormat<TInput = unknown, TState = Record<string, unknown>> {
+      readonly format: string;
+      readonly isDeterministic: boolean;
+
+      init(input: TInput, savedState?: TState): Promise<{
+        initialState: TState;
+        title?: string;
+        author?: string;
+      }>;
+
+      startStreaming(
+        startIndex: number,
+        onChunk: (chunk: StreamChunk<TState>) => void,
+        onError: (err: Error) => void
+      ): () => void; // returns cleanup/abort function
+
+      getState(): TState;
+    }
+    ```
+  - **Stream Decoupling**: Words emitted by an interactive source are merged into the persistent `WordStream` via `appendToWordStream()` and committed to IndexedDB incrementally.
+  - **State Separation**: The reading position (`position`) is tracked by global word index in the persistent stream, while format-specific progress (e.g., `{ currentPage: 14, totalPages: 100 }` or `{ sessionToken: "..." }`) is stored as an opaque `formatState` in `ReaderState` and `Book`. When reopening a book, accumulated words rehydrate instantly offline, and the interactive subclass resumes processing from `formatState`.
+
+- **Format parsers & sources**:
+  - **EPUB**: unzip container, parse `content.opf` for spine/reading order, extract XHTML chapters, strip markup, split into words. Derived from TOC/nav (`isDeterministic: true`).
+  - **PDF (Local & OCR/VLM)**: Implemented as an `InteractiveFormat` with background page extraction and incremental word append (`isDeterministic: false`).
+  - Future: interactive LLM generators, MOBI, TXT, HTML, DOCX.
 
 #### 2. Cache / Persistence Layer
 - **Responsibility**: Store the normalized word stream so re-opening a book doesn't require re-parsing.
@@ -78,23 +123,24 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
   - `type PacingFn = (word: Word, ctx: PacingContext) => number` → milliseconds.
   - `PacingContext` carries the target WPM, a `PacingProfile`, stream statistics `{ avgWordLength, totalWords, ... }`, and **`neighbors: { prev?: Word, next?: Word }`** so backends can detect sentence/paragraph boundaries (e.g., `word.paragraphId !== next.paragraphId`) without needing the whole stream.
   - The engine only knows how to **call** a pacing function and manage the clock; it doesn't hard-code any algorithm.
-  - **Lazy-stream bootstrapping**: `avgWordLength`/`totalWords` are computed from the currently materialized portion of the stream; for lazy streams the engine starts with a running estimate and refines it as more of the stream loads.
+  - **Dynamic Stream Support**:
+    - `PacingEngine.durationsForChunk(chunkWords, previousWord, stats)` allows incremental calculation of word display durations as new word chunks arrive in the background.
+    - `SelfCorrectingClock.appendDurations(newDurations)` extends the clock's sequence live during playback, resuming seamlessly if playback paused waiting for new words.
 - **Pluggable backends** (all implement `PacingFn`):
-  - **Default length-based**: `base = 60 / WPM`, scaled by character count (e.g., `* (1 + (len - 4) * 0.02)`), plus fixed pauses at sentence/paragraph boundaries.
-  - **Syllable splitting**: estimate reading time from phoneme/syllable counts rather than raw length.
-  - **Bayesian conjugate model**: models per-character time as a distribution and updates its posterior as words stream in — so pacing adapts to the book's average word length and difficulty over time.
-  - Future: frequency/difficulty-based, ML-driven, etc.
-- **Selection**: a `selectBackend(name)` factory picks a backend and optional `PacingProfile` at startup; users can tune profile aggressiveness.
-- **Interface**: `engine.getDuration(backend, word, ctx) → ms`, `backend.name`.
-- **Open question**: tokenizer/punctuation pauses are shared concerns — should they live in a base backend or be composed as decorators around the core timing function?
+  - **Naive (Fixed WPM)**: `base = (60 / WPM) * 1000` (ms), plus fixed pauses at sentence/paragraph boundaries.
+  - **Bayesian Adaptive (Shifted Poisson–Gamma Model)**: Models excess character length $Y_t = L_t - 1 \ge 0$ as a Poisson distribution with Gamma prior ($\alpha_0 = 50, \beta_0 = 10 \implies \hat{\mu}_0 = 6.0$). Employs exponential forgetting discounting ($\gamma \in [0.90, 0.999]$, default $0.98 \approx 50$ words) to dynamically scale display time:
+    $$T_t = \left(\frac{60000}{W \cdot \hat{\mu}_t}\right) \cdot L_t$$
+    ensuring overall reading throughput converges strictly to target $W$ WPM while accommodating local complexity.
+  - Future: syllable-splitting, frequency/difficulty-based, ML-driven.
+- **Selection**: a `selectBackend(name, options)` factory picks a backend and optional `PacingProfile` at runtime.
 
 #### 4. Display Component
 - **Responsibility**: Render the current word and surrounding context, driven by the pacing engine's clock.
 - **Features**:
-  - **Current word** highlighted (color/style change) — the focal point.
-  - **Surrounding words** shown before/after (adaptive + configurable window, see open question #3).
-  - **Clock**: a **self-correcting timer** using `performance.now()` to measure elapsed time and schedule the next tick, compensating for `setInterval`/`setTimeout` drift. A Web Worker can drive the clock so it keeps accurate time even when the tab is backgrounded.
-  - **Controls**: play/pause, seek, speed adjustment, jump to chapter.
+  - **Centered RSVP Focal Point**: Current word highlighted inline and translated to the exact center of the viewport via `useLayoutEffect` to minimize eye saccades.
+  - **Traditional E-Reader View (Paused)**: Vertical swipe gesture (up/down) while paused switches into a scrollable, traditional reading layout with bidirectional infinite scrolling and long-press word context menu. Tapping unpauses and instantly transitions back to RSVP mode.
+  - **Clock**: A **self-correcting timer** using `performance.now()` to compensate for `setInterval`/`setTimeout` drift. Supports `appendDurations()` for dynamically growing streams.
+  - **Controls**: Full-width collapsible bottom drawer with seekbar scrubber, word count percentage indicator, direct "Jump to Word Number" dialog, and auto-hide while playing.
 - **Interface**: `render(wordIndex, stream, config)`.
 
 #### 5. Library Component (Host)
@@ -116,15 +162,16 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
 - **Storage — IndexedDB (first `db` adapter)**:
   - **Why IndexedDB, not localStorage**: localStorage has a ~5MB limit; a 130k-word stream is ~1.5–2MB JSON, so multiple books exceed it. IndexedDB handles large blobs, is async, and uses structured clone.
   - DB `speedreader`, object stores:
-    - `books` (keyPath `id`) — metadata: title, author, format, addedAt, wordCount, chapterCount, parserVersion, cover.
+    - `books` (keyPath `id`) — metadata: title, author, format, addedAt, wordCount, chapterCount, parserVersion, cover, `formatState?`.
     - `streams` (keyPath `bookId`) — the full `WordStream` (words + chapterIndex + meta).
-    - `readerStates` (keyPath `bookId`) — durable per-book reader state: `{ position, lastOpenedAt, settings }`.
+    - `readerStates` (keyPath `bookId`) — durable per-book reader state: `{ position, lastOpenedAt, settings, formatState? }`.
   - Global settings stay in localStorage (small, synchronous — needed at startup). Per-book settings + positions live in IndexedDB keyed by the stable book id.
 - **Import flow**: pick file → `engine.ingest(file)` → `WordStream` → `parser.getBookInfo(file)` → title/author/cover → `bookId = SHA-256(bytes)` → `libraryStore.importFile` persists book + stream → library refreshes.
-- **Launch flow**: click book → `libraryStore.openBook(bookId)` → **cached** = instant rehydrate (no re-parse); **missing** (parser version bump) = prompt re-import → mount `ReaderScreen`.
+- **Incremental stream append flow**: For interactive/dynamic sources (`InteractiveFormat`), background chunks call `libraryStore.appendWords(bookId, newWords, options)` $\to$ `db.appendStreamWords()` updates the accumulated word stream and book wordCount in IndexedDB, while storing format checkpoint metadata in `formatState`.
+- **Launch & resume flow**: click book → `libraryStore.openBook(bookId)` → **cached** = instant rehydrate from IndexedDB (no re-parse); if the source is an `InteractiveFormat`, it initializes with `savedState = readerState.formatState` to continue background processing from where it left off.
 - **Reader state lifecycle**: position + per-book settings are persisted to IndexedDB **debounced** (500ms) while reading, **plus flushed** on reader exit, `visibilitychange` (hidden), and `pagehide`. Reopening a book hydrates the saved position (playback starts **paused** at that index) and effective per-book settings.
 - **Removal**: right-click (desktop) or long-press (touch) on a tile opens a themed context menu with a single **"Remove from library"** action. Confirmation is required; confirmed removal cascades through book + stream + reader state in one IndexedDB transaction.
-- **Deferred**: storing source file bytes (enables automatic re-ingest on parser change), chunked/lazy streams, bookmarks, cover editing.
+- **Deferred**: storing source file bytes (enables automatic re-ingest on parser change), chunked/lazy disk slicing, bookmarks, cover editing.
 
 #### 6. Reader Component (One per Book)
 - **Responsibility**: A single, self-contained reader for one book. Owns the word stream, pacing engine, display, and reading state.
@@ -155,7 +202,8 @@ SQLite is inherently cross-platform, but **where the database file lives** deter
 - `getState(bookId)`, `saveState(bookId, state)`
 - `getBookmarks(bookId)`, `addBookmark(bookmark)`, `removeBookmark(id)`
 - `getStream(bookId, range?: { from: number; to: number })` — fetch the whole stream or a slice (for lazy navigation).
-- `saveStreamChunk(bookId, chunkIndex, words)` / `appendStreamChunk(bookId, words)` — store the stream incrementally as fixed-size chunks.
+- `saveStream(bookId, stream)` — persist or replace the stream in full.
+- `appendStreamWords(bookId, words, options?)` — append a batch of words incrementally to an ongoing or growing stream.
 - `getStreamMeta(bookId)` — `{ totalWords, avgWordLength, isComplete, isDeterministic }` so the Reader knows whether the stream is partial/lazy.
 - `getChapters(bookId)`, `saveChapters(bookId, chapters)`
 **Adapters**:

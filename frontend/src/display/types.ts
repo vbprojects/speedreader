@@ -39,6 +39,10 @@ export interface Clock {
   stop(): void;
   /** Seek to an index (and pause). */
   seek(index: number): void;
+  /** Dynamically append new durations to an active or growing stream. */
+  appendDurations(newDurations: number[]): void;
+  /** Replace all durations while preserving running position. */
+  updateDurations(durations: number[]): void;
   /** Current index. */
   readonly index: number;
   /** Whether the clock is running. */

@@ -202,10 +202,16 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       durations,
       onTick: (index) => {
         setFrame(buildFrame(stream.words, index, cfgRef.current));
-        setProgress(stream.words.length ? index / stream.words.length : 0);
+        const effectiveTotal = stream.meta.totalWordsExpected || stream.words.length;
+        setProgress(effectiveTotal ? Math.min(1, index / effectiveTotal) : 0);
         onPositionChange?.(index);
       },
-      onEnd: () => setRunning(false),
+      onEnd: () => {
+        // If stream is still streaming in the background, remain running waiting for more chunks
+        if (stream.meta.isComplete !== false) {
+          setRunning(false);
+        }
+      },
     });
     clockRef.current = clock;
     // `SelfCorrectingClock` starts with an internal index of 0. Seed it with
@@ -214,7 +220,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     clock.seek(prevIndex);
     // Show the current word immediately (preserve position across re-creates).
     setFrame(buildFrame(stream.words, prevIndex, cfgRef.current));
-    setProgress(stream.words.length ? prevIndex / stream.words.length : 0);
+    const effectiveTotal = stream.meta.totalWordsExpected || stream.words.length;
+    setProgress(effectiveTotal ? Math.min(1, prevIndex / effectiveTotal) : 0);
     if (wasRunning) {
       clock.start(prevIndex);
       setRunning(true);

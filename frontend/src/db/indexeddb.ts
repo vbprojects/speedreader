@@ -108,6 +108,46 @@ export class IndexedDb implements Db {
     await txDone(tx);
   }
 
+  async appendStreamWords(
+    bookId: string,
+    newWords: import("../epub/types").Word[],
+    options?: {
+      chapterUpdates?: import("../epub/types").ChapterEntry[];
+      isComplete?: boolean;
+      totalWordsExpected?: number;
+    }
+  ): Promise<import("../epub/types").WordStream> {
+    const db = await this.db();
+    const tx = db.transaction(STORE_STREAMS, "readwrite");
+    const store = tx.objectStore(STORE_STREAMS);
+    const rec = (await reqResult(store.get(bookId))) as StoredStream | undefined;
+
+    let updatedStream: import("../epub/types").WordStream;
+    if (rec?.stream) {
+      const { appendToWordStream } = await import("../ingestion/interactive");
+      updatedStream = appendToWordStream(rec.stream, newWords, options);
+    } else {
+      const offsetWords = newWords.map((w, i) => ({ ...w, index: i }));
+      const totalLen = offsetWords.reduce((s, w) => s + w.text.length, 0);
+      updatedStream = {
+        words: offsetWords,
+        chapterIndex: options?.chapterUpdates ?? [],
+        meta: {
+          totalWords: offsetWords.length,
+          avgWordLength: offsetWords.length ? totalLen / offsetWords.length : 0,
+          isDeterministic: false,
+          isComplete: options?.isComplete ?? false,
+          totalWordsExpected: options?.totalWordsExpected,
+          chapterAttribute: "chapterId",
+        },
+      };
+    }
+
+    store.put({ bookId, stream: updatedStream } satisfies StoredStream);
+    await txDone(tx);
+    return updatedStream;
+  }
+
   async getReaderState(bookId: string): Promise<ReaderState | null> {
     const db = await this.db();
     const tx = db.transaction(STORE_STATES, "readonly");

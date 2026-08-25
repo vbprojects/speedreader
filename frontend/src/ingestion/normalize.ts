@@ -52,13 +52,15 @@ export function assignChapterIds(
 }
 
 /** Compute stream-level stats. */
-export function computeMeta(words: Word[]): WordStream["meta"] {
+export function computeMeta(words: Word[], isComplete = true, totalWordsExpected?: number): WordStream["meta"] {
   const total = words.length;
   const totalLen = words.reduce((s, w) => s + w.text.length, 0);
   return {
     totalWords: total,
     avgWordLength: total ? totalLen / total : 0,
     isDeterministic: true,
+    isComplete,
+    totalWordsExpected,
     chapterAttribute: "chapterId",
   };
 }

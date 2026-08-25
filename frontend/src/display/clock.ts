@@ -72,6 +72,25 @@ export class SelfCorrectingClock implements Clock {
     this.onTick(this._index);
   }
 
+  /** Dynamically append new durations to an ongoing stream. */
+  appendDurations(newDurations: number[]): void {
+    if (newDurations.length === 0) return;
+    const wasAtEnd = this._index >= this.durations.length;
+    this.durations = [...this.durations, ...newDurations];
+    // If the clock was running and had stalled waiting for new chunks, resume ticking
+    if (this._running && wasAtEnd) {
+      this.schedule();
+    }
+  }
+
+  /** Replace all durations (e.g., when pacing profile changes). */
+  updateDurations(durations: number[]): void {
+    this.durations = [...durations];
+    if (this._index >= this.durations.length) {
+      this._index = Math.max(0, this.durations.length - 1);
+    }
+  }
+
   destroy(): void {
     this.stop();
   }

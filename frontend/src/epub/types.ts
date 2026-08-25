@@ -25,18 +25,24 @@ export interface Word {
   metadata: Metadata[];
 }
 
+export interface StreamMeta {
+  totalWords: number;
+  avgWordLength: number;
+  isDeterministic: boolean;
+  /** Whether the stream is completely ingested/generated. Defaults to true for deterministic one-shot parsers. */
+  isComplete?: boolean;
+  /** Estimated or known expected word count (if available during streaming). */
+  totalWordsExpected?: number;
+  /** Which metadata attribute is the "chapter" level for this format. */
+  chapterAttribute: string;
+}
+
 export interface WordStream {
   words: Word[];
   /** Derived TOC: sorted chapter ranges. Built by scanning the words once. */
   chapterIndex: ChapterEntry[];
   /** Stream-level stats. */
-  meta: {
-    totalWords: number;
-    avgWordLength: number;
-    isDeterministic: boolean;
-    /** Which metadata attribute is the "chapter" level for this format. */
-    chapterAttribute: string;
-  };
+  meta: StreamMeta;
 }
 
 export interface ChapterEntry {

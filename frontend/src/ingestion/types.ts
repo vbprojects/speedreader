@@ -7,7 +7,10 @@ export type {
   WordStream,
   Metadata,
   ChapterEntry,
+  StreamMeta,
 } from "../epub/types";
+
+export type { StreamChunk, InteractiveFormat } from "./interactive";
 
 import type { WordStream } from "../epub/types";
 

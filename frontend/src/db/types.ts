@@ -18,7 +18,7 @@ export interface Book {
   id: string;
   title: string;
   author: string;
-  /** Format identifier, e.g. "epub". */
+  /** Format identifier, e.g. "epub", "pdf-ocr". */
   format: string;
   /** When the book was added (epoch ms). */
   addedAt: number;
@@ -28,6 +28,8 @@ export interface Book {
   parserVersion: number;
   /** Optional embedded cover art. */
   cover?: CoverImage;
+  /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
+  formatState?: Record<string, unknown>;
 }
 
 /** Durable per-book reader state (rehydrated on reopen). */
@@ -39,6 +41,8 @@ export interface ReaderState {
   lastOpenedAt: number;
   /** Per-reader settings overrides (merged over global on open). */
   settings: ReaderSettings;
+  /** Format-specific interactive/resumption state (e.g., page cursor, session ID). */
+  formatState?: Record<string, unknown>;
 }
 
 /** A stored stream record (full stream for now; chunked later). */
@@ -62,6 +66,16 @@ export interface Db {
   // ---- Streams ----
   getStream(bookId: string): Promise<WordStream | null>;
   saveStream(bookId: string, stream: WordStream): Promise<void>;
+  /** Append words incrementally to an existing stream or initialize if none exists. */
+  appendStreamWords(
+    bookId: string,
+    words: import("../epub/types").Word[],
+    options?: {
+      chapterUpdates?: import("../epub/types").ChapterEntry[];
+      isComplete?: boolean;
+      totalWordsExpected?: number;
+    }
+  ): Promise<WordStream>;
 
   // ---- Reader state ----
   getReaderState(bookId: string): Promise<ReaderState | null>;

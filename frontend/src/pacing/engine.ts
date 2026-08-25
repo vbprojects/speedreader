@@ -38,4 +38,20 @@ export class PacingEngine {
       this.duration(word, { prev: words[i - 1], next: words[i + 1] }, stats)
     );
   }
+
+  /**
+   * Compute durations for an appended batch of words in a growing stream,
+   * incorporating the previous boundary neighbor.
+   */
+  durationsForChunk(
+    chunkWords: Word[],
+    previousWord: Word | undefined,
+    stats: StreamStats
+  ): number[] {
+    return chunkWords.map((word, i) => {
+      const prev = i === 0 ? previousWord : chunkWords[i - 1];
+      const next = chunkWords[i + 1];
+      return this.duration(word, { prev, next }, stats);
+    });
+  }
 }
