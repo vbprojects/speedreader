@@ -4,6 +4,14 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Universal macOS CI artifacts & iOS artifact upload
+
+- **`.github/workflows/build-desktop.yml`**: The macOS matrix build now compiles the `aarch64-apple-darwin` and `x86_64-apple-darwin` targets and invokes Tauri with `--target universal-apple-darwin`, producing a universal macOS application rather than a runner-architecture-only build.
+- **Desktop artifacts**: Artifact glob patterns now include target-specific output directories, so the universal macOS bundle is collected.
+- **`.github/workflows/build-ios.yml`**: The unsigned iOS build now uploads its generated architecture-specific `.ipa` artifact instead of looking for a simulator `.app` bundle that is not produced by the build command.
+
+---
+
 ## 2026-08-24 — Dynamic word streams & InteractiveFormat architecture
 
 - **`epub/types.ts` & `ingestion/types.ts`**:
