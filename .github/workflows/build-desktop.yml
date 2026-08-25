@@ -17,7 +17,7 @@ jobs:
           - platform: windows-latest
             args: ""
           - platform: macos-latest
-            args: ""
+            args: "--target universal-apple-darwin"
           - platform: ubuntu-latest
             args: ""
     runs-on: ${{ matrix.platform }}
@@ -35,6 +35,12 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS universal build targets
+        if: matrix.platform == 'macos-latest'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -67,11 +73,11 @@ jobs:
         with:
           name: ${{ matrix.platform }}-build
           path: |
-            frontend/src-tauri/target/release/bundle/nsis/*.exe
-            frontend/src-tauri/target/release/bundle/msi/*.msi
-            frontend/src-tauri/target/release/bundle/dmg/*.dmg
-            frontend/src-tauri/target/release/bundle/appimage/*.AppImage
-            frontend/src-tauri/target/release/bundle/deb/*.deb
-            frontend/src-tauri/target/release/bundle/rpm/*.rpm
-            frontend/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            frontend/src-tauri/target/**/bundle/nsis/*.exe
+            frontend/src-tauri/target/**/bundle/msi/*.msi
+            frontend/src-tauri/target/**/bundle/dmg/*.dmg
+            frontend/src-tauri/target/**/bundle/appimage/*.AppImage
+            frontend/src-tauri/target/**/bundle/deb/*.deb
+            frontend/src-tauri/target/**/bundle/rpm/*.rpm
+            frontend/src-tauri/target/**/bundle/macos/*.app.tar.gz
           if-no-files-found: warn
