@@ -286,7 +286,7 @@ export function LibraryView({
             style={primaryButtonStyle}
           >
             <span>➕</span>
-            <span>{importing ? "Importing…" : "Import EPUB"}</span>
+            <span>{importing ? "Importing…" : "Import book"}</span>
           </button>
         </div>
       </header>
@@ -353,14 +353,14 @@ export function LibraryView({
             <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
             <h2 style={{ fontSize: 20, margin: "0 0 8px", fontWeight: 700 }}>Your library is empty</h2>
             <p style={{ fontSize: 14, margin: "0 0 24px", color: t.muted, lineHeight: 1.5 }}>
-              Import an EPUB file to start your speedreading journey with centered focal alignment.
+              Import an EPUB or PDF to start your speedreading journey with centered focal alignment.
             </p>
             <button
               onClick={onImport}
               disabled={importing}
               style={primaryButtonStyle}
             >
-              {importing ? "Importing…" : "Import your first EPUB"}
+              {importing ? "Importing…" : "Import your first book"}
             </button>
           </div>
         ) : filteredBooks.length === 0 ? (
