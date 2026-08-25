@@ -9,6 +9,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
+import { InteractionOverlay } from "../interactions";
+import type { InteractionResponse, ReaderInteraction } from "../interactions/types";
 import type { PacingEngine } from "../pacing/engine";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
@@ -54,6 +56,12 @@ export interface SpeedReaderProps {
   onPositionChange?: (index: number) => void;
   /** Called when the playback state changes (play/pause). */
   onRunningChange?: (running: boolean) => void;
+  /** Called when a reader interaction is submitted to the owning format. */
+  onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
+  /** IDs already completed for this book/session. */
+  initialCompletedInteractionIds?: string[];
+  /** Called after an interaction response is accepted. */
+  onInteractionResolved?: (interactionId: string) => void;
 }
 
 const DEFAULT_CONFIG: DisplayConfig = {
@@ -84,6 +92,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [wordMenu, setWordMenu] = useState<WordContextMenuState | null>(null);
   const [jumpDialogOpen, setJumpDialogOpen] = useState(false);
   const [jumpInputVal, setJumpInputVal] = useState("");
+  const [pendingInteraction, setPendingInteraction] = useState<ReaderInteraction | null>(null);
+  const [interactionBusy, setInteractionBusy] = useState(false);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
   const isMobile = useMediaQuery("(max-width: 640px)");
   const clockRef = useRef<SelfCorrectingClock | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -92,6 +103,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
   // A pending bounded scroll adjustment from the gesture that entered native reading.
   const traditionalEntryNudgeRef = useRef<number | null>(null);
+  const resolvedInteractionIdsRef = useRef(new Set(initialCompletedInteractionIds ?? []));
+  const resumeAfterInteractionRef = useRef(false);
+  const onInteractionSubmitRef = useRef(onInteractionSubmit);
+  const onInteractionResolvedRef = useRef(onInteractionResolved);
+  onInteractionSubmitRef.current = onInteractionSubmit;
+  onInteractionResolvedRef.current = onInteractionResolved;
 
   // Sync running state to parent coordinator
   useEffect(() => {
@@ -194,15 +211,34 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     return pacing.durations(stream.words, stats);
   }, [stream, pacing]);
 
+  // A boundary is a count of consumed words. Only unresolved interactions gate playback.
+  const interactionAtBoundary = (boundary: number): ReaderInteraction | null =>
+    (stream.interactions ?? []).find(
+      (interaction) =>
+        interaction.boundary === boundary && !resolvedInteractionIdsRef.current.has(interaction.id)
+    ) ?? null;
+
   // Create the clock. Recreated when durations change (e.g. WPM/settings),
-  // but preserves the current position so changing speed doesn't reset the
-  // book to the beginning. Starts at `initialIndex` (resume position) for a
-  // brand-new stream.
+  // but preserves the current position so changing speed does not reset the book.
   useEffect(() => {
     const prevIndex = clockRef.current?.index ?? initialIndex;
     const wasRunning = clockRef.current?.running ?? false;
     const clock = new SelfCorrectingClock({
       durations,
+      canStart: (index) => interactionAtBoundary(index) === null,
+      canAdvance: (_fromIndex, nextIndex) => {
+        const allowed = interactionAtBoundary(nextIndex) === null;
+        if (!allowed) resumeAfterInteractionRef.current = true;
+        return allowed;
+      },
+      onBlocked: (boundaryIndex) => {
+        const interaction = interactionAtBoundary(boundaryIndex);
+        if (!interaction) return;
+        setPendingInteraction(interaction);
+        setInteractionError(null);
+        setInteractionBusy(false);
+        setRunning(false);
+      },
       onTick: (index) => {
         setFrame(buildFrame(stream.words, index, cfgRef.current));
         const effectiveTotal = stream.meta.totalWordsExpected || stream.words.length;
@@ -210,24 +246,21 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         onPositionChange?.(index);
       },
       onEnd: () => {
-        // If stream is still streaming in the background, remain running waiting for more chunks
+        // If stream is still streaming in the background, remain running waiting for more chunks.
         if (stream.meta.isComplete !== false) {
           setRunning(false);
         }
       },
     });
     clockRef.current = clock;
-    // `SelfCorrectingClock` starts with an internal index of 0. Seed it with
-    // the restored/current position even when playback is paused; otherwise a
-    // later resume (or a duration change) would silently restart from 0.
     clock.seek(prevIndex);
-    // Show the current word immediately (preserve position across re-creates).
     setFrame(buildFrame(stream.words, prevIndex, cfgRef.current));
     const effectiveTotal = stream.meta.totalWordsExpected || stream.words.length;
     setProgress(effectiveTotal ? Math.min(1, prevIndex / effectiveTotal) : 0);
     if (wasRunning) {
+      resumeAfterInteractionRef.current = true;
       clock.start(prevIndex);
-      setRunning(true);
+      setRunning(clock.running);
     }
     return () => clock.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,17 +288,19 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   }, [frame]);
 
   const toggle = () => {
-    // If we're in traditional mode, playing immediately returns to RSVP mode
+    // If we're in traditional mode, playing immediately returns to RSVP mode.
     if (viewMode === "traditional") {
       setViewMode("rsvp");
     }
     const clock = clockRef.current!;
     if (clock.running) {
+      resumeAfterInteractionRef.current = false;
       clock.pause();
       setRunning(false);
     } else {
+      resumeAfterInteractionRef.current = true;
       clock.resume();
-      setRunning(true);
+      setRunning(clock.running);
     }
   };
 
@@ -618,6 +653,35 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     // If < 1, moves to first (0). If > length, moves to latest (length - 1).
     const targetIndex = Math.max(0, Math.min(num - 1, stream.words.length - 1));
     seekTo(targetIndex);
+  };
+
+  const handleInteractionSubmit = async (response: InteractionResponse) => {
+    const current = pendingInteraction;
+    if (!current || response.interactionId !== current.id || interactionBusy) return;
+    setInteractionBusy(true);
+    setInteractionError(null);
+    try {
+      await onInteractionSubmitRef.current?.(response);
+      resolvedInteractionIdsRef.current.add(current.id);
+      onInteractionResolvedRef.current?.(current.id);
+      const next = interactionAtBoundary(current.boundary);
+      if (next) {
+        setPendingInteraction(next);
+      } else {
+        setPendingInteraction(null);
+        if (resumeAfterInteractionRef.current) {
+          const clock = clockRef.current;
+          if (clock && !clock.running) {
+            clock.resume();
+            setRunning(clock.running);
+          }
+        }
+      }
+    } catch (error) {
+      setInteractionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setInteractionBusy(false);
+    }
   };
 
   if (!frame) return null;
@@ -1142,6 +1206,14 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         </div>
       )}
 
+      <InteractionOverlay
+        interaction={pendingInteraction}
+        theme={theme}
+        busy={interactionBusy}
+        error={interactionError}
+        onSubmit={handleInteractionSubmit}
+      />
+
       {/* Traditional view word context menu */}
       <WordContextMenu
         state={wordMenu}
@@ -1154,8 +1226,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           setViewMode("rsvp");
           const clock = clockRef.current;
           if (clock && !clock.running) {
+            resumeAfterInteractionRef.current = true;
             clock.resume();
-            setRunning(true);
+            setRunning(clock.running);
           }
         }}
         theme={theme}
