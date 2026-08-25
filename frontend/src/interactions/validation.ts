@@ -72,7 +72,8 @@ function validateChoiceOptions(value: unknown): ChoiceOption[] {
     ids.add(id);
     optionalString(option.description, "options[" + index + "].description");
     optionalBoolean(option.disabled, "options[" + index + "].disabled");
-    return option as ChoiceOption;
+    requireString(option.label, "options[" + index + "].label");
+    return option as unknown as ChoiceOption;
   });
 }
 
@@ -84,7 +85,7 @@ export function validateInteraction(
   if (value.schemaVersion !== INTERACTION_SCHEMA_VERSION) {
     throw new InteractionValidationError("unsupported interaction schemaVersion");
   }
-  const id = requireString(value.id, "id");
+  requireString(value.id, "id");
   if (!Number.isInteger(value.boundary) || (value.boundary as number) < 0) {
     throw new InteractionValidationError("boundary must be a non-negative integer");
   }
@@ -101,11 +102,11 @@ export function validateInteraction(
       optionalString(value.defaultValue, "defaultValue");
       optionalString(value.submitLabel, "submitLabel");
       validateConstraints(value.constraints);
-      return value as ReaderInteraction;
+      return value as unknown as ReaderInteraction;
     case "single-choice":
       validateChoiceOptions(value.options);
       optionalString(value.submitLabel, "submitLabel");
-      return value as ChoiceInteraction;
+      return value as unknown as ChoiceInteraction;
     case "continue":
       optionalString(value.label, "label");
       optionalString(value.description, "description");
@@ -144,7 +145,7 @@ export function validateInteractionResponse(value: unknown): InteractionResponse
       if (typeof value.value !== "string") {
         throw new InteractionValidationError("text-input response value must be a string");
       }
-      return value as InteractionResponse;
+      return value as unknown as InteractionResponse;
     case "single-choice":
       return {
         schemaVersion: INTERACTION_SCHEMA_VERSION,
