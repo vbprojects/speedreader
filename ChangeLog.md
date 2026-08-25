@@ -4,6 +4,23 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-25 — Fix iOS CI artifact upload
+
+- **iOS workflow**: Tauri’s iOS build emits an unsigned IPA under the architecture-specific build directory, not a Release-iphonesimulator/*.app path. The workflow now uploads build/**/*.ipa and keeps missing artifacts as a hard failure.
+- **GitHub Actions runtime**: Updated the iOS workflow’s checkout, setup-node, and upload-artifact actions to Node 24-compatible major versions.
+
+---
+
+## 2026-08-25 — Interactive reader foundation
+
+- **JSON interaction protocol**: Added schema-versioned text-input, single-choice, and continue descriptors plus response validation. Interactions attach to word-count boundaries, so ingestion engines can pause the reader without embedding HTML or a runtime.
+- **Incremental streams**: StreamChunk and appendToWordStream now merge interaction-only chunks, offset chunk-local boundaries, reject duplicate IDs, and preserve the descriptors in cached WordStream records.
+- **Reader playback**: Added clock start/advance gates and a blocking glassmorphism overlay. The reader pauses at boundary 0, between words, or at the final boundary; multiple events at one boundary are queued, and playback resumes only when it was running before the interaction.
+- **Offline persistence**: Completed interaction IDs are stored in ReaderState so a reopened book does not replay already-completed prompts. Format-owned response handling remains optional for a future Twine adapter.
+- **Quality gate**: Added ESLint 9, typechecking, Node test-runner coverage for validation/stream merging/clock gates, and a GitHub Actions workflow that runs lint, tests, typecheck, and the PWA build on pull requests.
+
+---
+
 ## 2026-08-25 — Native reader gesture boundaries
 
 - **Traditional/native reader mode**: Removed RSVP horizontal swipe scrubbing from the scrollable reader. It now uses normal vertical browser scrolling only.

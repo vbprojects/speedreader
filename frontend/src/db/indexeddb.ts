@@ -113,6 +113,7 @@ export class IndexedDb implements Db {
     newWords: import("../epub/types").Word[],
     options?: {
       chapterUpdates?: import("../epub/types").ChapterEntry[];
+      interactions?: import("../interactions/types").ReaderInteraction[];
       isComplete?: boolean;
       totalWordsExpected?: number;
     }
@@ -140,6 +141,7 @@ export class IndexedDb implements Db {
           totalWordsExpected: options?.totalWordsExpected,
           chapterAttribute: "chapterId",
         },
+        ...(options?.interactions && options.interactions.length > 0 ? { interactions: options.interactions } : {}),
       };
     }
 

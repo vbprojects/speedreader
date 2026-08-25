@@ -11,12 +11,21 @@ export interface ClockOptions {
   onTick: (index: number) => void;
   /** Called when the clock reaches the end. */
   onEnd?: () => void;
+  /** Whether playback may begin or resume at the current index. */
+  canStart?: (index: number) => boolean;
+  /** Whether playback may cross from one word to the next. */
+  canAdvance?: (fromIndex: number, nextIndex: number) => boolean;
+  /** Called when a start/advance gate blocks playback. */
+  onBlocked?: (boundaryIndex: number) => void;
 }
 
 export class SelfCorrectingClock implements Clock {
   private durations: number[];
   private onTick: (index: number) => void;
   private onEnd?: () => void;
+  private canStart?: (index: number) => boolean;
+  private canAdvance?: (fromIndex: number, nextIndex: number) => boolean;
+  private onBlocked?: (boundaryIndex: number) => void;
 
   private _index = 0;
   private _running = false;
@@ -28,6 +37,9 @@ export class SelfCorrectingClock implements Clock {
     this.durations = options.durations;
     this.onTick = options.onTick;
     this.onEnd = options.onEnd;
+    this.canStart = options.canStart;
+    this.canAdvance = options.canAdvance;
+    this.onBlocked = options.onBlocked;
   }
 
   get index(): number {
@@ -39,8 +51,14 @@ export class SelfCorrectingClock implements Clock {
   }
 
   start(startIndex = 0): void {
+    this.clearTimer();
     this._index = startIndex;
     this.elapsedAtStart = 0;
+    if (this.canStart && !this.canStart(this._index)) {
+      this._running = false;
+      this.onBlocked?.(this._index);
+      return;
+    }
     this._running = true;
     this.onTick(this._index);
     this.schedule();
@@ -56,6 +74,11 @@ export class SelfCorrectingClock implements Clock {
 
   resume(): void {
     if (this._running) return;
+    if (this.canStart && !this.canStart(this._index)) {
+      this._running = false;
+      this.onBlocked?.(this._index);
+      return;
+    }
     this._running = true;
     this.schedule();
   }
@@ -67,9 +90,9 @@ export class SelfCorrectingClock implements Clock {
 
   seek(index: number): void {
     this.stop();
-    this._index = Math.max(0, Math.min(index, this.durations.length - 1));
+    this._index = this.durations.length === 0 ? 0 : Math.max(0, Math.min(index, this.durations.length - 1));
     this.elapsedAtStart = 0;
-    this.onTick(this._index);
+    if (this.durations.length > 0) this.onTick(this._index);
   }
 
   /** Dynamically append new durations to an ongoing stream. */
@@ -77,13 +100,10 @@ export class SelfCorrectingClock implements Clock {
     if (newDurations.length === 0) return;
     const wasAtEnd = this._index >= this.durations.length;
     this.durations = [...this.durations, ...newDurations];
-    // If the clock was running and had stalled waiting for new chunks, resume ticking
-    if (this._running && wasAtEnd) {
-      this.schedule();
-    }
+    if (this._running && wasAtEnd) this.schedule();
   }
 
-  /** Replace all durations (e.g., when pacing profile changes). */
+  /** Replace all durations (e.g. when pacing profile changes). */
   updateDurations(durations: number[]): void {
     this.durations = [...durations];
     if (this._index >= this.durations.length) {
@@ -108,8 +128,18 @@ export class SelfCorrectingClock implements Clock {
 
   private tick(): void {
     if (!this._running) return;
+    const nextIndex = this._index + 1;
+    if (this.canAdvance && !this.canAdvance(this._index, nextIndex)) {
+      this._running = false;
+      // The current word has already consumed its duration. Resuming after
+      // the interaction should cross the boundary without waiting again.
+      this.elapsedAtStart = this.durations[this._index] ?? 0;
+      this.clearTimer();
+      this.onBlocked?.(nextIndex);
+      return;
+    }
     this.elapsedAtStart = 0;
-    this._index++;
+    this._index = nextIndex;
     if (this._index >= this.durations.length) {
       this._running = false;
       this.onEnd?.();

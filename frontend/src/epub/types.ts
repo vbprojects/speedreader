@@ -1,4 +1,6 @@
 // types.ts
+
+import type { ReaderInteraction } from "../interactions/types";
 // Shared types matching the plan's flexible `Word` model (Option B).
 
 /**
@@ -45,6 +47,8 @@ export interface WordStream {
   chapterIndex: ChapterEntry[];
   /** Stream-level stats. */
   meta: StreamMeta;
+  /** Blocking, JSON-serializable UI events keyed to word boundaries. */
+  interactions?: ReaderInteraction[];
 }
 
 export interface ChapterEntry {
