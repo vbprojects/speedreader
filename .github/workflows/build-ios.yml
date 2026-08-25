@@ -41,7 +41,7 @@ jobs:
         working-directory: frontend
         run: npx tauri ios init
 
-      - name: Build iOS app (simulator, unsigned)
+      - name: Build iOS bundle (unsigned)
         working-directory: frontend
         run: npx tauri ios build --no-sign
 
