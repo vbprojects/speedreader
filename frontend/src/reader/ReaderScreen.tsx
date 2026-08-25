@@ -5,6 +5,7 @@
 
 import { useMemo, useState } from "react";
 import type { WordStream } from "../epub/types";
+import type { InteractionResponse } from "../interactions/types";
 import { PacingEngine, selectBackend } from "../pacing";
 import { SpeedReader } from "../display";
 import { SettingsModal, themeTokens } from "../settings";
@@ -24,9 +25,15 @@ export interface ReaderScreenProps {
   onSettingsChange: (patch: ReaderSettings) => void;
   /** Called to reset per-book settings to global. */
   onSettingsReset: () => void;
+  /** Completed blocking interaction IDs for this reader session. */
+  initialCompletedInteractionIds?: string[];
+  /** Called when an interaction is completed. */
+  onInteractionResolved?: (interactionId: string) => void;
+  /** Optional format-owned interaction responder. */
+  onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
 }
 
-export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset }: ReaderScreenProps) {
+export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, onInteractionSubmit }: ReaderScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [running, setRunning] = useState(false);
@@ -101,6 +108,9 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           initialIndex={initialIndex}
           onPositionChange={onPositionChange}
           onRunningChange={setRunning}
+          initialCompletedInteractionIds={initialCompletedInteractionIds}
+          onInteractionResolved={onInteractionResolved}
+          onInteractionSubmit={onInteractionSubmit}
         />
       </div>
 
