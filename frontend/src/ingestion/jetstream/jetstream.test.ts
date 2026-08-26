@@ -38,11 +38,11 @@ test("Jetstream decoder accepts text creates and rejects unrelated variants", ()
   ok(decodeJetstreamEvent(JSON.stringify({ did: "did:plc:x", time_us: 3, kind: "account", account: { active: true } })));
 });
 
-test("formatter emits only DID, separator, and literal normalized text", () => {
+test("formatter emits only visible post text without identity or URLs", () => {
   const event = asTextPost(decodeJetstreamEvent(JSON.stringify(post({
     record: { $type: "app.bsky.feed.post", text: "Read https://example.com/a?q=1 then www.example.org now", langs: ["en"] },
   })))!)!;
-  deepStrictEqual(formatJetstreamPost(event).map((word) => word.text), ["did:plc:reader", ":", "Read", "then", "now"]);
+  deepStrictEqual(formatJetstreamPost(event).map((word) => word.text), ["Read", "then", "now"]);
   equal(stripWebUrls("https://example.com www.example.org"), "");
   const urlOnly = asTextPost(decodeJetstreamEvent(JSON.stringify(post({
     record: { $type: "app.bsky.feed.post", text: "https://example.com", langs: ["en"] },
@@ -122,6 +122,6 @@ test("live format batches plain posts, filters sensitive posts, and persists the
   await new Promise((resolve) => setTimeout(resolve, 320));
   stop();
   equal(chunks.length, 1);
-  deepStrictEqual(chunks[0].words, ["did:plc:reader", ":", "Hello", "<b>world</b>"]);
+  deepStrictEqual(chunks[0].words, ["Hello", "<b>world</b>"]);
   equal(chunks[0].cursor, 12347);
 });
