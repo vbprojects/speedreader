@@ -1,8 +1,8 @@
 import { deepStrictEqual, equal, match, ok } from "node:assert/strict";
 import { test } from "node:test";
 import { JetstreamClient, type JetstreamSocket } from "./client";
-import { asTextPost, decodeJetstreamEvent, jetstreamEventKey } from "./decode";
-import { formatJetstreamPost } from "./formatter";
+import { asTextPost, decodeJetstreamEvent, hasEnglishLanguageTag, jetstreamEventKey } from "./decode";
+import { formatJetstreamPost, stripWebUrls } from "./formatter";
 import { hasSensitiveSelfLabel } from "./sensitive-filter";
 import { BlueskyJetstreamFormat } from "./format";
 
@@ -18,7 +18,7 @@ function post(overrides: Record<string, unknown> = {}): Record<string, unknown> 
       collection: "app.bsky.feed.post",
       rkey: "post1",
       cid: "cid1",
-      record: { $type: "app.bsky.feed.post", text: "Hello   <b>world</b>" },
+      record: { $type: "app.bsky.feed.post", text: "Hello   <b>world</b>", langs: ["en"] },
       ...overrides,
     },
   };
@@ -39,13 +39,32 @@ test("Jetstream decoder accepts text creates and rejects unrelated variants", ()
 });
 
 test("formatter emits only DID, separator, and literal normalized text", () => {
-  const event = asTextPost(decodeJetstreamEvent(JSON.stringify(post()))!)!;
-  deepStrictEqual(formatJetstreamPost(event).map((word) => word.text), ["did:plc:reader", ":", "Hello", "<b>world</b>"]);
+  const event = asTextPost(decodeJetstreamEvent(JSON.stringify(post({
+    record: { $type: "app.bsky.feed.post", text: "Read https://example.com/a?q=1 then www.example.org now", langs: ["en"] },
+  })))!)!;
+  deepStrictEqual(formatJetstreamPost(event).map((word) => word.text), ["did:plc:reader", ":", "Read", "then", "now"]);
+  equal(stripWebUrls("https://example.com www.example.org"), "");
+  const urlOnly = asTextPost(decodeJetstreamEvent(JSON.stringify(post({
+    record: { $type: "app.bsky.feed.post", text: "https://example.com", langs: ["en"] },
+  })))!)!;
+  deepStrictEqual(formatJetstreamPost(urlOnly), []);
+});
+
+test("English filtering uses explicit BCP-47 post language tags", () => {
+  const tagged = (langs: unknown) => asTextPost(decodeJetstreamEvent(JSON.stringify(post({
+    record: { $type: "app.bsky.feed.post", text: "hello", ...(langs === undefined ? {} : { langs }) },
+  })))!)!;
+  equal(hasEnglishLanguageTag(tagged(["en"])), true);
+  equal(hasEnglishLanguageTag(tagged(["en-US"])), true);
+  equal(hasEnglishLanguageTag(tagged(["EN-gb"])), true);
+  equal(hasEnglishLanguageTag(tagged(["fr", "de"])), false);
+  equal(hasEnglishLanguageTag(tagged(undefined)), false);
+  equal(hasEnglishLanguageTag(tagged("en")), false);
 });
 
 test("sensitive filter handles known, absent, unknown, and malformed self-labels", () => {
   const eventWithLabels = (labels: unknown) => asTextPost(decodeJetstreamEvent(JSON.stringify(post({
-    record: { $type: "app.bsky.feed.post", text: "hello", ...(labels === undefined ? {} : { labels }) },
+    record: { $type: "app.bsky.feed.post", text: "hello", langs: ["en"], ...(labels === undefined ? {} : { labels }) },
   })))!)!;
   equal(hasSensitiveSelfLabel(eventWithLabels(undefined)), false);
   equal(hasSensitiveSelfLabel(eventWithLabels({ values: [{ val: "porn" }] })), true);
@@ -87,15 +106,22 @@ test("live format batches plain posts, filters sensitive posts, and persists the
   const sensitive = post({
     rkey: "post2",
     cid: "cid2",
-    record: { $type: "app.bsky.feed.post", text: "hidden", labels: { values: [{ val: "sexual" }] } },
+    record: { $type: "app.bsky.feed.post", text: "hidden", langs: ["en"], labels: { values: [{ val: "sexual" }] } },
   });
   (sensitive as { cursor: number }).cursor = 12346;
+  const nonEnglish = post({
+    rkey: "post3",
+    cid: "cid3",
+    record: { $type: "app.bsky.feed.post", text: "bonjour", langs: ["fr"] },
+  });
+  (nonEnglish as { cursor: number }).cursor = 12347;
   ok(socket);
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(normal) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(sensitive) });
+  (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(nonEnglish) });
   await new Promise((resolve) => setTimeout(resolve, 320));
   stop();
   equal(chunks.length, 1);
   deepStrictEqual(chunks[0].words, ["did:plc:reader", ":", "Hello", "<b>world</b>"]);
-  equal(chunks[0].cursor, 12346);
+  equal(chunks[0].cursor, 12347);
 });
