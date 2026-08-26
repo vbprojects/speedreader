@@ -52,6 +52,14 @@ export function asTextPost(event: JetstreamEvent): JetstreamPostEvent | null {
   return event as JetstreamPostEvent;
 }
 
+/** Jetstream preserves the post record's author-supplied BCP-47 language tags. */
+export function hasEnglishLanguageTag(event: JetstreamPostEvent): boolean {
+  const { langs } = event.commit.record;
+  return Array.isArray(langs) && langs.some((lang) =>
+    typeof lang === "string" && /^en(?:-|$)/i.test(lang.trim())
+  );
+}
+
 export function jetstreamEventKey(event: JetstreamPostEvent): string {
   const commit = event.commit;
   return [event.did, commit.collection, commit.rkey, commit.cid ?? commit.rev].join("/");

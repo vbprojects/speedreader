@@ -1,6 +1,6 @@
 import type { Word } from "../../epub/types";
 import type { InteractiveFormat, StreamChunk } from "../interactive";
-import { asTextPost, jetstreamEventKey } from "./decode";
+import { asTextPost, hasEnglishLanguageTag, jetstreamEventKey } from "./decode";
 import { formatJetstreamPost, JETSTREAM_CHAPTER_ID } from "./formatter";
 import { JetstreamClient, type JetstreamSocketFactory } from "./client";
 import { hasSensitiveSelfLabel } from "./sensitive-filter";
@@ -97,7 +97,9 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           if (removed) seen.delete(removed);
         }
         if ((this.input.hideSelfLabeledSensitivePosts ?? true) && hasSensitiveSelfLabel(post)) return;
+        if (!hasEnglishLanguageTag(post)) return;
         const postWords = formatJetstreamPost(post);
+        if (postWords.length === 0) return;
         const offset = words.length;
         words.push(...postWords.map((word, index) => ({ ...word, index: offset + index })));
         postCount += 1;

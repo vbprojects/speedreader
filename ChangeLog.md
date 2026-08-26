@@ -4,6 +4,12 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-26 — Jetstream language and URL filtering
+
+- **English-only feed**: The built-in Bluesky Jetstream book now accepts only posts whose author-supplied BCP-47 `langs` metadata explicitly includes English, including regional tags such as `en-US`.
+- **URL-free text**: HTTP, HTTPS, and `www.` URLs are removed before WordStream tokenization. Posts containing only URLs are discarded.
+- **Coverage**: Added language-tag, URL-removal, empty-post, and live filtering tests.
+
 ## 2026-08-26 — Built-in Bluesky Jetstream reader
 
 - **Live default book**: Added a built-in “Bluesky Jetstream” book that connects directly to the public JSON WebSocket feed while the book is open and continuously appends text posts to its WordStream.
