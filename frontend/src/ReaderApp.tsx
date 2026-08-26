@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDb } from "./db";
 import type { Book } from "./db";
-import { IngestionEngine, EpubParser, PdfJsParser, pickFileBrowser } from "./ingestion";
+import { BlueskyJetstreamFormat, IngestionEngine, EpubParser, PdfJsParser, pickFileBrowser } from "./ingestion";
 import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
 import { ReaderScreen } from "./reader";
@@ -18,7 +18,13 @@ import type { InteractionRecord } from "./interactions/types";
 export default function ReaderApp() {
   // ---- Stores (created once) ----
   const [settingsStore] = useState(() => new SettingsStore());
-  const [library] = useState(() => new LibraryStore(createDb("indexeddb"), new IngestionEngine([new EpubParser(), new PdfJsParser()])));
+  const [library] = useState(() => new LibraryStore(
+    createDb("indexeddb"),
+    new IngestionEngine(
+      [new EpubParser(), new PdfJsParser()],
+      [() => new BlueskyJetstreamFormat()],
+    ),
+  ));
 
   // ---- Global settings ----
   const [global, setGlobal] = useState<GlobalSettings>(() => settingsStore.global);
@@ -161,6 +167,31 @@ export default function ReaderApp() {
     [enqueueReaderState, library, global]
   );
 
+  // A live format owns its connection only while its library book is open.
+  useEffect(() => {
+    if (!openBookId) return;
+    let disposed = false;
+    let stop: (() => void) | null = null;
+    void library.startStreamingBook(
+      openBookId,
+      (stream) => {
+        if (!disposed) setOpenStream(stream);
+      },
+      (streamError) => {
+        if (!disposed) setError(streamError.message);
+      },
+    ).then((cleanup) => {
+      if (disposed) cleanup();
+      else stop = cleanup;
+    }).catch((streamError: unknown) => {
+      if (!disposed) setError(streamError instanceof Error ? streamError.message : String(streamError));
+    });
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [library, openBookId]);
+
   // ---- Reader position change (debounced persist) ----
   const handlePositionChange = useCallback(
     (index: number) => {
@@ -272,13 +303,16 @@ export default function ReaderApp() {
       setError(null);
       try {
         await library.resetReaderState(bookId);
-        setNotice("Actions was restarted. Its interactive prompts are ready again.");
+        const book = books.find((candidate) => candidate.id === bookId);
+        setNotice(book?.format === "bluesky-jetstream"
+          ? "Bluesky Jetstream history was cleared."
+          : "Actions was restarted. Its interactive prompts are ready again.");
         await refreshBooks();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [library, refreshBooks]
+    [books, library, refreshBooks]
   );
 
   // ---- Render ----
