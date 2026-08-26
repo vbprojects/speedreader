@@ -4,6 +4,12 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-26 — Visible-text-only Jetstream posts
+
+- **Post text only**: Removed the source DID and separator from Bluesky Jetstream WordStreams. The live reader now receives only the authored text that would be visible in the post after URL filtering.
+- **Metadata audit**: Confirmed that record keys, CIDs, revisions, timestamps, cursors, event kinds, and labels remain ingestion metadata and never enter the WordStream. Authored mentions, hashtags, emoji, and punctuation remain intact.
+- **Coverage**: Updated formatter and live-stream assertions to prevent identity metadata from returning.
+
 ## 2026-08-26 — Jetstream language and URL filtering
 
 - **English-only feed**: The built-in Bluesky Jetstream book now accepts only posts whose author-supplied BCP-47 `langs` metadata explicitly includes English, including regional tags such as `en-US`.

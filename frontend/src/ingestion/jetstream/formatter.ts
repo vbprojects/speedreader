@@ -11,11 +11,11 @@ export function stripWebUrls(text: string): string {
   return text.replace(WEB_URL, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Convert only the DID, a literal separator, and post text into plain words. */
+/** Convert only the text a person would see in the post into plain words. */
 export function formatJetstreamPost(event: JetstreamPostEvent): Word[] {
   const text = stripWebUrls(event.commit.record.text);
   if (!text) return [];
-  const tokens = `${event.did} : ${text}`.split(/\s+/).filter(Boolean);
+  const tokens = text.split(/\s+/).filter(Boolean);
   return tokens.map((token, index) => ({
     text: token,
     index,
