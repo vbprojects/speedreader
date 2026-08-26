@@ -5,6 +5,7 @@ import type { Word, WordStream } from "../epub/types";
 import { IngestionEngine } from "../ingestion";
 import { createActionsBook, createActionsFixture, ACTIONS_BOOK_ID } from "./default-books/actions";
 import { LibraryStore } from "./store";
+import { BLUESKY_JETSTREAM_BOOK_ID } from "./default-books/bluesky-jetstream";
 
 class MemoryDb implements Db {
   books = new Map<string, Book>();
@@ -43,8 +44,9 @@ test("ensureBuiltInBooks seeds Actions once and repairs a missing stream", async
   const library = store(db);
   await library.ensureBuiltInBooks();
   await library.ensureBuiltInBooks();
-  equal((await library.getBooks()).length, 1);
+  equal((await library.getBooks()).length, 2);
   equal((await library.openBook(ACTIONS_BOOK_ID))?.book.title, "Actions");
+  equal((await library.openBook(BLUESKY_JETSTREAM_BOOK_ID))?.stream.meta.isComplete, false);
 
   db.streams.delete(ACTIONS_BOOK_ID);
   await library.ensureBuiltInBooks();

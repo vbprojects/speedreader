@@ -98,7 +98,14 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
       />
 
       <div style={{ flex: 1, minHeight: 0 }}>
-        <SpeedReader
+        {stream.words.length === 0 ? (
+          <div style={{ height: "100%", display: "grid", placeItems: "center", background: t.bg, color: t.muted, fontFamily: settings.fontFamily }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>Connecting to the live stream…</div>
+              <div style={{ fontSize: 13 }}>Waiting for the first textual post.</div>
+            </div>
+          </div>
+        ) : <SpeedReader
           stream={stream}
           pacing={pacing}
           config={{ wpm: settings.wpm }}
@@ -115,7 +122,7 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           initialInteractionRecords={initialInteractionRecords}
           onInteractionCommitted={onInteractionCommitted}
           onInteractionSubmit={onInteractionSubmit}
-        />
+        />}
       </div>
 
       <style>{`

@@ -3,13 +3,30 @@
 // it, producing a flat WordStream. Format-agnostic; parsers are pluggable.
 
 import type { FileInfo, Parser, WordStream } from "./types";
+import type { InteractiveFormat } from "./interactive";
 import { UnsupportedFormatError } from "./types";
 
 export class IngestionEngine {
   private parsers: Parser[] = [];
+  private interactiveFactories = new Map<string, () => InteractiveFormat<unknown, Record<string, unknown>>>();
 
-  constructor(parsers: Parser[] = []) {
+  constructor(
+    parsers: Parser[] = [],
+    interactiveFactories: Array<() => InteractiveFormat<unknown, Record<string, unknown>>> = [],
+  ) {
     this.parsers = [...parsers];
+    for (const factory of interactiveFactories) this.registerInteractive(factory);
+  }
+
+  /** Register a factory for a stateful live/dynamic format. */
+  registerInteractive(factory: () => InteractiveFormat<unknown, Record<string, unknown>>): void {
+    const instance = factory();
+    this.interactiveFactories.set(instance.format, factory);
+  }
+
+  /** Create a fresh live format session, or null for a static book. */
+  interactiveFormatFor(format: string): InteractiveFormat<unknown, Record<string, unknown>> | null {
+    return this.interactiveFactories.get(format)?.() ?? null;
   }
 
   /** Register a parser (or replace one with the same format). */

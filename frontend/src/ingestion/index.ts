@@ -11,3 +11,4 @@ export * from "./types";
 export * from "./normalize";
 export { PdfJsParser, PdfAdvancedLayoutError } from "./pdf";
 export * from "./pdf";
+export * from "./jetstream";

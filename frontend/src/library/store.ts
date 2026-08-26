@@ -8,6 +8,7 @@ import type { FileInfo, IngestionEngine } from "../ingestion";
 import { sha256 } from "./hash";
 import type { ImportResult, OpenableBook } from "./types";
 import { ACTIONS_BOOK_ID, ACTIONS_BOOK_REVISION, createActionsFixture } from "./default-books/actions";
+import { BLUESKY_JETSTREAM_BOOK_ID, BLUESKY_JETSTREAM_BOOK_REVISION, createBlueskyJetstreamFixture } from "./default-books/bluesky-jetstream";
 
 /** Bump when the parser output shape changes → cached streams re-ingest. */
 export const PARSER_VERSION = 1;
@@ -24,30 +25,77 @@ export class LibraryStore {
     return books.sort((a, b) => b.addedAt - a.addedAt);
   }
 
-  /** Ensure the bundled Actions smoke-test book exists and is current. */
+  /** Ensure every bundled book exists and its cached stream is repairable. */
   async ensureBuiltInBooks(): Promise<void> {
-    const fixture = createActionsFixture();
-    const existing = await this.db.getBook(ACTIONS_BOOK_ID);
-    const stream = await this.db.getStream(ACTIONS_BOOK_ID);
-
-    if (!existing || !existing.builtIn || existing.builtInRevision !== ACTIONS_BOOK_REVISION) {
-      await this.db.addBook({
-        ...fixture.book,
-        addedAt: existing?.addedAt ?? fixture.book.addedAt,
-      });
-      await this.db.saveStream(ACTIONS_BOOK_ID, fixture.stream);
-      return;
+    const definitions = [
+      { id: ACTIONS_BOOK_ID, revision: ACTIONS_BOOK_REVISION, create: createActionsFixture },
+      { id: BLUESKY_JETSTREAM_BOOK_ID, revision: BLUESKY_JETSTREAM_BOOK_REVISION, create: createBlueskyJetstreamFixture },
+    ];
+    for (const definition of definitions) {
+      const fixture = definition.create();
+      const existing = await this.db.getBook(definition.id);
+      const stream = await this.db.getStream(definition.id);
+      if (!existing || !existing.builtIn || existing.builtInRevision !== definition.revision) {
+        await this.db.addBook({ ...fixture.book, addedAt: existing?.addedAt ?? fixture.book.addedAt });
+        await this.db.saveStream(definition.id, fixture.stream);
+        continue;
+      }
+      if (!stream) {
+        await this.db.saveStream(definition.id, fixture.stream);
+        await this.db.updateBook(definition.id, {
+          wordCount: fixture.book.wordCount,
+          chapterCount: fixture.book.chapterCount,
+          parserVersion: fixture.book.parserVersion,
+        });
+      }
     }
+  }
 
-    // Repair a partially cleared browser database without touching reader state.
-    if (!stream) {
-      await this.db.saveStream(ACTIONS_BOOK_ID, fixture.stream);
-      await this.db.updateBook(ACTIONS_BOOK_ID, {
-        wordCount: fixture.book.wordCount,
-        chapterCount: fixture.book.chapterCount,
-        parserVersion: fixture.book.parserVersion,
-      });
+  /** Start a live book and serialize its chunks through persistent storage. */
+  async startStreamingBook(
+    bookId: string,
+    onStream: (stream: import("../epub/types").WordStream) => void,
+    onError: (error: Error) => void,
+  ): Promise<() => void> {
+    const book = await this.db.getBook(bookId);
+    const stream = await this.db.getStream(bookId);
+    if (!book || !stream) throw new Error("Live book is missing from the library");
+    const format = this.engine.interactiveFormatFor(book.format);
+    if (!format) return () => undefined;
+    const init = await format.init(
+      { hideSelfLabeledSensitivePosts: true },
+      book.formatState as Record<string, unknown> | undefined,
+    );
+    let disposed = false;
+    let writeQueue = Promise.resolve();
+    const stop = format.startStreaming(
+      stream.words.length,
+      (chunk) => {
+        writeQueue = writeQueue.then(async () => {
+          if (disposed) return;
+          if (chunk.words.length === 0 && !chunk.chapterUpdates?.length && !chunk.interactions?.length) {
+            await this.db.updateBook(bookId, { formatState: chunk.state });
+            return;
+          }
+          const updated = await this.appendWords(bookId, chunk.words, {
+            chapterUpdates: chunk.chapterUpdates,
+            interactions: chunk.interactions,
+            isComplete: chunk.isComplete,
+            totalWordsExpected: chunk.totalWordsExpected,
+            formatState: chunk.state,
+          });
+          if (!disposed) onStream(updated);
+        }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))));
+      },
+      onError,
+    );
+    if (JSON.stringify(init.initialState) !== JSON.stringify(book.formatState ?? {})) {
+      await this.db.updateBook(bookId, { formatState: init.initialState });
     }
+    return () => {
+      disposed = true;
+      stop();
+    };
   }
 
   /** Import a file: hash → ingest → metadata → persist. Dedupes by hash. */
@@ -152,6 +200,15 @@ export class LibraryStore {
   async resetReaderState(bookId: string): Promise<void> {
     const book = await this.db.getBook(bookId);
     if (!book?.builtIn) throw new Error("Only built-in books can be restarted");
+    if (bookId === BLUESKY_JETSTREAM_BOOK_ID) {
+      const fixture = createBlueskyJetstreamFixture(book.addedAt);
+      await this.db.saveStream(bookId, fixture.stream);
+      await this.db.updateBook(bookId, {
+        wordCount: 0,
+        chapterCount: 0,
+        formatState: fixture.book.formatState,
+      });
+    }
     await this.db.deleteReaderState(bookId);
   }
 }

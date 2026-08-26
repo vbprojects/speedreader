@@ -104,6 +104,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [recordsVersion, setRecordsVersion] = useState(0);
   const isMobile = useMediaQuery("(max-width: 640px)");
   const clockRef = useRef<SelfCorrectingClock | null>(null);
+  const streamRef = useRef(stream);
+  const durationCountRef = useRef(0);
+  streamRef.current = stream;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
   const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
@@ -212,24 +215,25 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     }
   }, [frame, chunkStart]);
 
-  // Precompute durations once for the stream.
-  const durations = useMemo(() => {
-    const stats = { totalWords: stream.meta.totalWords, avgWordLength: stream.meta.avgWordLength };
-    return pacing.durations(stream.words, stats);
-  }, [stream, pacing]);
-
   // A boundary is a count of consumed words. Only unresolved interactions gate playback.
   const interactionAtBoundary = (boundary: number): ReaderInteraction | null =>
-    (stream.interactions ?? []).find(
+    (streamRef.current.interactions ?? []).find(
       (interaction) =>
         interaction.boundary === boundary && !resolvedInteractionIdsRef.current.has(interaction.id) && !interactionRecordsRef.current.has(interaction.id)
     ) ?? null;
 
-  // Create the clock. Recreated when durations change (e.g. WPM/settings),
-  // but preserves the current position so changing speed does not reset the book.
+  // Create the clock for the current pacing profile. Appended words extend it
+  // in the following effect rather than restarting the active word.
   useEffect(() => {
+    const currentStream = streamRef.current;
+    const stats = { totalWords: currentStream.meta.totalWords, avgWordLength: currentStream.meta.avgWordLength };
+    const durations = pacing.durations(currentStream.words, stats);
+    durationCountRef.current = durations.length;
     const prevIndex = clockRef.current?.index ?? initialIndex;
     const wasRunning = clockRef.current?.running ?? false;
+    // An incomplete live stream keeps the UI's running intent while its clock
+    // waits at the temporary tail. A newly appended batch resumes from there.
+    const shouldResume = wasRunning || (running && currentStream.meta.isComplete === false);
     const clock = new SelfCorrectingClock({
       durations,
       canStart: (index) => interactionAtBoundary(index) === null,
@@ -247,31 +251,50 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         setRunning(false);
       },
       onTick: (index) => {
-        setFrame(buildFrame(stream.words, index, cfgRef.current));
-        const effectiveTotal = stream.meta.totalWordsExpected || stream.words.length;
+        const latestStream = streamRef.current;
+        setFrame(buildFrame(latestStream.words, index, cfgRef.current));
+        const effectiveTotal = latestStream.meta.totalWordsExpected || latestStream.words.length;
         setProgress(effectiveTotal ? Math.min(1, index / effectiveTotal) : 0);
         onPositionChange?.(index);
       },
       onEnd: () => {
         // If stream is still streaming in the background, remain running waiting for more chunks.
-        if (stream.meta.isComplete !== false) {
+        if (streamRef.current.meta.isComplete !== false) {
           setRunning(false);
         }
       },
     });
     clockRef.current = clock;
     clock.seek(prevIndex);
-    setFrame(buildFrame(stream.words, prevIndex, cfgRef.current));
-    const effectiveTotal = stream.meta.totalWordsExpected || stream.words.length;
+    setFrame(buildFrame(currentStream.words, prevIndex, cfgRef.current));
+    const effectiveTotal = currentStream.meta.totalWordsExpected || currentStream.words.length;
     setProgress(effectiveTotal ? Math.min(1, prevIndex / effectiveTotal) : 0);
-    if (wasRunning) {
+    if (shouldResume) {
       resumeAfterInteractionRef.current = true;
       clock.start(prevIndex);
       setRunning(clock.running);
     }
     return () => clock.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [durations, stream]);
+  }, [pacing]);
+
+  // Extend the clock without disturbing its elapsed time. If playback reached
+  // an incomplete stream's temporary tail, preserve the user's running intent.
+  useEffect(() => {
+    const clock = clockRef.current;
+    if (!clock) return;
+    const previousCount = durationCountRef.current;
+    if (stream.words.length <= previousCount) return;
+    const chunk = stream.words.slice(previousCount);
+    const stats = { totalWords: stream.meta.totalWords, avgWordLength: stream.meta.avgWordLength };
+    const appendedDurations = pacing.durationsForChunk(chunk, stream.words[previousCount - 1], stats);
+    clock.appendDurations(appendedDurations);
+    durationCountRef.current = stream.words.length;
+    if (running && !clock.running) {
+      clock.resume();
+      setRunning(clock.running);
+    }
+  }, [stream.words.length, pacing, running]);
 
   // Pin the current word to the exact center of the viewport (both axes) by
   // translating the whole text block. Unlike scrolling, this guarantees the

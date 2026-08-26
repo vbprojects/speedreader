@@ -4,6 +4,15 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-26 — Built-in Bluesky Jetstream reader
+
+- **Live default book**: Added a built-in “Bluesky Jetstream” book that connects directly to the public JSON WebSocket feed while the book is open and continuously appends text posts to its WordStream.
+- **Minimal post rendering**: Accepted post creates are rendered only as `did : text`; non-post event variants, malformed records, and non-text posts are ignored.
+- **Sensitive-content control**: Author-applied `porn`, `sexual`, `nudity`, and `graphic-media` self-labels are excluded by default. This is a best-effort filter because Jetstream does not include moderation-service labels.
+- **Offline history and recovery**: Received words and the latest cursor are persisted through the existing ingestion engine, reconnects resume from that cursor, and “Clear live history” resets the local stream.
+- **Continuous playback**: Appended durations extend the active reader clock without restarting the current word whenever a live batch arrives.
+- **Coverage**: Added decoder, event-variant, formatter, sensitive-filter, reconnect cursor, batching, default-book, and library-seeding tests.
+
 ## 2026-08-25 — Inline interaction history
 
 - **Natural reading flow**: Actions now render as first-class inline nodes between words. Answered actions remain in place as safe, past-tense text in native and RSVP views instead of disappearing into a modal overlay.
