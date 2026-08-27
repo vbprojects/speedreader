@@ -36,9 +36,10 @@ export interface ReaderScreenProps {
   onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
   initialDeliveredTriggerIds?: string[];
   onEngineEvent?: (event: ReaderEngineEvent) => Promise<void> | void;
+  liveError?: string | null;
 }
 
-export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent }: ReaderScreenProps) {
+export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent, liveError }: ReaderScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [running, setRunning] = useState(false);
@@ -107,8 +108,10 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
         {stream.words.length === 0 ? (
           <div style={{ height: "100%", display: "grid", placeItems: "center", background: t.bg, color: t.muted, fontFamily: settings.fontFamily }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>Connecting to the live stream…</div>
-              <div style={{ fontSize: 13 }}>Waiting for the first textual post.</div>
+              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>Listening to the live stream…</div>
+              <div role={liveError ? "alert" : undefined} style={{ fontSize: 13, color: liveError ? t.highlight : undefined }}>
+                {liveError ?? "Waiting for the first eligible English text post."}
+              </div>
             </div>
           </div>
         ) : <SpeedReader

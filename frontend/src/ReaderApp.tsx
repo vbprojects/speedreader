@@ -388,6 +388,7 @@ export default function ReaderApp() {
         initialDeliveredTriggerIds={deliveredTriggerIds}
         onEngineEvent={handleEngineEvent}
         onInteractionSubmit={handleInteractionEngineSubmit}
+        liveError={error}
       />
     );
   }

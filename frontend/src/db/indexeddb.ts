@@ -4,6 +4,7 @@
 // clones. Versioned schema with an upgrade path.
 
 import type { Book, CoverImage, Db, ReaderState, StoredStream } from "./types";
+import { appendToWordStream } from "../ingestion/interactive";
 
 const DB_NAME = "speedreader";
 const DB_VERSION = 1;
@@ -79,11 +80,19 @@ export class IndexedDb implements Db {
 
   async updateBook(id: string, patch: Partial<Book>): Promise<void> {
     const db = await this.db();
-    const tx = db.transaction(STORE_BOOKS, "readwrite");
-    const store = tx.objectStore(STORE_BOOKS);
-    const existing = await reqResult(store.get(id));
-    if (existing) store.put({ ...existing, ...patch, id });
-    await txDone(tx);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_BOOKS, "readwrite");
+      const store = tx.objectStore(STORE_BOOKS);
+      const getRequest = store.get(id);
+      getRequest.onerror = () => reject(getRequest.error ?? new Error("Failed to read book for update"));
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result as Book | undefined;
+        if (existing) store.put({ ...existing, ...patch, id });
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error("Book update transaction failed"));
+      tx.onabort = () => reject(tx.error ?? new Error("Book update transaction aborted"));
+    });
   }
 
   async deleteBook(id: string): Promise<void> {
@@ -121,37 +130,52 @@ export class IndexedDb implements Db {
     }
   ): Promise<import("../epub/types").WordStream> {
     const db = await this.db();
-    const tx = db.transaction(STORE_STREAMS, "readwrite");
-    const store = tx.objectStore(STORE_STREAMS);
-    const rec = (await reqResult(store.get(bookId))) as StoredStream | undefined;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_STREAMS, "readwrite");
+      const store = tx.objectStore(STORE_STREAMS);
+      const getRequest = store.get(bookId);
+      let updatedStream: import("../epub/types").WordStream | null = null;
 
-    let updatedStream: import("../epub/types").WordStream;
-    if (rec?.stream) {
-      const { appendToWordStream } = await import("../ingestion/interactive");
-      updatedStream = appendToWordStream(rec.stream, newWords, options);
-    } else {
-      const offsetWords = newWords.map((w, i) => ({ ...w, index: i }));
-      const totalLen = offsetWords.reduce((s, w) => s + w.text.length, 0);
-      updatedStream = {
-        words: offsetWords,
-        chapterIndex: options?.chapterUpdates ?? [],
-        meta: {
-          totalWords: offsetWords.length,
-          avgWordLength: offsetWords.length ? totalLen / offsetWords.length : 0,
-          isDeterministic: false,
-          isComplete: options?.isComplete ?? false,
-          totalWordsExpected: options?.totalWordsExpected,
-          chapterAttribute: "chapterId",
-        },
-        ...(options?.interactions && options.interactions.length > 0 ? { interactions: options.interactions } : {}),
-        ...(options?.presentations && options.presentations.length > 0 ? { presentations: options.presentations } : {}),
-        ...(options?.triggers && options.triggers.length > 0 ? { triggers: options.triggers } : {}),
+      getRequest.onerror = () => reject(getRequest.error ?? new Error("Failed to read stream for append"));
+      getRequest.onsuccess = () => {
+        try {
+          const rec = getRequest.result as StoredStream | undefined;
+          if (rec?.stream) {
+            updatedStream = appendToWordStream(rec.stream, newWords, options);
+          } else {
+            const offsetWords = newWords.map((w, i) => ({ ...w, index: i }));
+            const totalLen = offsetWords.reduce((sum, word) => sum + word.text.length, 0);
+            updatedStream = {
+              words: offsetWords,
+              chapterIndex: options?.chapterUpdates ?? [],
+              meta: {
+                totalWords: offsetWords.length,
+                avgWordLength: offsetWords.length ? totalLen / offsetWords.length : 0,
+                isDeterministic: false,
+                isComplete: options?.isComplete ?? false,
+                totalWordsExpected: options?.totalWordsExpected,
+                chapterAttribute: "chapterId",
+              },
+              ...(options?.interactions?.length ? { interactions: options.interactions } : {}),
+              ...(options?.presentations?.length ? { presentations: options.presentations } : {}),
+              ...(options?.triggers?.length ? { triggers: options.triggers } : {}),
+            };
+          }
+          // Keep the read-modify-write operation inside this request callback;
+          // yielding here lets IndexedDB auto-commit the transaction.
+          store.put({ bookId, stream: updatedStream } satisfies StoredStream);
+        } catch (error) {
+          tx.abort();
+          reject(error);
+        }
       };
-    }
-
-    store.put({ bookId, stream: updatedStream } satisfies StoredStream);
-    await txDone(tx);
-    return updatedStream;
+      tx.oncomplete = () => {
+        if (updatedStream) resolve(updatedStream);
+        else reject(new Error("Stream append completed without an updated stream"));
+      };
+      tx.onerror = () => reject(tx.error ?? new Error("Stream append transaction failed"));
+      tx.onabort = () => reject(tx.error ?? new Error("Stream append transaction aborted"));
+    });
   }
 
   async getReaderState(bookId: string): Promise<ReaderState | null> {

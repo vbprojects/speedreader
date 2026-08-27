@@ -9,14 +9,13 @@ import { JETSTREAM_ENDPOINTS, JETSTREAM_FORMAT, type JetstreamInput, type Jetstr
 import { PublicBlueskyEnricher, type JetstreamEnricher } from "./enrichment";
 import type { EngineTrigger, ReaderEngineEvent } from "../../engine-events/types";
 
-const BATCH_POSTS = 25;
 const BATCH_MS = 250;
 const RECENT_KEYS = 128;
-export const JETSTREAM_TARGET_BUFFER_WORDS = 400;
-export const JETSTREAM_WAKE_REMAINING_WORDS = 100;
+export const JETSTREAM_POSTS_PER_WINDOW = 25;
+export const JETSTREAM_WAKE_REMAINING_POSTS = 5;
 export interface JetstreamDemandConfig {
-  targetBufferWords?: number;
-  wakeRemainingWords?: number;
+  postsPerWindow?: number;
+  wakeRemainingPosts?: number;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -73,8 +72,8 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
   private readonly enricher: JetstreamEnricher;
   private wakeStreaming: (() => void) | null = null;
   private readonly handledEventIds = new Set<string>();
-  private readonly targetBufferWords: number;
-  private readonly wakeRemainingWords: number;
+  private readonly postsPerWindow: number;
+  private readonly wakeRemainingPosts: number;
 
   constructor(
     socketFactory?: JetstreamSocketFactory,
@@ -83,8 +82,8 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
   ) {
     this.socketFactory = socketFactory;
     this.enricher = enricher;
-    this.targetBufferWords = Math.max(1, demand.targetBufferWords ?? JETSTREAM_TARGET_BUFFER_WORDS);
-    this.wakeRemainingWords = Math.max(0, Math.min(this.targetBufferWords - 1, demand.wakeRemainingWords ?? JETSTREAM_WAKE_REMAINING_WORDS));
+    this.postsPerWindow = Math.max(1, demand.postsPerWindow ?? JETSTREAM_POSTS_PER_WINDOW);
+    this.wakeRemainingPosts = Math.max(0, Math.min(this.postsPerWindow - 1, demand.wakeRemainingPosts ?? JETSTREAM_WAKE_REMAINING_POSTS));
   }
 
   async init(input: JetstreamInput = {}, savedState?: JetstreamState) {
@@ -141,33 +140,31 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       });
       postCount += 1;
       this.state.acceptedPostCount += 1;
-      if (words.length >= this.targetBufferWords) {
+      if (postCount === this.postsPerWindow - this.wakeRemainingPosts) {
         triggers.push({
           schemaVersion: 1,
           id: `jetstream:wake:${startIndex}:${this.state.cursor ?? this.state.lastTimeUs ?? words.length}`,
-          boundary: Math.max(0, words.length - this.wakeRemainingWords),
+          boundary: words.length,
           kind: "engine-trigger",
           signal: {
             type: "jetstream.fetch-more",
-            payload: { targetWords: this.targetBufferWords },
+            payload: { postsPerWindow: this.postsPerWindow },
           },
           delivery: "once",
           direction: "forward",
         });
-        flush(true);
-        client.pause();
-      } else if (postCount >= BATCH_POSTS) {
-        // Keep accumulating toward the demand batch while persisting cursor
-        // state through the regular timer rather than emitting partial words.
+      }
+      // Every accepted post is its own append so it becomes visible as soon
+      // as enrichment and filtering finish.
+      flush();
+      if (postCount >= this.postsPerWindow) {
         postCount = 0;
+        client.pause();
       }
     };
 
-    const flush = (emitBufferedWords = false) => {
+    const flush = () => {
       if (disposed || (!stateDirty && words.length === 0 && triggers.length === 0)) return;
-      // Do not persist a cursor past accepted posts until their words are
-      // emitted; otherwise a shutdown could permanently skip the buffer.
-      if (words.length > 0 && !emitBufferedWords) return;
       if (words.length === 0 && Date.now() - lastCursorFlushAt < 1_000) return;
       const emittedWords = words;
       const emittedPresentations = presentations;
@@ -175,7 +172,6 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       words = [];
       presentations = [];
       triggers = [];
-      postCount = 0;
       stateDirty = false;
       lastCursorFlushAt = Date.now();
       onChunk({
@@ -255,7 +251,9 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       },
     });
     this.wakeStreaming = () => client.start();
-    if (startIndex - initialReadPosition <= this.wakeRemainingWords) client.start();
+    // Cached streams are resumed at their tail; otherwise their existing wake
+    // trigger is responsible for starting the next post window.
+    if (startIndex === 0 || initialReadPosition >= startIndex - 1) client.start();
     return () => {
       disposed = true;
       clearInterval(timer);
