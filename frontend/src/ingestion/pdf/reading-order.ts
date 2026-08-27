@@ -77,13 +77,15 @@ function lineText(items: PositionedItem[]): string {
 
 /** Group PDF.js text runs into visual lines, preserving simple LTR order. */
 export function reconstructLines(items: readonly unknown[]): PdfLine[] {
-  const positioned = positionedItems(items);
+  const positioned = positionedItems(items).sort((a, b) => b.y - a.y || a.x - b.x);
   const lines: Array<{ y: number; fontSize: number; items: PositionedItem[] }> = [];
 
   for (const item of positioned) {
     const tolerance = Math.max(2, item.fontSize * 0.45);
-    const line = lines.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);
-    if (line) {
+    // Items are y-sorted, so only the most recently created visual line can
+    // match. This avoids quadratic scans for PDFs with many one-item lines.
+    const line = lines[lines.length - 1];
+    if (line && Math.abs(line.y - item.y) <= tolerance) {
       line.items.push(item);
       line.fontSize = Math.max(line.fontSize, item.fontSize);
     } else {
@@ -103,8 +105,7 @@ export function reconstructLines(items: readonly unknown[]): PdfLine[] {
         endOfLine: sorted.some((item) => item.hasEOL === true),
       };
     })
-    .filter((line) => line.text.length > 0)
-    .sort((a, b) => b.y - a.y || a.x - b.x);
+    .filter((line) => line.text.length > 0);
 }
 
 /** Detect the obvious two-flow layout that the local parser intentionally avoids. */

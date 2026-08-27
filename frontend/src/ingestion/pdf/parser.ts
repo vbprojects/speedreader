@@ -16,6 +16,7 @@ import {
   type PdfParserOptions,
   type PdfTextItemLike,
 } from "./types";
+import { assertFileSize, assertIngestionLimit, INGESTION_LIMITS } from "../limits";
 
 interface LoadedPdf {
   document: PdfDocumentLike;
@@ -23,6 +24,7 @@ interface LoadedPdf {
 }
 
 async function loadPdf(data: ArrayBuffer): Promise<LoadedPdf> {
+  assertFileSize(data.byteLength);
   const pdfjs = await import("pdfjs-dist");
 
   // Vite bundles this worker URL, keeping PWA/Tauri operation offline. Node
@@ -34,8 +36,27 @@ async function loadPdf(data: ArrayBuffer): Promise<LoadedPdf> {
 
   // PDF.js may transfer typed-array ownership to its worker, so give it a copy.
   const bytes = new Uint8Array(data.slice(0));
-  const loadingTask = pdfjs.getDocument({ data: bytes });
-  const document = (await loadingTask.promise) as unknown as PdfDocumentLike;
+  const loadingTask = pdfjs.getDocument({
+    data: bytes,
+    isEvalSupported: false,
+    maxImageSize: INGESTION_LIMITS.maxPdfImagePixels,
+    stopAtErrors: true,
+  });
+  let document: PdfDocumentLike;
+  try {
+    document = (await loadingTask.promise) as unknown as PdfDocumentLike;
+  } catch (error) {
+    await loadingTask.destroy();
+    throw error;
+  }
+  try {
+    assertIngestionLimit(document.numPages, INGESTION_LIMITS.maxPdfPages, "PDF pages");
+    if (!Number.isInteger(document.numPages) || document.numPages < 1) throw new Error("PDF has an invalid page count");
+  } catch (error) {
+    await document.cleanup?.();
+    await loadingTask.destroy();
+    throw error;
+  }
   return {
     document,
     destroy: async () => {
@@ -68,6 +89,14 @@ function pageLabel(labels: string[] | null | undefined, pageNumber: number): str
 
 async function textItems(page: PdfPageLike): Promise<unknown[]> {
   const content = await page.getTextContent();
+  assertIngestionLimit(content.items.length, INGESTION_LIMITS.maxPdfTextItemsPerPage, "PDF text items on one page");
+  let characters = 0;
+  for (const item of content.items) {
+    if (item && typeof item === "object" && typeof (item as PdfTextItemLike).str === "string") {
+      characters += (item as PdfTextItemLike).str.length;
+      assertIngestionLimit(characters, INGESTION_LIMITS.maxPdfTextCharactersPerPage, "PDF text characters on one page");
+    }
+  }
   return content.items;
 }
 
@@ -122,9 +151,12 @@ export class PdfJsParser implements Parser {
 
       const words: Word[] = [];
       const chapters: ChapterEntry[] = [];
+      let totalTextItems = 0;
       for (let pageNumber = 1; pageNumber <= loaded.document.numPages; pageNumber++) {
         const page = await loaded.document.getPage(pageNumber);
         const items = await textItems(page);
+        totalTextItems += items.length;
+        assertIngestionLimit(totalTextItems, INGESTION_LIMITS.maxPdfTotalTextItems, "PDF text items");
         const suitability = classifyTextItems(items);
         const label = pageLabel(labels, pageNumber);
 
@@ -141,6 +173,7 @@ export class PdfJsParser implements Parser {
 
         const startIndex = words.length;
         for (const word of pageWords) {
+          assertIngestionLimit(words.length + 1, INGESTION_LIMITS.maxPdfWords, "PDF words");
           words.push({ ...word, index: words.length });
         }
         chapters.push({

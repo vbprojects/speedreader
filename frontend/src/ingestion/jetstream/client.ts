@@ -1,6 +1,8 @@
 import { decodeJetstreamEvent } from "./decode";
 import { JETSTREAM_ENDPOINTS, type JetstreamEvent } from "./types";
 
+export const MAX_JETSTREAM_MESSAGE_BYTES = 65_536;
+
 export interface JetstreamSocket {
   onopen: (() => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
@@ -57,6 +59,8 @@ export class JetstreamClient {
     const socket = this.socket;
     this.socket = null;
     if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
       socket.onclose = null;
       socket.onerror = null;
       socket.close();
@@ -70,14 +74,14 @@ export class JetstreamClient {
 
   private connect(): void {
     if (this.disposed || this.socket) return;
-    const endpoint = this.endpoints[this.endpointIndex % this.endpoints.length];
-    const url = new URL(endpoint);
-    url.searchParams.append("wantedCollections", "app.bsky.feed.post");
-    url.searchParams.append("wantedCollections", "app.bsky.feed.repost");
-    url.searchParams.set("maxMessageSizeBytes", "65536");
-    if (this.cursor !== undefined) url.searchParams.set("cursor", String(this.cursor));
     let socket: JetstreamSocket;
     try {
+      const endpoint = this.endpoints[this.endpointIndex % this.endpoints.length];
+      const url = new URL(endpoint);
+      url.searchParams.append("wantedCollections", "app.bsky.feed.post");
+      url.searchParams.append("wantedCollections", "app.bsky.feed.repost");
+      url.searchParams.set("maxMessageSizeBytes", String(MAX_JETSTREAM_MESSAGE_BYTES));
+      if (this.cursor !== undefined) url.searchParams.set("cursor", String(this.cursor));
       socket = this.socketFactory(url.toString());
     } catch (error) {
       this.onError(error instanceof Error ? error : new Error(String(error)));
@@ -90,6 +94,11 @@ export class JetstreamClient {
     };
     socket.onmessage = ({ data }) => {
       if (typeof data !== "string") return;
+      if (data.length > MAX_JETSTREAM_MESSAGE_BYTES || new TextEncoder().encode(data).byteLength > MAX_JETSTREAM_MESSAGE_BYTES) {
+        this.onError(new Error("Bluesky Jetstream message exceeded the local size limit"));
+        socket.close();
+        return;
+      }
       const event = decodeJetstreamEvent(data);
       if (!event) return;
       this.cursor = event.cursor ?? event.time_us;

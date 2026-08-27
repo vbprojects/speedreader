@@ -1,4 +1,7 @@
 const APPVIEW = "https://public.api.bsky.app/xrpc";
+const DEFAULT_TIMEOUT_MS = 5_000;
+const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
+const DEFAULT_MAX_CACHE_ENTRIES = 256;
 
 export interface EnrichedActor {
   did: string;
@@ -23,34 +26,109 @@ function object(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+export interface PublicBlueskyEnricherOptions {
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  maxResponseBytes?: number;
+  maxCacheEntries?: number;
+}
+
+async function boundedJson(response: Response, maxBytes: number): Promise<unknown> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error("Bluesky response exceeded the size limit");
+
+  if (!response.body) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maxBytes) throw new Error("Bluesky response exceeded the size limit");
+    return JSON.parse(text);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("Bluesky response exceeded the size limit");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 /** Minimal cached client for public Bluesky AppView enrichment. */
 export class PublicBlueskyEnricher implements JetstreamEnricher {
   private readonly actors = new Map<string, Promise<EnrichedActor | null>>();
   private readonly posts = new Map<string, Promise<EnrichedPost | null>>();
+  private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
+  private readonly maxResponseBytes: number;
+  private readonly maxCacheEntries: number;
+
+  constructor(options: PublicBlueskyEnricherOptions = {}) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    this.maxResponseBytes = Math.max(1, options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES);
+    this.maxCacheEntries = Math.max(1, options.maxCacheEntries ?? DEFAULT_MAX_CACHE_ENTRIES);
+  }
 
   actor(did: string): Promise<EnrichedActor | null> {
+    if (did.length === 0 || did.length > 2_048) return Promise.resolve(null);
     const existing = this.actors.get(did);
-    if (existing) return existing;
+    if (existing) {
+      this.actors.delete(did);
+      this.actors.set(did, existing);
+      return existing;
+    }
     const request = this.fetchActor(did);
-    this.actors.set(did, request);
+    this.cache(this.actors, did, request);
     return request;
   }
 
   post(uri: string): Promise<EnrichedPost | null> {
+    if (uri.length === 0 || uri.length > 2_048) return Promise.resolve(null);
     const existing = this.posts.get(uri);
-    if (existing) return existing;
+    if (existing) {
+      this.posts.delete(uri);
+      this.posts.set(uri, existing);
+      return existing;
+    }
     const request = this.fetchPost(uri);
-    this.posts.set(uri, request);
+    this.cache(this.posts, uri, request);
     return request;
+  }
+
+  private cache<T>(cache: Map<string, Promise<T>>, key: string, value: Promise<T>): void {
+    cache.set(key, value);
+    while (cache.size > this.maxCacheEntries) cache.delete(cache.keys().next().value!);
+  }
+
+  private async request(url: URL): Promise<Record<string, unknown> | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(url, { signal: controller.signal });
+      if (!response.ok) return null;
+      return object(await boundedJson(response, this.maxResponseBytes));
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async fetchActor(did: string): Promise<EnrichedActor | null> {
     try {
       const url = new URL(`${APPVIEW}/app.bsky.actor.getProfile`);
       url.searchParams.set("actor", did);
-      const response = await fetch(url);
-      if (!response.ok) return null;
-      const value = object(await response.json());
+      const value = await this.request(url);
       return value && typeof value.did === "string" && typeof value.handle === "string"
         ? { did: value.did, handle: value.handle }
         : null;
@@ -63,9 +141,7 @@ export class PublicBlueskyEnricher implements JetstreamEnricher {
     try {
       const url = new URL(`${APPVIEW}/app.bsky.feed.getPosts`);
       url.searchParams.append("uris", uri);
-      const response = await fetch(url);
-      if (!response.ok) return null;
-      const body = object(await response.json());
+      const body = await this.request(url);
       const post = Array.isArray(body?.posts) ? object(body.posts[0]) : null;
       const author = object(post?.author);
       const record = object(post?.record);

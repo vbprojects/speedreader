@@ -1,11 +1,11 @@
 import { deepStrictEqual, equal, match, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { JetstreamClient, type JetstreamSocket } from "./client";
+import { JetstreamClient, MAX_JETSTREAM_MESSAGE_BYTES, type JetstreamSocket } from "./client";
 import { asRepost, asTextPost, decodeJetstreamEvent, hasEnglishLanguageTag, jetstreamEventKey } from "./decode";
 import { formatJetstreamPost, stripWebUrls } from "./formatter";
 import { hasSensitiveSelfLabel } from "./sensitive-filter";
 import { BlueskyJetstreamFormat } from "./format";
-import type { JetstreamEnricher } from "./enrichment";
+import { PublicBlueskyEnricher, type JetstreamEnricher } from "./enrichment";
 
 function post(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -101,6 +101,61 @@ test("client requests JSON posts and advances its resume cursor", () => {
   equal(sockets.length, 2);
   match(urls[1], /cursor=12345/);
   client.dispose();
+});
+
+test("client rejects an oversized frame before decoding", () => {
+  let socket: JetstreamSocket | null = null;
+  let closed = false;
+  const errors: Error[] = [];
+  const events: unknown[] = [];
+  const client = new JetstreamClient({
+    endpoints: ["wss://example.test/subscribe"],
+    socketFactory: () => {
+      socket = { onopen: null, onmessage: null, onerror: null, onclose: null, close() { closed = true; } };
+      return socket;
+    },
+    onEvent: (event) => events.push(event),
+    onError: (error) => errors.push(error),
+  });
+  client.start();
+  (socket as JetstreamSocket | null)?.onmessage?.({ data: "x".repeat(MAX_JETSTREAM_MESSAGE_BYTES + 1) });
+  equal(events.length, 0);
+  equal(errors.length, 1);
+  equal(closed, true);
+  client.dispose();
+});
+
+test("public enrichment times out, caps responses, and evicts old cache entries", async () => {
+  const timedOut = new PublicBlueskyEnricher({
+    timeoutMs: 5,
+    fetchImpl: ((_url: URL | RequestInfo, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+    })) as typeof fetch,
+  });
+  equal(await timedOut.actor("did:plc:timeout"), null);
+
+  const oversized = new PublicBlueskyEnricher({
+    maxResponseBytes: 32,
+    fetchImpl: (async () => new Response(JSON.stringify({ did: "did:plc:x", handle: "x.test", padding: "x".repeat(100) }))) as typeof fetch,
+  });
+  equal(await oversized.actor("did:plc:x"), null);
+
+  let requests = 0;
+  const cached = new PublicBlueskyEnricher({
+    maxCacheEntries: 2,
+    fetchImpl: (async (input: URL | RequestInfo) => {
+      requests++;
+      const url = new URL(String(input));
+      const did = url.searchParams.get("actor")!;
+      return new Response(JSON.stringify({ did, handle: `${did.slice(-1)}.test` }));
+    }) as typeof fetch,
+  });
+  await cached.actor("did:a");
+  await cached.actor("did:b");
+  await cached.actor("did:a");
+  await cached.actor("did:c");
+  await cached.actor("did:b");
+  equal(requests, 4);
 });
 
 test("live format emits each accepted post and uses a trigger to load another post window", async () => {
@@ -242,4 +297,33 @@ test("live format emits each accepted post and uses a trigger to load another po
   ]);
   equal(chunks[3].triggers.length, 0);
   equal(chunks[3].cursor, 12350);
+});
+
+test("a synchronous socket burst cannot exceed the reserved demand window", async () => {
+  let socket: JetstreamSocket | null = null;
+  const format = new BlueskyJetstreamFormat(() => {
+    socket = { onopen: null, onmessage: null, onerror: null, onclose: null, close() {} };
+    return socket;
+  }, {
+    async actor(did) { return { did, handle: "reader.test" }; },
+    async post() { return null; },
+  }, { postsPerWindow: 3, wakeRemainingPosts: 1 });
+  await format.init();
+  const chunks: string[][] = [];
+  const stop = format.startStreaming(0, (chunk) => chunks.push(chunk.words.map((word) => word.text)), () => undefined);
+  ok(socket);
+  const handler = (socket as JetstreamSocket).onmessage;
+  for (let index = 0; index < 10; index++) {
+    const event = post({
+      rkey: `burst-${index}`,
+      cid: `burst-cid-${index}`,
+      record: { $type: "app.bsky.feed.post", text: `Burst ${index}`, langs: ["en"] },
+    });
+    (event as { cursor: number }).cursor = 20_000 + index;
+    handler?.({ data: JSON.stringify(event) });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  stop();
+  equal(chunks.length, 3);
+  deepStrictEqual(chunks.flat(), ["Burst", "0", "Burst", "1", "Burst", "2"]);
 });

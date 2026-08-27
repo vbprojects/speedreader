@@ -4,6 +4,18 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-27 — Repository security hardening
+
+- **Bounded document ingestion**: Added a shared 128 MiB input limit before browser allocation and again at the library boundary. EPUB imports now preflight archive entry counts, expanded sizes, compression ratios, spine/TOC cardinality, DOM traversal, extracted text, words, and cover size. Recursive EPUB traversal was replaced with a bounded iterative walk.
+- **Hardened PDF parsing**: Disabled PDF.js evaluation, capped pages, image pixels, text items, characters, and words, and replaced quadratic visual-line grouping with a sorted linear sweep while preserving page labels, layout warnings, and hyphen joining.
+- **Bounded live ingestion**: Jetstream now enforces its 65,536-byte frame limit locally before JSON decoding, applies cheap filters before asynchronous work, bounds pending enrichment and handled-event state, and pauses/resumes on backlog pressure. AppView requests now have timeouts, streamed response-size limits, identifier limits, and bounded LRU caches.
+- **Algorithmic complexity controls**: Reader-flow projection binary-searches boundary-sorted interaction/presentation history, and navigation uses typed per-level maps plus indexed range lookup instead of repeated sibling scans. Navigation depth and node cardinality are capped.
+- **Browser and native boundaries**: Added PWA and Tauri content security policies, removed the unused Tauri opener permission/plugin/dependencies, and separated permissive localhost development policy from the production webview policy.
+- **CI least privilege**: Desktop builds now run with `contents: read` and no release token. Only a tag-gated release job receives `contents: write`, with repository-controlled `gh` commands. Pages build and deploy permissions are separated, and an explicit `SPEEDREADER_BASE_PATH` prevents Tauri CI bundles from inheriting the GitHub Pages path.
+- **Adversarial coverage**: Added rejection and stress tests for pre-allocation file limits, compressed EPUB expansion, oversized Jetstream frames/responses, enrichment timeouts/cache eviction, burst demand windows, 20,000-line PDFs, large visible-flow histories, and overlapping 20,000-node navigation trees. Lint, typechecking, 54 tests, production build, Pages-path build, workflow YAML parsing, and diff checks pass.
+
+---
+
 ## 2026-08-27 — Demand-driven ingestion and focused mobile actions
 
 - **Reader-to-engine events**: Added schema-versioned, nonblocking engine triggers to WordStreams. Trigger delivery and pending events are persisted in reader state, retried after reopening, and routed back to the active ingestion engine without pausing playback.

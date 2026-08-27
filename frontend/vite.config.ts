@@ -83,5 +83,5 @@ export default defineConfig(async () => ({
   // Base path for the built assets. GitHub Pages serves the repo at a
   // subpath (/speedreader/), so use that for Pages builds. Tauri loads the
   // frontend from the local bundle (root), so it uses the default "/".
-  base: process.env.GITHUB_ACTIONS ? "/speedreader/" : "/",
+  base: process.env.SPEEDREADER_BASE_PATH || "/",
 }));

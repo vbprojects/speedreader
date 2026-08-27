@@ -29,3 +29,18 @@ test("flow projects inert presentations without consuming a word", () => {
     );
     deepStrictEqual(nodes.filter((node) => node.kind === "word").map((node) => node.kind === "word" && node.word.index), [0, 1, 2]);
 });
+
+test("flow selects a small visible range from a large sorted history", () => {
+    const longWords = Array.from({ length: 30_000 }, (_, index) => ({ text: `w${index}`, index, metadata: [] }));
+    const interactions = Array.from({ length: 30_000 }, (_, boundary) => interaction(`i${boundary}`, boundary));
+    const presentations: HtmlPresentation[] = Array.from({ length: 30_000 }, (_, boundary) => ({
+      schemaVersion: 1,
+      id: `p${boundary}`,
+      boundary,
+      kind: "html",
+      html: "<hr>",
+    }));
+    const nodes = buildReaderFlowRange(longWords, interactions, [], 29_995, 30_000, presentations);
+    deepStrictEqual(nodes.filter((node) => node.kind === "word").map((node) => node.kind === "word" && node.word.index), [29_995, 29_996, 29_997, 29_998, 29_999]);
+    deepStrictEqual(nodes.slice(0, 3).map((node) => node.kind), ["presentation", "interaction", "word"]);
+});

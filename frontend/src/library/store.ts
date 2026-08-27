@@ -11,6 +11,7 @@ import { ACTIONS_BOOK_ID, ACTIONS_BOOK_REVISION, createActionsFixture } from "./
 import { BLUESKY_JETSTREAM_BOOK_ID, BLUESKY_JETSTREAM_BOOK_REVISION, createBlueskyJetstreamFixture } from "./default-books/bluesky-jetstream";
 import type { InteractiveFormat } from "../ingestion/interactive";
 import type { ReaderEngineEvent } from "../engine-events/types";
+import { assertFileSize } from "../ingestion/limits";
 
 /** Bump when the parser output shape changes → cached streams re-ingest. */
 export const PARSER_VERSION = 1;
@@ -124,6 +125,7 @@ export class LibraryStore {
 
   /** Import a file: hash → ingest → metadata → persist. Dedupes by hash. */
   async importFile(file: FileInfo): Promise<ImportResult> {
+    assertFileSize(file.data.byteLength);
     const id = await sha256(file.data);
 
     // Dedupe: identical bytes → reuse the existing book (no duplicate tile).

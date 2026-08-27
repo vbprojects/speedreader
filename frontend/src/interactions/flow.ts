@@ -7,29 +7,45 @@ export type ReaderFlowNode =
   | { kind: "presentation"; presentation: HtmlPresentation }
   | { kind: "interaction"; interaction: ReaderInteraction; record?: InteractionRecord };
 
+function firstBoundaryAtOrAfter<T extends { boundary: number }>(items: readonly T[], boundary: number): number {
+  let low = 0;
+  let high = items.length;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (items[middle].boundary < boundary) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
 /** Build a stable, inline projection of words and interaction nodes. */
 export function buildReaderFlowRange(
   words: Word[],
   interactions: ReaderInteraction[] = [],
-  records: InteractionRecord[] = [],
+  records: InteractionRecord[] | ReadonlyMap<string, InteractionRecord> = [],
   startWord = 0,
   endWord = words.length,
   presentations: HtmlPresentation[] = [],
 ): ReaderFlowNode[] {
   const start = Math.max(0, startWord);
   const end = Math.min(words.length, Math.max(start, endWord));
-  const recordsById = new Map(records.map((record) => [record.interactionId, record]));
+  const recordsById = Array.isArray(records)
+    ? new Map(records.map((record) => [record.interactionId, record]))
+    : records;
   const nodes: ReaderFlowNode[] = [];
+  // Validated streams keep both arrays boundary-sorted. Binary-searching the
+  // visible range prevents live history from being rescanned per boundary.
+  let presentationIndex = firstBoundaryAtOrAfter(presentations, start);
+  let interactionIndex = firstBoundaryAtOrAfter(interactions, start);
   for (let boundary = start; boundary <= end; boundary += 1) {
-    for (const presentation of presentations) {
-      if (presentation.boundary === boundary) {
-        nodes.push({ kind: "presentation", presentation });
-      }
+    while (presentations[presentationIndex]?.boundary === boundary) {
+      nodes.push({ kind: "presentation", presentation: presentations[presentationIndex] });
+      presentationIndex++;
     }
-    for (const interaction of interactions) {
-      if (interaction.boundary === boundary) {
-        nodes.push({ kind: "interaction", interaction, record: recordsById.get(interaction.id) });
-      }
+    while (interactions[interactionIndex]?.boundary === boundary) {
+      const interaction = interactions[interactionIndex];
+      nodes.push({ kind: "interaction", interaction, record: recordsById.get(interaction.id) });
+      interactionIndex++;
     }
     if (boundary < end && words[boundary]) nodes.push({ kind: "word", word: words[boundary] });
   }

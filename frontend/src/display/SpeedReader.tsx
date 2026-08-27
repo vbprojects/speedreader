@@ -214,7 +214,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   // The stable chunk of words rendered around the current position in RSVP mode. Only
   // re-chunks when the current word nears the chunk edge — between refreshes
   // the text is static, so nothing reflows or shifts while reading.
-  const persistedRecords = useMemo(() => Array.from(interactionRecordsRef.current.values()), [stream, frame, pendingInteraction, editingInteractionId, recordsVersion]);
+  const persistedRecords = useMemo(() => new Map(interactionRecordsRef.current), [stream, frame, pendingInteraction, editingInteractionId, recordsVersion]);
   const traditionalFlow = useMemo(
     () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, traditionalRange.start, traditionalRange.end, stream.presentations ?? []),
     [stream, traditionalRange, persistedRecords]

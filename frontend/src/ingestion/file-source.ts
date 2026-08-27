@@ -4,6 +4,7 @@
 // (plugin-dialog + plugin-fs) later — both produce an ArrayBuffer.
 
 import type { FileInfo } from "./types";
+import { assertFileSize } from "./limits";
 
 /** Detect the extension from a filename. */
 export function extensionOf(name: string): string {
@@ -13,6 +14,7 @@ export function extensionOf(name: string): string {
 
 /** Convert a browser File into a FileInfo. */
 export async function fileFromBrowserFile(file: File): Promise<FileInfo> {
+  assertFileSize(file.size);
   const data = await file.arrayBuffer();
   return {
     name: file.name,

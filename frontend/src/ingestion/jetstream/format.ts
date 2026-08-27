@@ -11,6 +11,9 @@ import type { EngineTrigger, ReaderEngineEvent } from "../../engine-events/types
 
 const BATCH_MS = 250;
 const RECENT_KEYS = 128;
+const MAX_HANDLED_EVENTS = 256;
+const MAX_PENDING_EVENTS = 64;
+const RESUME_PENDING_EVENTS = 32;
 export const JETSTREAM_POSTS_PER_WINDOW = 25;
 export const JETSTREAM_WAKE_REMAINING_POSTS = 5;
 export interface JetstreamDemandConfig {
@@ -95,6 +98,9 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
   async handleReaderEvent(event: ReaderEngineEvent): Promise<void> {
     if (this.handledEventIds.has(event.eventId)) return;
     this.handledEventIds.add(event.eventId);
+    while (this.handledEventIds.size > MAX_HANDLED_EVENTS) {
+      this.handledEventIds.delete(this.handledEventIds.values().next().value!);
+    }
     if (event.kind === "trigger" && event.signal.type === "jetstream.fetch-more") {
       this.wakeStreaming?.();
     }
@@ -114,6 +120,11 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
     let stateDirty = false;
     let lastCursorFlushAt = 0;
     let eventQueue = Promise.resolve();
+    let pendingEvents = 0;
+    let reservedPosts = 0;
+    let pausedForBackpressure = false;
+    let pausedForWindowCapacity = false;
+    let pausedForDemand = false;
     const seen = new Set(this.state.recentEventKeys);
 
     const addPresentation = (id: string, html: string) => {
@@ -159,6 +170,8 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       flush();
       if (postCount >= this.postsPerWindow) {
         postCount = 0;
+        pausedForWindowCapacity = false;
+        pausedForDemand = true;
         client.pause();
       }
     };
@@ -197,9 +210,17 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       socketFactory: this.socketFactory,
       onError,
       onEvent: (event) => {
+        if (pausedForDemand || pausedForWindowCapacity || pausedForBackpressure) return;
         const post = asTextPost(event);
         const repost = asRepost(event);
         if (!post && !repost) return;
+        let postWords: Word[] | null = null;
+        if (post) {
+          if ((this.input.hideSelfLabeledSensitivePosts ?? true) && hasSensitiveSelfLabel(post)) return;
+          if (!hasEnglishLanguageTag(post)) return;
+          postWords = formatJetstreamPost(post);
+          if (postWords.length === 0) return;
+        }
         const key = jetstreamCommitKey(event);
         if (seen.has(key)) return;
         seen.add(key);
@@ -208,6 +229,17 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           const removed = this.state.recentEventKeys.shift();
           if (removed) seen.delete(removed);
         }
+        if (pendingEvents >= MAX_PENDING_EVENTS) {
+          pausedForBackpressure = true;
+          client.pause();
+          return;
+        }
+        pendingEvents++;
+        reservedPosts++;
+        if (postCount + reservedPosts >= this.postsPerWindow) {
+          pausedForWindowCapacity = true;
+          client.pause();
+        }
         eventQueue = eventQueue.then(async () => {
           if (disposed) return;
           this.state.cursor = event.cursor ?? event.time_us;
@@ -215,11 +247,6 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           this.state.lastTimeUs = event.time_us;
           stateDirty = true;
           if (post) {
-            if ((this.input.hideSelfLabeledSensitivePosts ?? true) && hasSensitiveSelfLabel(post)) return;
-            if (!hasEnglishLanguageTag(post)) return;
-            const postWords = formatJetstreamPost(post);
-            if (postWords.length === 0) return;
-
             const quotedUri = quoteUri(post.commit.record);
             if (quotedUri) {
               const quoted = await this.enricher.post(quotedUri);
@@ -234,7 +261,7 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
             }
 
             addPresentation(`${key}:author`, `<p><strong>${escapeHtml(await actorLabel(post.did))}</strong></p>`);
-            appendWords(postWords);
+            appendWords(postWords!);
             finishPost(key);
             return;
           }
@@ -247,10 +274,24 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           addPresentation(`${key}:original-author`, `<p><strong>${escapeHtml(`@${original.author.handle}`)}</strong></p>`);
           appendWords(originalWords);
           finishPost(key);
-        }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))));
+        }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))))
+          .finally(() => {
+            pendingEvents--;
+            reservedPosts--;
+            if (pausedForBackpressure && pendingEvents <= RESUME_PENDING_EVENTS) {
+              pausedForBackpressure = false;
+            }
+            if (pausedForWindowCapacity && postCount + reservedPosts < this.postsPerWindow) {
+              pausedForWindowCapacity = false;
+            }
+            if (!pausedForDemand && !pausedForBackpressure && !pausedForWindowCapacity && !disposed) client.start();
+          });
       },
     });
-    this.wakeStreaming = () => client.start();
+    this.wakeStreaming = () => {
+      pausedForDemand = false;
+      if (!pausedForBackpressure && !pausedForWindowCapacity) client.start();
+    };
     // Cached streams are resumed at their tail; otherwise their existing wake
     // trigger is responsible for starting the next post window.
     if (startIndex === 0 || initialReadPosition >= startIndex - 1) client.start();
