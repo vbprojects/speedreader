@@ -5,6 +5,7 @@
 
 import type { WordStream, Word, ChapterEntry } from "../epub/types";
 import type { InteractionRecord, ReaderInteraction } from "../interactions/types";
+import type { HtmlPresentation } from "../presentation/types";
 import type { ReaderSettings } from "../settings/types";
 
 /** A cover image stored with a book (browser-safe Blob). */
@@ -84,6 +85,7 @@ export interface Db {
     options?: {
       chapterUpdates?: ChapterEntry[];
       interactions?: ReaderInteraction[];
+      presentations?: HtmlPresentation[];
       isComplete?: boolean;
       totalWordsExpected?: number;
     }

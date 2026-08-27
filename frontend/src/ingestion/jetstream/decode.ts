@@ -1,4 +1,4 @@
-import type { JetstreamCommit, JetstreamEvent, JetstreamPostEvent } from "./types";
+import type { JetstreamCommit, JetstreamEvent, JetstreamPostEvent, JetstreamRepostEvent } from "./types";
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -52,6 +52,16 @@ export function asTextPost(event: JetstreamEvent): JetstreamPostEvent | null {
   return event as JetstreamPostEvent;
 }
 
+export function asRepost(event: JetstreamEvent): JetstreamRepostEvent | null {
+  if (event.kind !== "commit" || !event.commit) return null;
+  const { commit } = event;
+  if (commit.operation !== "create" || commit.collection !== "app.bsky.feed.repost" || !commit.record) return null;
+  if (commit.record.$type !== "app.bsky.feed.repost") return null;
+  const subject = record(commit.record.subject);
+  if (!subject || typeof subject.uri !== "string" || typeof subject.cid !== "string") return null;
+  return event as JetstreamRepostEvent;
+}
+
 /** Jetstream preserves the post record's author-supplied BCP-47 language tags. */
 export function hasEnglishLanguageTag(event: JetstreamPostEvent): boolean {
   const { langs } = event.commit.record;
@@ -61,6 +71,12 @@ export function hasEnglishLanguageTag(event: JetstreamPostEvent): boolean {
 }
 
 export function jetstreamEventKey(event: JetstreamPostEvent): string {
+  const commit = event.commit;
+  return [event.did, commit.collection, commit.rkey, commit.cid ?? commit.rev].join("/");
+}
+
+export function jetstreamCommitKey(event: JetstreamEvent): string {
+  if (event.kind !== "commit" || !event.commit) return `${event.did}/${event.time_us}`;
   const commit = event.commit;
   return [event.did, commit.collection, commit.rkey, commit.cid ?? commit.rev].join("/");
 }

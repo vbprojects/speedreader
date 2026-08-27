@@ -35,6 +35,18 @@ export interface JetstreamPostEvent extends JetstreamEvent {
   };
 }
 
+export interface JetstreamRepostEvent extends JetstreamEvent {
+  kind: "commit";
+  commit: JetstreamCommit & {
+    operation: "create";
+    collection: "app.bsky.feed.repost";
+    record: Record<string, unknown> & {
+      $type: "app.bsky.feed.repost";
+      subject: { uri: string; cid: string };
+    };
+  };
+}
+
 export interface JetstreamState extends Record<string, unknown> {
   schemaVersion: 1;
   cursor?: number;

@@ -36,3 +36,16 @@ test("interaction-only chunks and duplicate IDs are handled safely", () => {
     interactions: [{ schemaVersion: 1, id: "pause", boundary: 0, kind: "continue" }],
   }));
 });
+
+test("presentation-only chunks are offset without consuming words", () => {
+  const stream = appendToWordStream(emptyStream(), [word("one", 0), word("two", 1)]);
+  const withPresentation = appendToWordStream(stream, [], {
+    presentations: [{ schemaVersion: 1, id: "card", boundary: 0, kind: "html", html: "<p>Card</p>" }],
+  });
+  equal(withPresentation.words.length, 2);
+  equal(withPresentation.presentations?.[0].boundary, 2);
+  equal(withPresentation.meta.totalWords, 2);
+  throws(() => appendToWordStream(withPresentation, [], {
+    presentations: [{ schemaVersion: 1, id: "card", boundary: 0, kind: "html", html: "<hr>" }],
+  }));
+});

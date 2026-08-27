@@ -6,9 +6,11 @@ import type { Book } from "../../db/types";
 import type { Word, WordStream } from "../../epub/types";
 import { computeMeta } from "../../ingestion/normalize";
 import type { ReaderInteraction } from "../../interactions/types";
+import type { HtmlPresentation } from "../../presentation/types";
+import { validatePresentations } from "../../presentation/validation";
 
 export const ACTIONS_BOOK_ID = "builtin:actions:v1";
-export const ACTIONS_BOOK_REVISION = 6;
+export const ACTIONS_BOOK_REVISION = 7;
 
 const CHAPTER_ID = "actions";
 
@@ -94,6 +96,25 @@ const interactions: ReaderInteraction[] = [
   },
 ];
 
+const presentations: HtmlPresentation[] = [
+  {
+    schemaVersion: 1,
+    id: "actions:chapter-card",
+    boundary: 12,
+    kind: "html",
+    html: "<hr><h3>A quiet interlude</h3><p><strong>Presentation HTML</strong> appears without pausing playback.</p>",
+    renderIn: ["rsvp", "traditional"],
+  },
+  {
+    schemaVersion: 1,
+    id: "actions:traditional-note",
+    boundary: 34,
+    kind: "html",
+    html: "<blockquote><em>This note is shown only in traditional reading mode.</em></blockquote>",
+    renderIn: ["traditional"],
+  },
+];
+
 const chapterIndex = [{
   chapterId: CHAPTER_ID,
   title: "Actions",
@@ -115,6 +136,10 @@ export function createActionsStream(): WordStream {
     // The descriptors are intentionally JSON-only; round-tripping here also
     // guarantees that each reader session receives an independent fixture.
     interactions: JSON.parse(JSON.stringify(interactions)) as ReaderInteraction[],
+    presentations: validatePresentations(
+      JSON.parse(JSON.stringify(presentations)) as HtmlPresentation[],
+      words.length,
+    ),
   };
 }
 

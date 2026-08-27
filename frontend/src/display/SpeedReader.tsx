@@ -22,6 +22,8 @@ import { traditionalEntryScrollNudge } from "./traditional-gesture";
 import type { DisplayConfig, DisplayFrame, ReaderViewMode } from "./types";
 import { WordContextMenu, type WordContextMenuState } from "./WordContextMenu";
 import { WordBreak } from "./WordBreak";
+import { HtmlPresentation } from "./HtmlPresentation";
+import { unresolvedInteractionAtBoundary } from "./playback-boundary";
 
 /** True when the viewport is at or below the given breakpoint. */
 function useMediaQuery(query: string): boolean {
@@ -188,11 +190,11 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   // the text is static, so nothing reflows or shifts while reading.
   const persistedRecords = useMemo(() => Array.from(interactionRecordsRef.current.values()), [stream, frame, pendingInteraction, editingInteractionId, recordsVersion]);
   const traditionalFlow = useMemo(
-    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, traditionalRange.start, traditionalRange.end),
+    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, traditionalRange.start, traditionalRange.end, stream.presentations ?? []),
     [stream, traditionalRange, persistedRecords]
   );
   const rsvpFlow = useMemo(
-    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, chunkStart, Math.min(stream.words.length, chunkStart + CHUNK_SIZE)),
+    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, chunkStart, Math.min(stream.words.length, chunkStart + CHUNK_SIZE), stream.presentations ?? []),
     [stream, chunkStart, persistedRecords]
   );
 
@@ -218,10 +220,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
   // A boundary is a count of consumed words. Only unresolved interactions gate playback.
   const interactionAtBoundary = (boundary: number): ReaderInteraction | null =>
-    (streamRef.current.interactions ?? []).find(
-      (interaction) =>
-        interaction.boundary === boundary && !resolvedInteractionIdsRef.current.has(interaction.id) && !interactionRecordsRef.current.has(interaction.id)
-    ) ?? null;
+    unresolvedInteractionAtBoundary(
+      streamRef.current,
+      boundary,
+      resolvedInteractionIdsRef.current,
+      interactionRecordsRef.current,
+    );
 
   // Create the clock for the current pacing profile. Appended words extend it
   // in the following effect rather than restarting the active word.
@@ -904,7 +908,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     ··· Scrolling to earlier text ···
                   </div>
                 )}
-                {traditionalFlow.map((node) => node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
+                {traditionalFlow.map((node) => node.kind === "presentation" ? (
+                  <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="traditional" />
+                ) : node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
                   <Fragment key={node.word.index}>
                     <WordBreak word={node.word} />
                     <span>
@@ -1002,6 +1008,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                   }}
                 >
                   {rsvpFlow.map((node) => {
+                    if (node.kind === "presentation") {
+                      return <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="rsvp" />;
+                    }
                     if (node.kind === "interaction") return renderInlineInteraction(node.interaction, node.record);
                     return (
                       <Fragment key={node.word.index}>

@@ -73,13 +73,14 @@ export class LibraryStore {
       (chunk) => {
         writeQueue = writeQueue.then(async () => {
           if (disposed) return;
-          if (chunk.words.length === 0 && !chunk.chapterUpdates?.length && !chunk.interactions?.length) {
+          if (chunk.words.length === 0 && !chunk.chapterUpdates?.length && !chunk.interactions?.length && !chunk.presentations?.length) {
             await this.db.updateBook(bookId, { formatState: chunk.state });
             return;
           }
           const updated = await this.appendWords(bookId, chunk.words, {
             chapterUpdates: chunk.chapterUpdates,
             interactions: chunk.interactions,
+            presentations: chunk.presentations,
             isComplete: chunk.isComplete,
             totalWordsExpected: chunk.totalWordsExpected,
             formatState: chunk.state,
@@ -156,6 +157,7 @@ export class LibraryStore {
     options?: {
       chapterUpdates?: import("../epub/types").ChapterEntry[];
       interactions?: import("../interactions/types").ReaderInteraction[];
+      presentations?: import("../presentation/types").HtmlPresentation[];
       isComplete?: boolean;
       totalWordsExpected?: number;
       formatState?: Record<string, unknown>;

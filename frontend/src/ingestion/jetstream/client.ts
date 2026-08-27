@@ -68,6 +68,7 @@ export class JetstreamClient {
     const endpoint = this.endpoints[this.endpointIndex % this.endpoints.length];
     const url = new URL(endpoint);
     url.searchParams.append("wantedCollections", "app.bsky.feed.post");
+    url.searchParams.append("wantedCollections", "app.bsky.feed.repost");
     url.searchParams.set("maxMessageSizeBytes", "65536");
     if (this.cursor !== undefined) url.searchParams.set("cursor", String(this.cursor));
     let socket: JetstreamSocket;

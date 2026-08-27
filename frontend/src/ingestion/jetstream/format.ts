@@ -1,14 +1,47 @@
 import type { Word } from "../../epub/types";
+import type { HtmlPresentation } from "../../presentation/types";
 import type { InteractiveFormat, StreamChunk } from "../interactive";
-import { asTextPost, hasEnglishLanguageTag, jetstreamEventKey } from "./decode";
-import { formatJetstreamPost, JETSTREAM_CHAPTER_ID } from "./formatter";
+import { asRepost, asTextPost, hasEnglishLanguageTag, jetstreamCommitKey } from "./decode";
+import { formatJetstreamPost, formatJetstreamText, JETSTREAM_CHAPTER_ID } from "./formatter";
 import { JetstreamClient, type JetstreamSocketFactory } from "./client";
 import { hasSensitiveSelfLabel } from "./sensitive-filter";
 import { JETSTREAM_ENDPOINTS, JETSTREAM_FORMAT, type JetstreamInput, type JetstreamState } from "./types";
+import { PublicBlueskyEnricher, type JetstreamEnricher } from "./enrichment";
 
 const BATCH_POSTS = 25;
 const BATCH_MS = 250;
 const RECENT_KEYS = 128;
+
+function object(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function quoteUri(record: Record<string, unknown>): string | null {
+  const embed = object(record.embed);
+  if (!embed) return null;
+  if (embed.$type === "app.bsky.embed.record") {
+    const reference = object(embed.record);
+    return typeof reference?.uri === "string" ? reference.uri : null;
+  }
+  if (embed.$type === "app.bsky.embed.recordWithMedia") {
+    const recordEmbed = object(embed.record);
+    const reference = object(recordEmbed?.record);
+    return typeof reference?.uri === "string" ? reference.uri : null;
+  }
+  return null;
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]!);
+}
 
 function initialState(saved?: JetstreamState): JetstreamState {
   if (saved?.schemaVersion === 1) {
@@ -30,9 +63,11 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
   private input: JetstreamInput = {};
   private state: JetstreamState = initialState();
   private readonly socketFactory?: JetstreamSocketFactory;
+  private readonly enricher: JetstreamEnricher;
 
-  constructor(socketFactory?: JetstreamSocketFactory) {
+  constructor(socketFactory?: JetstreamSocketFactory, enricher: JetstreamEnricher = new PublicBlueskyEnricher()) {
     this.socketFactory = socketFactory;
+    this.enricher = enricher;
   }
 
   async init(input: JetstreamInput = {}, savedState?: JetstreamState) {
@@ -48,21 +83,53 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
   ): () => void {
     let disposed = false;
     let words: Word[] = [];
+    let presentations: HtmlPresentation[] = [];
     let postCount = 0;
     let stateDirty = false;
     let lastCursorFlushAt = 0;
+    let eventQueue = Promise.resolve();
     const seen = new Set(this.state.recentEventKeys);
+
+    const addPresentation = (id: string, html: string) => {
+      presentations.push({ schemaVersion: 1, id, boundary: words.length, kind: "html", html });
+    };
+
+    const appendWords = (newWords: Word[]) => {
+      const offset = words.length;
+      words.push(...newWords.map((word, index) => ({ ...word, index: offset + index })));
+    };
+
+    const actorLabel = async (did: string): Promise<string> => {
+      const actor = await this.enricher.actor(did);
+      return `@${actor?.handle ?? did}`;
+    };
+
+    const finishPost = (key: string) => {
+      presentations.push({
+        schemaVersion: 1,
+        id: `jetstream:post-separator:${key}`,
+        boundary: words.length,
+        kind: "html",
+        html: "<br><hr><br>",
+      });
+      postCount += 1;
+      this.state.acceptedPostCount += 1;
+      if (postCount >= BATCH_POSTS) flush();
+    };
 
     const flush = () => {
       if (disposed || (!stateDirty && words.length === 0)) return;
       if (words.length === 0 && Date.now() - lastCursorFlushAt < 1_000) return;
       const emittedWords = words;
+      const emittedPresentations = presentations;
       words = [];
+      presentations = [];
       postCount = 0;
       stateDirty = false;
       lastCursorFlushAt = Date.now();
       onChunk({
         words: emittedWords,
+        presentations: emittedPresentations,
         chapterUpdates: emittedWords.length > 0 ? [{
           chapterId: JETSTREAM_CHAPTER_ID,
           title: "Live posts",
@@ -87,8 +154,9 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
         this.state.lastTimeUs = event.time_us;
         stateDirty = true;
         const post = asTextPost(event);
-        if (!post) return;
-        const key = jetstreamEventKey(post);
+        const repost = asRepost(event);
+        if (!post && !repost) return;
+        const key = jetstreamCommitKey(event);
         if (seen.has(key)) return;
         seen.add(key);
         this.state.recentEventKeys.push(key);
@@ -96,15 +164,42 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           const removed = this.state.recentEventKeys.shift();
           if (removed) seen.delete(removed);
         }
-        if ((this.input.hideSelfLabeledSensitivePosts ?? true) && hasSensitiveSelfLabel(post)) return;
-        if (!hasEnglishLanguageTag(post)) return;
-        const postWords = formatJetstreamPost(post);
-        if (postWords.length === 0) return;
-        const offset = words.length;
-        words.push(...postWords.map((word, index) => ({ ...word, index: offset + index })));
-        postCount += 1;
-        this.state.acceptedPostCount += 1;
-        if (postCount >= BATCH_POSTS) flush();
+        eventQueue = eventQueue.then(async () => {
+          if (disposed) return;
+          if (post) {
+            if ((this.input.hideSelfLabeledSensitivePosts ?? true) && hasSensitiveSelfLabel(post)) return;
+            if (!hasEnglishLanguageTag(post)) return;
+            const postWords = formatJetstreamPost(post);
+            if (postWords.length === 0) return;
+
+            const quotedUri = quoteUri(post.commit.record);
+            if (quotedUri) {
+              const quoted = await this.enricher.post(quotedUri);
+              if (quoted) {
+                const quotedWords = formatJetstreamText(quoted.text);
+                if (quotedWords.length > 0) {
+                  addPresentation(`${key}:quoted-author`, `<p><strong>${escapeHtml(`@${quoted.author.handle}`)}</strong> · quoted</p>`);
+                  appendWords(quotedWords);
+                  addPresentation(`${key}:quote-gap`, "<br>");
+                }
+              }
+            }
+
+            addPresentation(`${key}:author`, `<p><strong>${escapeHtml(await actorLabel(post.did))}</strong></p>`);
+            appendWords(postWords);
+            finishPost(key);
+            return;
+          }
+
+          const original = await this.enricher.post(repost!.commit.record.subject.uri);
+          if (!original || (original.langs && !original.langs.some((lang) => /^en(?:-|$)/i.test(lang)))) return;
+          const originalWords = formatJetstreamText(original.text);
+          if (originalWords.length === 0) return;
+          addPresentation(`${key}:reposter`, `<p><strong>${escapeHtml(await actorLabel(repost!.did))}</strong> reposted</p>`);
+          addPresentation(`${key}:original-author`, `<p><strong>${escapeHtml(`@${original.author.handle}`)}</strong></p>`);
+          appendWords(originalWords);
+          finishPost(key);
+        }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))));
       },
     });
     client.start();

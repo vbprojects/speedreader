@@ -1,10 +1,11 @@
 import { deepStrictEqual, equal, match, ok } from "node:assert/strict";
 import { test } from "node:test";
 import { JetstreamClient, type JetstreamSocket } from "./client";
-import { asTextPost, decodeJetstreamEvent, hasEnglishLanguageTag, jetstreamEventKey } from "./decode";
+import { asRepost, asTextPost, decodeJetstreamEvent, hasEnglishLanguageTag, jetstreamEventKey } from "./decode";
 import { formatJetstreamPost, stripWebUrls } from "./formatter";
 import { hasSensitiveSelfLabel } from "./sensitive-filter";
 import { BlueskyJetstreamFormat } from "./format";
+import type { JetstreamEnricher } from "./enrichment";
 
 function post(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -33,6 +34,11 @@ test("Jetstream decoder accepts text creates and rejects unrelated variants", ()
   equal(asTextPost(decodeJetstreamEvent(JSON.stringify(post({ operation: "update" })))!), null);
   equal(asTextPost(decodeJetstreamEvent(JSON.stringify(post({ operation: "delete", record: undefined })))!), null);
   equal(asTextPost(decodeJetstreamEvent(JSON.stringify(post({ collection: "app.bsky.feed.like" })))!), null);
+  const repost = decodeJetstreamEvent(JSON.stringify(post({
+    collection: "app.bsky.feed.repost",
+    record: { $type: "app.bsky.feed.repost", subject: { uri: "at://did:plc:original/app.bsky.feed.post/1", cid: "original-cid" } },
+  })))!;
+  equal(asRepost(repost)?.commit.record.subject.uri, "at://did:plc:original/app.bsky.feed.post/1");
   equal(decodeJetstreamEvent("not json"), null);
   ok(decodeJetstreamEvent(JSON.stringify({ did: "did:plc:x", time_us: 2, kind: "identity", identity: { handle: "x.test" } })));
   ok(decodeJetstreamEvent(JSON.stringify({ did: "did:plc:x", time_us: 3, kind: "account", account: { active: true } })));
@@ -43,9 +49,7 @@ test("formatter emits only visible post text without identity or URLs", () => {
     record: { $type: "app.bsky.feed.post", text: "Read https://example.com/a?q=1 then www.example.org now", langs: ["en"] },
   })))!)!;
   deepStrictEqual(formatJetstreamPost(event).map((word) => word.text), ["Read", "then", "now"]);
-  equal(formatJetstreamPost(event)[0].formatting, undefined);
-  const formatted = formatJetstreamPost(event);
-  equal(formatted[formatted.length - 1]?.formatting?.lineBreaksAfter, 2);
+  ok(formatJetstreamPost(event).every((word) => word.formatting === undefined));
   equal(stripWebUrls("https://example.com www.example.org"), "");
   const urlOnly = asTextPost(decodeJetstreamEvent(JSON.stringify(post({
     record: { $type: "app.bsky.feed.post", text: "https://example.com", langs: ["en"] },
@@ -88,6 +92,7 @@ test("client requests JSON posts and advances its resume cursor", () => {
   const client = new JetstreamClient({ endpoints: ["wss://example.test/subscribe"], cursor: 99, socketFactory: factory, onEvent: (event) => events.push(event.cursor ?? 0), onError: () => undefined });
   client.start();
   match(urls[0], /wantedCollections=app\.bsky\.feed\.post/);
+  match(urls[0], /wantedCollections=app\.bsky\.feed\.repost/);
   match(urls[0], /cursor=99/);
   sockets[0].onmessage?.({ data: JSON.stringify(post()) });
   deepStrictEqual(events, [12345]);
@@ -96,17 +101,34 @@ test("client requests JSON posts and advances its resume cursor", () => {
 
 test("live format batches plain posts, filters sensitive posts, and persists the last cursor", async () => {
   let socket: JetstreamSocket | null = null;
+  const quotedUri = "at://did:plc:quoted/app.bsky.feed.post/quoted";
+  const repostedUri = "at://did:plc:original/app.bsky.feed.post/original";
+  const enricher: JetstreamEnricher = {
+    async actor(did) {
+      return { did, handle: did === "did:plc:reposter" ? "reposter.test" : "reader.test" };
+    },
+    async post(uri) {
+      if (uri === quotedUri) return { uri, author: { did: "did:plc:quoted", handle: "quoted.test" }, text: "Quoted words", langs: ["en"] };
+      if (uri === repostedUri) return { uri, author: { did: "did:plc:original", handle: "original.test" }, text: "Original repost", langs: ["en"] };
+      return null;
+    },
+  };
   const format = new BlueskyJetstreamFormat(() => {
     socket = { onopen: null, onmessage: null, onerror: null, onclose: null, close() {} };
     return socket;
-  });
+  }, enricher);
   await format.init({ hideSelfLabeledSensitivePosts: true });
-  const chunks: Array<{ words: Array<{ text: string; lineBreaksAfter?: number }>; cursor?: number }> = [];
+  const chunks: Array<{
+    words: string[];
+    presentations: Array<{ boundary: number; html: string }>;
+    cursor?: number;
+  }> = [];
   const stop = format.startStreaming(0, (chunk) => {
     chunks.push({
-      words: chunk.words.map((word) => ({
-        text: word.text,
-        lineBreaksAfter: word.formatting?.lineBreaksAfter,
+      words: chunk.words.map((word) => word.text),
+      presentations: (chunk.presentations ?? []).map((presentation) => ({
+        boundary: presentation.boundary,
+        html: presentation.html,
       })),
       cursor: chunk.state.cursor,
     });
@@ -127,22 +149,48 @@ test("live format batches plain posts, filters sensitive posts, and persists the
   const secondNormal = post({
     rkey: "post4",
     cid: "cid4",
-    record: { $type: "app.bsky.feed.post", text: "Second post", langs: ["en"] },
+    record: {
+      $type: "app.bsky.feed.post",
+      text: "Second post",
+      langs: ["en"],
+      embed: { $type: "app.bsky.embed.record", record: { uri: quotedUri, cid: "quoted-cid" } },
+    },
   });
   (secondNormal as { cursor: number }).cursor = 12348;
+  const repost = {
+    did: "did:plc:reposter",
+    time_us: 1725911162329310,
+    cursor: 12349,
+    kind: "commit",
+    commit: {
+      rev: "rev-repost",
+      operation: "create",
+      collection: "app.bsky.feed.repost",
+      rkey: "repost1",
+      cid: "repost-cid",
+      record: { $type: "app.bsky.feed.repost", subject: { uri: repostedUri, cid: "original-cid" } },
+    },
+  };
   ok(socket);
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(normal) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(sensitive) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(nonEnglish) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(secondNormal) });
+  (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(repost) });
   await new Promise((resolve) => setTimeout(resolve, 320));
   stop();
   equal(chunks.length, 1);
-  deepStrictEqual(chunks[0].words, [
-    { text: "Hello", lineBreaksAfter: undefined },
-    { text: "<b>world</b>", lineBreaksAfter: 2 },
-    { text: "Second", lineBreaksAfter: undefined },
-    { text: "post", lineBreaksAfter: 2 },
+  deepStrictEqual(chunks[0].words, ["Hello", "<b>world</b>", "Quoted", "words", "Second", "post", "Original", "repost"]);
+  deepStrictEqual(chunks[0].presentations, [
+    { boundary: 0, html: "<p><strong>@reader.test</strong></p>" },
+    { boundary: 2, html: "<br><hr><br>" },
+    { boundary: 2, html: "<p><strong>@quoted.test</strong> · quoted</p>" },
+    { boundary: 4, html: "<br>" },
+    { boundary: 4, html: "<p><strong>@reader.test</strong></p>" },
+    { boundary: 6, html: "<br><hr><br>" },
+    { boundary: 6, html: "<p><strong>@reposter.test</strong> reposted</p>" },
+    { boundary: 6, html: "<p><strong>@original.test</strong></p>" },
+    { boundary: 8, html: "<br><hr><br>" },
   ]);
-  equal(chunks[0].cursor, 12348);
+  equal(chunks[0].cursor, 12349);
 });

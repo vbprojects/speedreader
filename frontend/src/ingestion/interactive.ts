@@ -6,6 +6,8 @@
 import type { Word, WordStream, ChapterEntry, StreamMeta } from "../epub/types";
 import type { InteractionResponse, ReaderInteraction } from "../interactions/types";
 import { validateInteractions } from "../interactions/validation";
+import type { HtmlPresentation } from "../presentation/types";
+import { validatePresentations } from "../presentation/validation";
 
 /** A chunk emitted by an InteractiveFormat. Boundaries in this chunk are local. */
 export interface StreamChunk<TState = Record<string, unknown>> {
@@ -15,6 +17,8 @@ export interface StreamChunk<TState = Record<string, unknown>> {
   chapterUpdates?: ChapterEntry[];
   /** Blocking UI events at boundaries relative to this chunk. */
   interactions?: ReaderInteraction[];
+  /** Inert display nodes at boundaries relative to this chunk. */
+  presentations?: HtmlPresentation[];
   /** Format-specific state snapshot at this point in the stream. */
   state: TState;
   /** True if the generation or ingestion has completed its full run. */
@@ -61,15 +65,18 @@ export function appendToWordStream(
   options?: {
     chapterUpdates?: ChapterEntry[];
     interactions?: ReaderInteraction[];
+    presentations?: HtmlPresentation[];
     isComplete?: boolean;
     totalWordsExpected?: number;
   }
 ): WordStream {
   const hasInteractions = (options?.interactions?.length ?? 0) > 0;
+  const hasPresentations = (options?.presentations?.length ?? 0) > 0;
   if (
     newWords.length === 0 &&
     !options?.chapterUpdates &&
     !hasInteractions &&
+    !hasPresentations &&
     options?.isComplete === undefined &&
     options?.totalWordsExpected === undefined
   ) {
@@ -108,6 +115,21 @@ export function appendToWordStream(
   }
   mergedInteractions.sort((a, b) => a.boundary - b.boundary || a.id.localeCompare(b.id));
 
+  const existingPresentations = validatePresentations(stream.presentations ?? [], offset);
+  const incomingPresentations = options?.presentations
+    ? validatePresentations(options.presentations, newWords.length)
+    : [];
+  const presentationIds = new Set(existingPresentations.map((presentation) => presentation.id));
+  const mergedPresentations = [...existingPresentations];
+  for (const presentation of incomingPresentations) {
+    if (presentationIds.has(presentation.id)) {
+      throw new Error("duplicate presentation id: " + presentation.id);
+    }
+    presentationIds.add(presentation.id);
+    mergedPresentations.push({ ...presentation, boundary: presentation.boundary + offset });
+  }
+  mergedPresentations.sort((a, b) => a.boundary - b.boundary);
+
   const meta: StreamMeta = {
     ...stream.meta,
     totalWords: total,
@@ -121,5 +143,6 @@ export function appendToWordStream(
     chapterIndex: mergedChapters,
     meta,
     ...(mergedInteractions.length > 0 ? { interactions: mergedInteractions } : {}),
+    ...(mergedPresentations.length > 0 ? { presentations: mergedPresentations } : {}),
   };
 }

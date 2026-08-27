@@ -1,6 +1,7 @@
 // types.ts
 
 import type { ReaderInteraction } from "../interactions/types";
+import type { HtmlPresentation } from "../presentation/types";
 // Shared types matching the plan's flexible `Word` model (Option B).
 
 /**
@@ -61,6 +62,8 @@ export interface WordStream {
   meta: StreamMeta;
   /** Blocking, JSON-serializable UI events keyed to word boundaries. */
   interactions?: ReaderInteraction[];
+  /** Inert, optional display content keyed to word boundaries. */
+  presentations?: HtmlPresentation[];
 }
 
 export interface ChapterEntry {
