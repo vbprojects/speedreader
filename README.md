@@ -79,6 +79,8 @@ interface WordStream {
   chapterIndex: ChapterEntry[];
   meta: StreamMeta;
   interactions?: ReaderInteraction[];
+  presentations?: HtmlPresentation[];
+  triggers?: EngineTrigger[];
 }
 
 interface Word {
@@ -88,6 +90,19 @@ interface Word {
   formatting?: WordFormatting;
 }
 ```
+
+### WordStream node types
+
+A WordStream contains four kinds of ordered reader content. Words consume reading positions; the other node types attach to boundaries between words. A boundary is the number of words already consumed, so boundary `0` is before the first word and boundary `n` is after word `n - 1`.
+
+| Type | Stored as | Consumes a word position | Pauses the reader | Purpose |
+|---|---|---:|---:|---|
+| **Word** | `words` | Yes | No | The paced text read by the user. Words have stable global indices plus structural metadata and optional light formatting. |
+| **Action** | `interactions` | No | Yes, until resolved | A native reader control such as continue, text input, or single choice. Actions receive focus at their boundary, are centered in RSVP mode, and produce a typed response for the owning ingestion engine. |
+| **Inert presentation** | `presentations` | No | No | Sanitized display-only HTML such as usernames, separators, headings, or spacing. It cannot receive reader input, execute active content, or affect playback timing. |
+| **Engine trigger** | `triggers` | No | No | An invisible signal sent back to the active ingestion engine when forward reading crosses its boundary. Triggers support work such as fetching another live-feed batch or converting the next document page on demand. |
+
+Actions and triggers are intentionally separate. An action represents a decision the reader must make, while a trigger represents passive lifecycle coordination that must never interrupt reading. Inert presentations are visible but have no behavior; engine triggers have behavior but no visible UI.
 
 Flattening does not mean throwing structure away. Each word carries an ordered metadata path, while `chapterIndex` provides named ranges for direct navigation. The navigation tree is derived from metadata order rather than being hard-coded to EPUB concepts such as chapter, section, and paragraph. A new format can therefore define a different hierarchy without changing the reader.
 
