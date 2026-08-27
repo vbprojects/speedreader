@@ -20,5 +20,8 @@ export function formatJetstreamPost(event: JetstreamPostEvent): Word[] {
     text: token,
     index,
     metadata: [{ attribute: "chapterId", value: JETSTREAM_CHAPTER_ID }],
+    ...(index === tokens.length - 1
+      ? { formatting: { lineBreaksAfter: 2 } }
+      : {}),
   }));
 }

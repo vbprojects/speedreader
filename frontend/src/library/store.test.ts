@@ -3,7 +3,12 @@ import { test } from "node:test";
 import type { Book, Db, ReaderState } from "../db/types";
 import type { Word, WordStream } from "../epub/types";
 import { IngestionEngine } from "../ingestion";
-import { createActionsBook, createActionsFixture, ACTIONS_BOOK_ID } from "./default-books/actions";
+import {
+  createActionsBook,
+  createActionsFixture,
+  ACTIONS_BOOK_ID,
+  ACTIONS_BOOK_REVISION,
+} from "./default-books/actions";
 import { LibraryStore } from "./store";
 import { BLUESKY_JETSTREAM_BOOK_ID } from "./default-books/bluesky-jetstream";
 
@@ -63,17 +68,38 @@ test("a stale bundled revision is replaced without deleting reader state", async
   await db.saveReaderState(state);
 
   await library.ensureBuiltInBooks();
-  equal((await db.getBook(ACTIONS_BOOK_ID))?.builtInRevision, 1);
+  equal((await db.getBook(ACTIONS_BOOK_ID))?.builtInRevision, ACTIONS_BOOK_REVISION);
   deepStrictEqual(await db.getReaderState(ACTIONS_BOOK_ID), state);
 });
 
-test("restart clears only Actions reader progress and built-ins cannot be removed", async () => {
+test("opening Actions rehydrates formatting even when its cached stream is stale", async () => {
   const db = new MemoryDb();
   const library = store(db);
   await library.ensureBuiltInBooks();
+  const cached = createActionsFixture().stream;
+  cached.words = cached.words.map(({ formatting: _formatting, ...word }) => word);
+  db.streams.set(ACTIONS_BOOK_ID, cached);
+
+  const opened = await library.openBook(ACTIONS_BOOK_ID);
+  equal(opened?.stream.words.filter((word) => word.formatting?.lineBreaksBefore).length, 7);
+  equal(db.streams.get(ACTIONS_BOOK_ID)?.words.filter((word) => word.formatting).length, 7);
+});
+
+test("restart refreshes the Actions stream, clears progress, and preserves the built-in", async () => {
+  const db = new MemoryDb();
+  const library = store(db);
+  await library.ensureBuiltInBooks();
+  const staleStream = createActionsFixture().stream;
+  staleStream.words = staleStream.words.map(({ formatting: _formatting, ...word }) => word);
+  db.streams.set(ACTIONS_BOOK_ID, staleStream);
   await db.saveReaderState({ bookId: ACTIONS_BOOK_ID, position: 9, lastOpenedAt: 1, settings: {}, completedInteractionIds: ["actions:name"] });
   await library.resetReaderState(ACTIONS_BOOK_ID);
   equal(await db.getReaderState(ACTIONS_BOOK_ID), null);
+  equal(
+    (await db.getStream(ACTIONS_BOOK_ID))?.words.filter((word) => word.formatting?.lineBreaksBefore).length,
+    7
+  );
+  equal((await db.getBook(ACTIONS_BOOK_ID))?.builtInRevision, ACTIONS_BOOK_REVISION);
   await rejects(() => library.removeBook(ACTIONS_BOOK_ID), /Built-in books cannot be removed/);
 });
 

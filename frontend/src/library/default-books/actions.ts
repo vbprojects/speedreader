@@ -8,23 +8,40 @@ import { computeMeta } from "../../ingestion/normalize";
 import type { ReaderInteraction } from "../../interactions/types";
 
 export const ACTIONS_BOOK_ID = "builtin:actions:v1";
-export const ACTIONS_BOOK_REVISION = 1;
+export const ACTIONS_BOOK_REVISION = 6;
 
 const CHAPTER_ID = "actions";
 
 function wordsFromText(text: string): Word[] {
-  return text.split(/\s+/).filter(Boolean).map((token, index) => ({
-    text: token,
-    index,
-    metadata: [{ attribute: "chapterId", value: CHAPTER_ID }],
-  }));
+  const words: Word[] = [];
+  let pendingLineBreaks = 0;
+  for (const [lineIndex, line] of text.split("\n").entries()) {
+    if (lineIndex > 0) pendingLineBreaks++;
+    const tokens = line.split(/\s+/).filter(Boolean);
+    for (const [tokenIndex, token] of tokens.entries()) {
+      words.push({
+        text: token,
+        index: words.length,
+        metadata: [{ attribute: "chapterId", value: CHAPTER_ID }],
+        ...(tokenIndex === 0 && pendingLineBreaks > 0
+          ? { formatting: { lineBreaksBefore: pendingLineBreaks } }
+          : {}),
+      });
+      if (tokenIndex === 0) pendingLineBreaks = 0;
+    }
+  }
+  return words;
 }
 
 const storyWords = wordsFromText(
-  "Welcome to Actions. This short story demonstrates the reader's built-in interactive controls. " +
-    "Your answer will be recorded while the story continues in a single offline stream. " +
-    "You have reached a fork in the path. The choice is remembered, and the same reader can continue at its own pace. " +
-    "The demonstration is complete. You can restart Actions from the library whenever you want to try it again."
+  "Welcome to Actions.\n" +
+    "This short story demonstrates the reader's built-in interactive controls.\n" +
+    "Your answer will be recorded while the story\n" +
+    "continues in a single offline stream.\n\n\n\n" +
+    "You have reached a fork in the path.\n" +
+    "The choice is remembered, and the same reader can continue at its own pace.\n" +
+    "The demonstration is complete.\n" +
+    "You can restart Actions from the library whenever you want to try it again."
 );
 
 const interactions: ReaderInteraction[] = [
@@ -86,7 +103,11 @@ const chapterIndex = [{
 
 /** Return a fresh stream so callers cannot mutate the module-level fixture. */
 export function createActionsStream(): WordStream {
-  const words = storyWords.map((word) => ({ ...word, metadata: [...word.metadata] }));
+  const words = storyWords.map((word) => ({
+    ...word,
+    metadata: [...word.metadata],
+    ...(word.formatting ? { formatting: { ...word.formatting } } : {}),
+  }));
   return {
     words,
     chapterIndex: chapterIndex.map((chapter) => ({ ...chapter })),

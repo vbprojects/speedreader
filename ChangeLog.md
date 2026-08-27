@@ -4,6 +4,12 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-26 — Formatting and suprisal
+
+- Added br formatting and supirsal based word pacing.
+
+---
+
 ## 2026-08-26 — Visible-text-only Jetstream posts
 
 - **Post text only**: Removed the source DID and separator from Bluesky Jetstream WordStreams. The live reader now receives only the authored text that would be visible in the post after URL filtering.

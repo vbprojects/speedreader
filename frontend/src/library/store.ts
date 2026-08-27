@@ -172,9 +172,21 @@ export class LibraryStore {
 
   /** Open a book by id: load its cached stream (no re-parse). */
   async openBook(bookId: string): Promise<OpenableBook | null> {
-    const book = await this.db.getBook(bookId);
+    let book = await this.db.getBook(bookId);
     if (!book) return null;
-    const stream = await this.db.getStream(bookId);
+    let stream = await this.db.getStream(bookId);
+
+    // Actions is a tiny bundled fixture. Rehydrate it on open so a stale PWA,
+    // hot-reload session, or previously cached stream cannot silently omit new
+    // stream fields such as formatting. Reader state is stored separately.
+    if (bookId === ACTIONS_BOOK_ID && book.builtIn) {
+      const fixture = createActionsFixture(book.addedAt);
+      book = fixture.book;
+      stream = fixture.stream;
+      await this.db.addBook(book);
+      await this.db.saveStream(bookId, stream);
+    }
+
     if (!stream) return null;
     return { book, stream };
   }
@@ -200,7 +212,16 @@ export class LibraryStore {
   async resetReaderState(bookId: string): Promise<void> {
     const book = await this.db.getBook(bookId);
     if (!book?.builtIn) throw new Error("Only built-in books can be restarted");
-    if (bookId === BLUESKY_JETSTREAM_BOOK_ID) {
+    if (bookId === ACTIONS_BOOK_ID) {
+      const fixture = createActionsFixture(book.addedAt);
+      await this.db.saveStream(bookId, fixture.stream);
+      await this.db.updateBook(bookId, {
+        wordCount: fixture.book.wordCount,
+        chapterCount: fixture.book.chapterCount,
+        parserVersion: fixture.book.parserVersion,
+        builtInRevision: fixture.book.builtInRevision,
+      });
+    } else if (bookId === BLUESKY_JETSTREAM_BOOK_ID) {
       const fixture = createBlueskyJetstreamFixture(book.addedAt);
       await this.db.saveStream(bookId, fixture.stream);
       await this.db.updateBook(bookId, {

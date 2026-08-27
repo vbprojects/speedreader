@@ -3,7 +3,11 @@
 // Per-reader settings override global ones for that reader instance.
 
 export type Theme = "light" | "dark" | "sepia" | "high-contrast";
-export type PacingAlgorithm = "naive" | "bayesian";
+export type PacingAlgorithm =
+  | "naive"
+  | "bayesian"
+  | "surprisal-normal"
+  | "surprisal-exponential-gamma";
 
 /** Global settings — apply to the whole app / library view. */
 export interface GlobalSettings {

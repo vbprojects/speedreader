@@ -82,6 +82,8 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
         >
           <option style={optionStyle} value="naive">Naive (Fixed WPM)</option>
           <option style={optionStyle} value="bayesian">Bayesian Adaptive (Poisson–Gamma)</option>
+          <option style={optionStyle} value="surprisal-normal">N-Gram Surprisal (Normal)</option>
+          <option style={optionStyle} value="surprisal-exponential-gamma">N-Gram Surprisal (Exponential–Gamma)</option>
         </select>
       </Field>
 

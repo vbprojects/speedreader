@@ -43,6 +43,9 @@ test("formatter emits only visible post text without identity or URLs", () => {
     record: { $type: "app.bsky.feed.post", text: "Read https://example.com/a?q=1 then www.example.org now", langs: ["en"] },
   })))!)!;
   deepStrictEqual(formatJetstreamPost(event).map((word) => word.text), ["Read", "then", "now"]);
+  equal(formatJetstreamPost(event)[0].formatting, undefined);
+  const formatted = formatJetstreamPost(event);
+  equal(formatted[formatted.length - 1]?.formatting?.lineBreaksAfter, 2);
   equal(stripWebUrls("https://example.com www.example.org"), "");
   const urlOnly = asTextPost(decodeJetstreamEvent(JSON.stringify(post({
     record: { $type: "app.bsky.feed.post", text: "https://example.com", langs: ["en"] },
@@ -98,9 +101,15 @@ test("live format batches plain posts, filters sensitive posts, and persists the
     return socket;
   });
   await format.init({ hideSelfLabeledSensitivePosts: true });
-  const chunks: Array<{ words: string[]; cursor?: number }> = [];
+  const chunks: Array<{ words: Array<{ text: string; lineBreaksAfter?: number }>; cursor?: number }> = [];
   const stop = format.startStreaming(0, (chunk) => {
-    chunks.push({ words: chunk.words.map((word) => word.text), cursor: chunk.state.cursor });
+    chunks.push({
+      words: chunk.words.map((word) => ({
+        text: word.text,
+        lineBreaksAfter: word.formatting?.lineBreaksAfter,
+      })),
+      cursor: chunk.state.cursor,
+    });
   }, () => undefined);
   const normal = post();
   const sensitive = post({
@@ -115,13 +124,25 @@ test("live format batches plain posts, filters sensitive posts, and persists the
     record: { $type: "app.bsky.feed.post", text: "bonjour", langs: ["fr"] },
   });
   (nonEnglish as { cursor: number }).cursor = 12347;
+  const secondNormal = post({
+    rkey: "post4",
+    cid: "cid4",
+    record: { $type: "app.bsky.feed.post", text: "Second post", langs: ["en"] },
+  });
+  (secondNormal as { cursor: number }).cursor = 12348;
   ok(socket);
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(normal) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(sensitive) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(nonEnglish) });
+  (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(secondNormal) });
   await new Promise((resolve) => setTimeout(resolve, 320));
   stop();
   equal(chunks.length, 1);
-  deepStrictEqual(chunks[0].words, ["Hello", "<b>world</b>"]);
-  equal(chunks[0].cursor, 12347);
+  deepStrictEqual(chunks[0].words, [
+    { text: "Hello", lineBreaksAfter: undefined },
+    { text: "<b>world</b>", lineBreaksAfter: 2 },
+    { text: "Second", lineBreaksAfter: undefined },
+    { text: "post", lineBreaksAfter: 2 },
+  ]);
+  equal(chunks[0].cursor, 12348);
 });

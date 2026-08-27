@@ -19,6 +19,13 @@ test("Actions is a stable, JSON-safe interactive WordStream", () => {
   equal(stream.meta.isComplete, true);
   equal(stream.chapterIndex.length, 1);
   deepStrictEqual(stream.words.map((word) => word.index), stream.words.map((_, index) => index));
+  deepStrictEqual(
+    stream.words.filter((word) => word.formatting?.lineBreaksBefore).map((word) => [
+      word.text,
+      word.formatting?.lineBreaksBefore,
+    ]),
+    [["This", 1], ["Your", 1], ["continues", 1], ["You", 4], ["The", 1], ["The", 1], ["You", 1]]
+  );
 
   const interactions = validateInteractions(stream.interactions, stream.words.length);
   deepStrictEqual(interactions.map((interaction) => interaction.boundary), [0, 16, 34, stream.words.length]);
@@ -39,7 +46,10 @@ test("Actions fixtures are independent between reader sessions", () => {
   const first = createActionsStream();
   const second = createActionsStream();
   first.words[0].text = "Changed";
+  const firstFormattedWord = first.words.find((word) => word.formatting);
+  if (firstFormattedWord?.formatting) firstFormattedWord.formatting.lineBreaksBefore = undefined;
   first.interactions![0].prompt = "Changed";
   equal(second.words[0].text, "Welcome");
+  equal(second.words.find((word) => word.formatting)?.formatting?.lineBreaksBefore, 1);
   equal(second.interactions![0].prompt, "A tiny interactive story is ready.");
 });

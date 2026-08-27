@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Book } from "../db/types";
+import { JETSTREAM_FORMAT } from "../ingestion/jetstream";
 import type { GlobalSettings, ReaderSettings, Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 import { SettingsModal } from "../settings/SettingsModal";
@@ -543,7 +544,7 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
             draggable={false}
           />
         ) : (
-          <TitleCard title={book.title} theme={theme} />
+          <TitleCard book={book} theme={theme} />
         )}
         {book.ingestionWarnings?.length ? (
           <div
@@ -644,9 +645,27 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
   );
 }
 
+/** Offline Bluesky butterfly mark for the live-stream title card. */
+function BlueskyLogo() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="58"
+      height="58"
+      role="img"
+      aria-label="Bluesky"
+      fill="#fff"
+      style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.25))" }}
+    >
+      <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364-4.67.69-5.886 2.964-3.308 5.242 4.74 4.186 6.878-.896 7.435-2.04.557 1.144 2.695 6.226 7.435 2.04 2.578-2.278 1.362-4.552-3.308-5.242 2.67.296 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z" />
+    </svg>
+  );
+}
+
 /** Deterministic styled title card used when a book has no embedded cover. */
-function TitleCard({ title, theme }: { title: string; theme: Theme }) {
+function TitleCard({ book, theme }: { book: Book; theme: Theme }) {
   void theme;
+  const { title } = book;
   // Deterministic hue from the title so the same book always gets the same card.
   let hash = 0;
   for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
@@ -682,9 +701,13 @@ function TitleCard({ title, theme }: { title: string; theme: Theme }) {
           justifyContent: "center",
         }}
       >
-        <span style={{ color: "#fff", fontSize: 28, fontWeight: 800, textShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
-          {title.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"}
-        </span>
+        {book.format === JETSTREAM_FORMAT ? (
+          <BlueskyLogo />
+        ) : (
+          <span style={{ color: "#fff", fontSize: 28, fontWeight: 800, textShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+            {title.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"}
+          </span>
+        )}
       </div>
     </div>
   );

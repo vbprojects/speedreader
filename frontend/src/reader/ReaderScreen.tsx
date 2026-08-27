@@ -45,7 +45,10 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
   const pacing = useMemo(
     () =>
       new PacingEngine({
-        backend: selectBackend(settings.pacingModel ?? "naive", { gamma: settings.bayesianGamma ?? 0.98 }),
+        backend: selectBackend(
+          settings.pacingModel ?? "naive",
+          settings.pacingModel === "bayesian" ? { gamma: settings.bayesianGamma ?? 0.98 } : undefined,
+        ),
         profile: {
           wpm: settings.wpm,
           sentencePauseMs: settings.sentencePauseMs,

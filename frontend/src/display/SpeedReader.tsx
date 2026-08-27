@@ -7,7 +7,7 @@
 // as a flowing paragraph; the current word gets a highlight pill; a scroll
 // effect keeps the highlighted word centered in the viewport.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
 import { InlineInteraction, buildReaderFlowRange } from "../interactions";
 import { validateInteractionRecord } from "../interactions/validation";
@@ -21,6 +21,7 @@ import { buildFrame } from "./renderer";
 import { traditionalEntryScrollNudge } from "./traditional-gesture";
 import type { DisplayConfig, DisplayFrame, ReaderViewMode } from "./types";
 import { WordContextMenu, type WordContextMenuState } from "./WordContextMenu";
+import { WordBreak } from "./WordBreak";
 
 /** True when the viewport is at or below the given breakpoint. */
 function useMediaQuery(query: string): boolean {
@@ -904,7 +905,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                   </div>
                 )}
                 {traditionalFlow.map((node) => node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
-                  <span key={node.word.index}>
+                  <Fragment key={node.word.index}>
+                    <WordBreak word={node.word} />
+                    <span>
                     <span
                       ref={traditionalCurrentWordRef}
                       data-word-index={node.word.index}
@@ -921,9 +924,13 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                       {node.word.text}
                     </span>
                     {" "}
-                  </span>
+                    </span>
+                    <WordBreak word={node.word} position="after" />
+                  </Fragment>
                 ) : (
-                  <span key={node.word.index}>
+                  <Fragment key={node.word.index}>
+                    <WordBreak word={node.word} />
+                    <span>
                     <span
                       data-word-index={node.word.index}
                       data-word-text={node.word.text}
@@ -937,7 +944,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                       {node.word.text}
                     </span>
                     {" "}
-                  </span>
+                    </span>
+                    <WordBreak word={node.word} position="after" />
+                  </Fragment>
                 ))}
                 {traditionalRange.end < stream.words.length && (
                   <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
@@ -992,23 +1001,30 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     wordBreak: "normal",
                   }}
                 >
-                  {rsvpFlow.map((node) => node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
-                      <span
-                        key={node.word.index}
-                        ref={currentWordRef}
-                        style={{
-                          color: themeStyle.highlightFg,
-                          background: themeStyle.highlight,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                        }}
-                      >
-                        {node.word.text}
-                      </span>
-                    ) : (
-                      <span key={node.word.index} style={{ color: themeStyle.muted }}>{node.word.text} </span>
-                    )
-                  )}
+                  {rsvpFlow.map((node) => {
+                    if (node.kind === "interaction") return renderInlineInteraction(node.interaction, node.record);
+                    return (
+                      <Fragment key={node.word.index}>
+                        <WordBreak word={node.word} />
+                        {node.word.index === frame.index ? (
+                          <span
+                            ref={currentWordRef}
+                            style={{
+                              color: themeStyle.highlightFg,
+                              background: themeStyle.highlight,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                            }}
+                          >
+                            {node.word.text}
+                          </span>
+                        ) : (
+                          <span style={{ color: themeStyle.muted }}>{node.word.text} </span>
+                        )}
+                        <WordBreak word={node.word} position="after" />
+                      </Fragment>
+                    );
+                  })}
                 </div>
               </div>
             </div>

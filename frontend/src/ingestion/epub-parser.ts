@@ -23,6 +23,8 @@ interface WalkCtx {
   sectionId: number;
   paragraphId: number;
   spineId: number;
+  /** Hard breaks waiting to be attached to the next emitted word. */
+  pendingLineBreaks: number;
 }
 
 /** Recursively walk a spine section's DOM, emitting words with section/paragraph ids. */
@@ -40,7 +42,11 @@ function walkNode(node: Node, ctx: WalkCtx): void {
           { attribute: "paragraphId", value: ctx.paragraphId },
           { attribute: "spineId", value: ctx.spineId },
         ],
+        ...(ctx.pendingLineBreaks > 0
+          ? { formatting: { lineBreaksBefore: ctx.pendingLineBreaks } }
+          : {}),
       });
+      ctx.pendingLineBreaks = 0;
       ctx.index++;
     }
     return;
@@ -49,6 +55,13 @@ function walkNode(node: Node, ctx: WalkCtx): void {
   const el = node as Element;
   const tag = el.tagName.toLowerCase();
   if (SKIP_TAGS.has(tag)) return;
+
+  // Breaks are display hints on the next real word, never paced/indexed
+  // tokens. Adjacent <br> elements accumulate to preserve vertical spacing.
+  if (tag === "br") {
+    ctx.pendingLineBreaks++;
+    return;
+  }
 
   // Record anchor BEFORE children so it points at the first word inside.
   if (el.id && !ctx.anchors.has(el.id)) {
@@ -158,7 +171,16 @@ export class EpubParser implements Parser {
     for (let i = 0; i < sections.length; i++) {
       const sec = book.spine.get(i);
       const html = await sec.load(book.load.bind(book));
-      const ctx: WalkCtx = { words: [], anchors: new Map(), anchorText: new Map(), index: 0, sectionId: 0, paragraphId: 0, spineId: i };
+      const ctx: WalkCtx = {
+        words: [],
+        anchors: new Map(),
+        anchorText: new Map(),
+        index: 0,
+        sectionId: 0,
+        paragraphId: 0,
+        spineId: i,
+        pendingLineBreaks: 0,
+      };
       walkNode(html, ctx);
       sectionStart.push(allWords.length);
       for (const w of ctx.words) w.index += sectionStart[i]; // reindex to global

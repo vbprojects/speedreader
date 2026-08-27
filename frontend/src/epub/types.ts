@@ -14,6 +14,16 @@ export interface Metadata {
   value: string | number;
 }
 
+/** Lightweight presentation hints that do not participate in word indexing. */
+export interface WordFormatting {
+  /** Number of author-intended hard line breaks immediately before this word. */
+  lineBreaksBefore?: number;
+  /** Number of author-intended hard line breaks immediately after this word. */
+  lineBreaksAfter?: number;
+  /** @deprecated Compatibility with streams created before line-break counts. */
+  breakBefore?: "line";
+}
+
 /**
  * A single word in the flat stream.
  *
@@ -25,6 +35,8 @@ export interface Word {
   text: string;
   index: number;
   metadata: Metadata[];
+  /** Optional display-only formatting; omitted for ordinary words. */
+  formatting?: WordFormatting;
 }
 
 export interface StreamMeta {
