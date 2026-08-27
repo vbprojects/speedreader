@@ -6,6 +6,8 @@
 import type { WordStream, Word, ChapterEntry } from "../epub/types";
 import type { InteractionRecord, ReaderInteraction } from "../interactions/types";
 import type { HtmlPresentation } from "../presentation/types";
+import type { EngineTrigger } from "../engine-events/types";
+import type { ReaderEngineEvent } from "../engine-events/types";
 import type { ReaderSettings } from "../settings/types";
 
 /** A cover image stored with a book (browser-safe Blob). */
@@ -55,6 +57,10 @@ export interface ReaderState {
   completedInteractionIds?: string[];
   /** Persisted responses for the interaction nodes in the cached stream. */
   interactionRecords?: InteractionRecord[];
+  /** Nonblocking engine triggers already dispatched for this reader. */
+  deliveredTriggerIds?: string[];
+  /** Durably queued events awaiting acknowledgement by the active engine. */
+  pendingEngineEvents?: ReaderEngineEvent[];
 }
 
 /** A stored stream record (full stream for now; chunked later). */
@@ -86,6 +92,7 @@ export interface Db {
       chapterUpdates?: ChapterEntry[];
       interactions?: ReaderInteraction[];
       presentations?: HtmlPresentation[];
+      triggers?: EngineTrigger[];
       isComplete?: boolean;
       totalWordsExpected?: number;
     }

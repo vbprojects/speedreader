@@ -45,7 +45,7 @@ export function ChoiceInteraction({
             aria-pressed={selected === option.id}
             onClick={() => void choose(option.id)}
             style={{
-              textAlign: "left",
+              textAlign: "center",
               padding: "12px 14px",
               borderRadius: 12,
               border: "1px solid " + (selected === option.id ? t.highlight : t.border),

@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import type { WordStream } from "../epub/types";
 import type { InteractionRecord, InteractionResponse } from "../interactions/types";
+import type { ReaderEngineEvent } from "../engine-events/types";
 import { PacingEngine, selectBackend } from "../pacing";
 import { SpeedReader } from "../display";
 import { SettingsModal, themeTokens } from "../settings";
@@ -33,9 +34,11 @@ export interface ReaderScreenProps {
   onInteractionCommitted?: (record: InteractionRecord) => void;
   /** Optional format-owned interaction responder. */
   onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
+  initialDeliveredTriggerIds?: string[];
+  onEngineEvent?: (event: ReaderEngineEvent) => Promise<void> | void;
 }
 
-export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit }: ReaderScreenProps) {
+export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent }: ReaderScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [running, setRunning] = useState(false);
@@ -125,6 +128,8 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           initialInteractionRecords={initialInteractionRecords}
           onInteractionCommitted={onInteractionCommitted}
           onInteractionSubmit={onInteractionSubmit}
+          initialDeliveredTriggerIds={initialDeliveredTriggerIds}
+          onEngineEvent={onEngineEvent}
         />}
       </div>
 

@@ -49,3 +49,42 @@ test("presentation-only chunks are offset without consuming words", () => {
     presentations: [{ schemaVersion: 1, id: "card", boundary: 0, kind: "html", html: "<hr>" }],
   }));
 });
+
+test("engine triggers are offset, allow trigger-only chunks, and reject duplicate IDs", () => {
+  const stream = appendToWordStream(emptyStream(), [word("one", 0), word("two", 1)], {
+    triggers: [{
+      schemaVersion: 1,
+      id: "fetch-1",
+      boundary: 1,
+      kind: "engine-trigger",
+      signal: { type: "fetch-more" },
+      delivery: "once",
+      direction: "forward",
+    }],
+  });
+  equal(stream.triggers?.[0].boundary, 1);
+
+  const withTailTrigger = appendToWordStream(stream, [], {
+    triggers: [{
+      schemaVersion: 1,
+      id: "fetch-2",
+      boundary: 0,
+      kind: "engine-trigger",
+      signal: { type: "fetch-more" },
+      delivery: "once",
+      direction: "forward",
+    }],
+  });
+  equal(withTailTrigger.triggers?.[1].boundary, 2);
+  throws(() => appendToWordStream(withTailTrigger, [], {
+    triggers: [{
+      schemaVersion: 1,
+      id: "fetch-2",
+      boundary: 0,
+      kind: "engine-trigger",
+      signal: { type: "fetch-more" },
+      delivery: "once",
+      direction: "forward",
+    }],
+  }));
+});

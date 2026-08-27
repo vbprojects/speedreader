@@ -7,10 +7,17 @@ import { JetstreamClient, type JetstreamSocketFactory } from "./client";
 import { hasSensitiveSelfLabel } from "./sensitive-filter";
 import { JETSTREAM_ENDPOINTS, JETSTREAM_FORMAT, type JetstreamInput, type JetstreamState } from "./types";
 import { PublicBlueskyEnricher, type JetstreamEnricher } from "./enrichment";
+import type { EngineTrigger, ReaderEngineEvent } from "../../engine-events/types";
 
 const BATCH_POSTS = 25;
 const BATCH_MS = 250;
 const RECENT_KEYS = 128;
+export const JETSTREAM_TARGET_BUFFER_WORDS = 400;
+export const JETSTREAM_WAKE_REMAINING_WORDS = 100;
+export interface JetstreamDemandConfig {
+  targetBufferWords?: number;
+  wakeRemainingWords?: number;
+}
 
 function object(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -64,10 +71,20 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
   private state: JetstreamState = initialState();
   private readonly socketFactory?: JetstreamSocketFactory;
   private readonly enricher: JetstreamEnricher;
+  private wakeStreaming: (() => void) | null = null;
+  private readonly handledEventIds = new Set<string>();
+  private readonly targetBufferWords: number;
+  private readonly wakeRemainingWords: number;
 
-  constructor(socketFactory?: JetstreamSocketFactory, enricher: JetstreamEnricher = new PublicBlueskyEnricher()) {
+  constructor(
+    socketFactory?: JetstreamSocketFactory,
+    enricher: JetstreamEnricher = new PublicBlueskyEnricher(),
+    demand: JetstreamDemandConfig = {},
+  ) {
     this.socketFactory = socketFactory;
     this.enricher = enricher;
+    this.targetBufferWords = Math.max(1, demand.targetBufferWords ?? JETSTREAM_TARGET_BUFFER_WORDS);
+    this.wakeRemainingWords = Math.max(0, Math.min(this.targetBufferWords - 1, demand.wakeRemainingWords ?? JETSTREAM_WAKE_REMAINING_WORDS));
   }
 
   async init(input: JetstreamInput = {}, savedState?: JetstreamState) {
@@ -76,14 +93,24 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
     return { initialState: this.getState(), title: "Bluesky Jetstream", author: "Bluesky" };
   }
 
+  async handleReaderEvent(event: ReaderEngineEvent): Promise<void> {
+    if (this.handledEventIds.has(event.eventId)) return;
+    this.handledEventIds.add(event.eventId);
+    if (event.kind === "trigger" && event.signal.type === "jetstream.fetch-more") {
+      this.wakeStreaming?.();
+    }
+  }
+
   startStreaming(
     startIndex: number,
     onChunk: (chunk: StreamChunk<JetstreamState>) => void,
     onError: (err: Error) => void,
+    initialReadPosition = 0,
   ): () => void {
     let disposed = false;
     let words: Word[] = [];
     let presentations: HtmlPresentation[] = [];
+    let triggers: EngineTrigger[] = [];
     let postCount = 0;
     let stateDirty = false;
     let lastCursorFlushAt = 0;
@@ -114,22 +141,47 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       });
       postCount += 1;
       this.state.acceptedPostCount += 1;
-      if (postCount >= BATCH_POSTS) flush();
+      if (words.length >= this.targetBufferWords) {
+        triggers.push({
+          schemaVersion: 1,
+          id: `jetstream:wake:${startIndex}:${this.state.cursor ?? this.state.lastTimeUs ?? words.length}`,
+          boundary: Math.max(0, words.length - this.wakeRemainingWords),
+          kind: "engine-trigger",
+          signal: {
+            type: "jetstream.fetch-more",
+            payload: { targetWords: this.targetBufferWords },
+          },
+          delivery: "once",
+          direction: "forward",
+        });
+        flush(true);
+        client.pause();
+      } else if (postCount >= BATCH_POSTS) {
+        // Keep accumulating toward the demand batch while persisting cursor
+        // state through the regular timer rather than emitting partial words.
+        postCount = 0;
+      }
     };
 
-    const flush = () => {
-      if (disposed || (!stateDirty && words.length === 0)) return;
+    const flush = (emitBufferedWords = false) => {
+      if (disposed || (!stateDirty && words.length === 0 && triggers.length === 0)) return;
+      // Do not persist a cursor past accepted posts until their words are
+      // emitted; otherwise a shutdown could permanently skip the buffer.
+      if (words.length > 0 && !emitBufferedWords) return;
       if (words.length === 0 && Date.now() - lastCursorFlushAt < 1_000) return;
       const emittedWords = words;
       const emittedPresentations = presentations;
+      const emittedTriggers = triggers;
       words = [];
       presentations = [];
+      triggers = [];
       postCount = 0;
       stateDirty = false;
       lastCursorFlushAt = Date.now();
       onChunk({
         words: emittedWords,
         presentations: emittedPresentations,
+        triggers: emittedTriggers,
         chapterUpdates: emittedWords.length > 0 ? [{
           chapterId: JETSTREAM_CHAPTER_ID,
           title: "Live posts",
@@ -149,10 +201,6 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       socketFactory: this.socketFactory,
       onError,
       onEvent: (event) => {
-        this.state.cursor = event.cursor ?? event.time_us;
-        this.state.cursorKind = event.cursor === undefined ? "time-us" : "sequence";
-        this.state.lastTimeUs = event.time_us;
-        stateDirty = true;
         const post = asTextPost(event);
         const repost = asRepost(event);
         if (!post && !repost) return;
@@ -166,6 +214,10 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
         }
         eventQueue = eventQueue.then(async () => {
           if (disposed) return;
+          this.state.cursor = event.cursor ?? event.time_us;
+          this.state.cursorKind = event.cursor === undefined ? "time-us" : "sequence";
+          this.state.lastTimeUs = event.time_us;
+          stateDirty = true;
           if (post) {
             if ((this.input.hideSelfLabeledSensitivePosts ?? true) && hasSensitiveSelfLabel(post)) return;
             if (!hasEnglishLanguageTag(post)) return;
@@ -202,11 +254,13 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
         }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))));
       },
     });
-    client.start();
+    this.wakeStreaming = () => client.start();
+    if (startIndex - initialReadPosition <= this.wakeRemainingWords) client.start();
     return () => {
       disposed = true;
       clearInterval(timer);
       client.dispose();
+      if (this.wakeStreaming) this.wakeStreaming = null;
     };
   }
 

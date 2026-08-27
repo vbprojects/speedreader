@@ -37,9 +37,10 @@ export function InteractionCard({
       aria-labelledby={titleId}
       aria-describedby={interaction.prompt && interaction.kind !== "single-choice" ? descriptionId : undefined}
       style={{
-        width: "min(92vw, 520px)",
+        width: inline ? "min(100%, 480px)" : "min(calc(100vw - 32px), 520px)",
+        maxWidth: "100%",
         boxSizing: "border-box",
-        padding: 24,
+        padding: "clamp(16px, 4vw, 24px)",
         borderRadius: 20,
         border: "1px solid " + t.border + "99",
         background: t.panel + "ef",
@@ -48,11 +49,16 @@ export function InteractionCard({
         backdropFilter: "blur(22px) saturate(130%)",
         WebkitBackdropFilter: "blur(22px) saturate(130%)",
         opacity: busy ? 0.75 : 1,
+        // Reader text size is intentionally large in RSVP mode. Controls need
+        // their own stable scale so they remain usable on narrow screens.
+        fontSize: 16,
+        lineHeight: 1.4,
+        textAlign: "center",
       }}
         data-interaction-id={interaction.id}
         data-interaction-inline={inline ? "true" : undefined}
     >
-      <h2 id={titleId} style={{ margin: 0, fontSize: 20, lineHeight: 1.3 }}>
+      <h2 id={titleId} style={{ margin: 0, fontSize: 20, lineHeight: 1.3, overflowWrap: "anywhere" }}>
         {title}
       </h2>
       {interaction.prompt && interaction.kind !== "single-choice" && (

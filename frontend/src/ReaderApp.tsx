@@ -14,6 +14,7 @@ import { ReaderScreen } from "./reader";
 import { SettingsStore, mergeSettings } from "./settings";
 import type { GlobalSettings, ReaderSettings } from "./settings";
 import type { InteractionRecord } from "./interactions/types";
+import type { ReaderEngineEvent } from "./engine-events/types";
 
 export default function ReaderApp() {
   // ---- Stores (created once) ----
@@ -45,6 +46,7 @@ export default function ReaderApp() {
   const [initialIndex, setInitialIndex] = useState(0);
   const [completedInteractionIds, setCompletedInteractionIds] = useState<string[]>([]);
   const [interactionRecords, setInteractionRecords] = useState<InteractionRecord[]>([]);
+  const [deliveredTriggerIds, setDeliveredTriggerIds] = useState<string[]>([]);
 
   // Debounced position persistence.
   const positionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +54,8 @@ export default function ReaderApp() {
   const latestSettings = useRef<ReaderSettings>({});
   const latestCompletedInteractionIds = useRef<string[]>([]);
   const latestInteractionRecords = useRef<InteractionRecord[]>([]);
+  const latestDeliveredTriggerIds = useRef<string[]>([]);
+  const latestPendingEngineEvents = useRef<ReaderEngineEvent[]>([]);
   // Serialize IndexedDB writes so an older async transaction cannot finish
   // after and overwrite a newer reader position/settings snapshot.
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -70,6 +74,8 @@ export default function ReaderApp() {
       settings: { ...settings },
       completedInteractionIds: [...completedIds],
       interactionRecords: [...latestInteractionRecords.current],
+      deliveredTriggerIds: [...latestDeliveredTriggerIds.current],
+      pendingEngineEvents: [...latestPendingEngineEvents.current],
       };
       saveQueue.current = saveQueue.current
         .catch(() => undefined)
@@ -156,6 +162,10 @@ export default function ReaderApp() {
         const records = state?.interactionRecords ?? [];
         latestInteractionRecords.current = [...records];
         setInteractionRecords([...records]);
+        const delivered = state?.deliveredTriggerIds ?? [];
+        latestDeliveredTriggerIds.current = [...delivered];
+        setDeliveredTriggerIds([...delivered]);
+        latestPendingEngineEvents.current = [...(state?.pendingEngineEvents ?? [])];
         setOpenStream(opened.stream);
         setOpenBookId(bookId);
         // Update lastOpenedAt.
@@ -180,9 +190,22 @@ export default function ReaderApp() {
       (streamError) => {
         if (!disposed) setError(streamError.message);
       },
+      latestPosition.current,
     ).then((cleanup) => {
       if (disposed) cleanup();
-      else stop = cleanup;
+      else {
+        stop = cleanup;
+        for (const event of latestPendingEngineEvents.current) {
+          void library.handleReaderEngineEvent(openBookId, event).then(() => {
+            latestPendingEngineEvents.current = latestPendingEngineEvents.current.filter((pending) => pending.eventId !== event.eventId);
+            if (event.kind === "trigger") {
+              latestDeliveredTriggerIds.current = Array.from(new Set([...latestDeliveredTriggerIds.current, event.triggerId]));
+              setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
+            }
+            return enqueueReaderState(openBookId, latestPosition.current, latestSettings.current);
+          }).catch((eventError: unknown) => setError(eventError instanceof Error ? eventError.message : String(eventError)));
+        }
+      }
     }).catch((streamError: unknown) => {
       if (!disposed) setError(streamError instanceof Error ? streamError.message : String(streamError));
     });
@@ -190,7 +213,38 @@ export default function ReaderApp() {
       disposed = true;
       stop?.();
     };
-  }, [library, openBookId]);
+  }, [enqueueReaderState, library, openBookId]);
+
+  const handleEngineEvent = useCallback(async (event: ReaderEngineEvent) => {
+    const bookId = openBookId;
+    if (!bookId) return;
+    if (event.kind === "trigger" && latestDeliveredTriggerIds.current.includes(event.triggerId)) return;
+    if (!latestPendingEngineEvents.current.some((pending) => pending.eventId === event.eventId)) {
+      latestPendingEngineEvents.current = [...latestPendingEngineEvents.current, event];
+      await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+    }
+    await library.handleReaderEngineEvent(bookId, event);
+    latestPendingEngineEvents.current = latestPendingEngineEvents.current.filter((pending) => pending.eventId !== event.eventId);
+    if (event.kind === "trigger") {
+      latestDeliveredTriggerIds.current = Array.from(new Set([...latestDeliveredTriggerIds.current, event.triggerId]));
+      setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
+    }
+    await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+  }, [enqueueReaderState, library, openBookId]);
+
+  const handleInteractionEngineSubmit = useCallback(async (response: import("./interactions/types").InteractionResponse) => {
+    const interaction = openStream?.interactions?.find((candidate) => candidate.id === response.interactionId);
+    if (!interaction) return;
+    await handleEngineEvent({
+      schemaVersion: 1,
+      eventId: `${response.interactionId}:${Date.now()}`,
+      kind: "interaction-response",
+      interactionId: response.interactionId,
+      response,
+      boundary: interaction.boundary,
+      position: latestPosition.current,
+    });
+  }, [handleEngineEvent, openStream]);
 
   // ---- Reader position change (debounced persist) ----
   const handlePositionChange = useCallback(
@@ -331,6 +385,9 @@ export default function ReaderApp() {
         onInteractionResolved={handleInteractionResolved}
         initialInteractionRecords={interactionRecords}
         onInteractionCommitted={handleInteractionCommitted}
+        initialDeliveredTriggerIds={deliveredTriggerIds}
+        onEngineEvent={handleEngineEvent}
+        onInteractionSubmit={handleInteractionEngineSubmit}
       />
     );
   }

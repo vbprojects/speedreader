@@ -96,6 +96,10 @@ test("client requests JSON posts and advances its resume cursor", () => {
   match(urls[0], /cursor=99/);
   sockets[0].onmessage?.({ data: JSON.stringify(post()) });
   deepStrictEqual(events, [12345]);
+  client.pause();
+  client.start();
+  equal(sockets.length, 2);
+  match(urls[1], /cursor=12345/);
   client.dispose();
 });
 
@@ -116,11 +120,12 @@ test("live format batches plain posts, filters sensitive posts, and persists the
   const format = new BlueskyJetstreamFormat(() => {
     socket = { onopen: null, onmessage: null, onerror: null, onclose: null, close() {} };
     return socket;
-  }, enricher);
+  }, enricher, { targetBufferWords: 4, wakeRemainingWords: 1 });
   await format.init({ hideSelfLabeledSensitivePosts: true });
   const chunks: Array<{
     words: string[];
     presentations: Array<{ boundary: number; html: string }>;
+    triggers: Array<{ id: string; boundary: number; type: string }>;
     cursor?: number;
   }> = [];
   const stop = format.startStreaming(0, (chunk) => {
@@ -129,6 +134,11 @@ test("live format batches plain posts, filters sensitive posts, and persists the
       presentations: (chunk.presentations ?? []).map((presentation) => ({
         boundary: presentation.boundary,
         html: presentation.html,
+      })),
+      triggers: (chunk.triggers ?? []).map((trigger) => ({
+        id: trigger.id,
+        boundary: trigger.boundary,
+        type: trigger.signal.type,
       })),
       cursor: chunk.state.cursor,
     });
@@ -178,9 +188,8 @@ test("live format batches plain posts, filters sensitive posts, and persists the
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(secondNormal) });
   (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(repost) });
   await new Promise((resolve) => setTimeout(resolve, 320));
-  stop();
   equal(chunks.length, 1);
-  deepStrictEqual(chunks[0].words, ["Hello", "<b>world</b>", "Quoted", "words", "Second", "post", "Original", "repost"]);
+  deepStrictEqual(chunks[0].words, ["Hello", "<b>world</b>", "Quoted", "words", "Second", "post"]);
   deepStrictEqual(chunks[0].presentations, [
     { boundary: 0, html: "<p><strong>@reader.test</strong></p>" },
     { boundary: 2, html: "<br><hr><br>" },
@@ -188,9 +197,39 @@ test("live format batches plain posts, filters sensitive posts, and persists the
     { boundary: 4, html: "<br>" },
     { boundary: 4, html: "<p><strong>@reader.test</strong></p>" },
     { boundary: 6, html: "<br><hr><br>" },
-    { boundary: 6, html: "<p><strong>@reposter.test</strong> reposted</p>" },
-    { boundary: 6, html: "<p><strong>@original.test</strong></p>" },
-    { boundary: 8, html: "<br><hr><br>" },
   ]);
-  equal(chunks[0].cursor, 12349);
+  equal(chunks[0].triggers[0].boundary, 5);
+  equal(chunks[0].triggers[0].type, "jetstream.fetch-more");
+  equal(chunks[0].cursor, 12348);
+
+  await format.handleReaderEvent({
+    schemaVersion: 1,
+    eventId: chunks[0].triggers[0].id,
+    kind: "trigger",
+    triggerId: chunks[0].triggers[0].id,
+    signal: { type: "jetstream.fetch-more" },
+    boundary: 5,
+    position: 5,
+  });
+  const thirdNormal = post({
+    rkey: "post5",
+    cid: "cid5",
+    record: { $type: "app.bsky.feed.post", text: "Third post", langs: ["en"] },
+  });
+  (thirdNormal as { cursor: number }).cursor = 12350;
+  ok(socket);
+  (socket as JetstreamSocket).onmessage?.({ data: JSON.stringify(thirdNormal) });
+  await new Promise((resolve) => setTimeout(resolve, 320));
+  stop();
+  equal(chunks.length, 2);
+  deepStrictEqual(chunks[1].words, ["Original", "repost", "Third", "post"]);
+  deepStrictEqual(chunks[1].presentations, [
+    { boundary: 0, html: "<p><strong>@reposter.test</strong> reposted</p>" },
+    { boundary: 0, html: "<p><strong>@original.test</strong></p>" },
+    { boundary: 2, html: "<br><hr><br>" },
+    { boundary: 2, html: "<p><strong>@reader.test</strong></p>" },
+    { boundary: 4, html: "<br><hr><br>" },
+  ]);
+  equal(chunks[1].triggers[0].boundary, 3);
+  equal(chunks[1].cursor, 12350);
 });

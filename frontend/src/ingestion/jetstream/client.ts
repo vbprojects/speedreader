@@ -50,8 +50,8 @@ export class JetstreamClient {
     if (!this.disposed && !this.socket) this.connect();
   }
 
-  dispose(): void {
-    this.disposed = true;
+  /** Temporarily disconnect while retaining the latest cursor for resume. */
+  pause(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     const socket = this.socket;
@@ -61,6 +61,11 @@ export class JetstreamClient {
       socket.onerror = null;
       socket.close();
     }
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.pause();
   }
 
   private connect(): void {

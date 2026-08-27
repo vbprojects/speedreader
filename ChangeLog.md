@@ -4,6 +4,17 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-27 — Demand-driven ingestion and focused mobile actions
+
+- **Reader-to-engine events**: Added schema-versioned, nonblocking engine triggers to WordStreams. Trigger delivery and pending events are persisted in reader state, retried after reopening, and routed back to the active ingestion engine without pausing playback.
+- **Demand-driven Jetstream**: Bluesky Jetstream now buffers approximately 400 words, inserts a wake trigger about 100 words before the buffered tail, disconnects between batches, and resumes from its retained cursor when the reader reaches that trigger. Older cached live streams perform one bootstrap pull to acquire their first wake boundary.
+- **Shared interaction channel**: Interactive action responses use the same reader-to-ingestion-engine event path, establishing the input architecture needed by future interactive-story and on-demand document conversion engines.
+- **Correct action boundaries**: Timed playback, mobile stepping, swiping, and progress seeking all stop at the first unresolved action. Inert HTML presentations and ingestion triggers remain nonblocking.
+- **Mobile action focus**: The active action becomes the RSVP centering anchor. Action cards use compact responsive sizing instead of inheriting the reader's large typography, remain within narrow viewports, and center their prompts, inputs, choices, and controls.
+- **Coverage**: Added tests for trigger crossing and deduplication, stream-boundary offsetting, Jetstream pause/resume cursor behavior, forward-seek action gating, and responsive action-card styling. Lint, typechecking, 43 tests, and the production PWA build pass.
+
+---
+
 ## 2026-08-26 — Formatting and suprisal
 
 - Added br formatting and supirsal based word pacing.

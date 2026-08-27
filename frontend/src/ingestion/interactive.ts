@@ -8,6 +8,8 @@ import type { InteractionResponse, ReaderInteraction } from "../interactions/typ
 import { validateInteractions } from "../interactions/validation";
 import type { HtmlPresentation } from "../presentation/types";
 import { validatePresentations } from "../presentation/validation";
+import type { EngineTrigger, ReaderEngineEvent } from "../engine-events/types";
+import { validateEngineTriggers } from "../engine-events/validation";
 
 /** A chunk emitted by an InteractiveFormat. Boundaries in this chunk are local. */
 export interface StreamChunk<TState = Record<string, unknown>> {
@@ -19,6 +21,8 @@ export interface StreamChunk<TState = Record<string, unknown>> {
   interactions?: ReaderInteraction[];
   /** Inert display nodes at boundaries relative to this chunk. */
   presentations?: HtmlPresentation[];
+  /** Nonblocking engine notifications at boundaries relative to this chunk. */
+  triggers?: EngineTrigger[];
   /** Format-specific state snapshot at this point in the stream. */
   state: TState;
   /** True if the generation or ingestion has completed its full run. */
@@ -42,8 +46,11 @@ export interface InteractiveFormat<TInput = unknown, TState = Record<string, unk
   startStreaming(
     startIndex: number,
     onChunk: (chunk: StreamChunk<TState>) => void,
-    onError: (err: Error) => void
+    onError: (err: Error) => void,
+    initialReadPosition?: number,
   ): () => void;
+  /** Receive nonblocking triggers and, eventually, interaction responses. */
+  handleReaderEvent?(event: ReaderEngineEvent): Promise<void>;
   getState(): TState;
 }
 
@@ -66,17 +73,20 @@ export function appendToWordStream(
     chapterUpdates?: ChapterEntry[];
     interactions?: ReaderInteraction[];
     presentations?: HtmlPresentation[];
+    triggers?: EngineTrigger[];
     isComplete?: boolean;
     totalWordsExpected?: number;
   }
 ): WordStream {
   const hasInteractions = (options?.interactions?.length ?? 0) > 0;
   const hasPresentations = (options?.presentations?.length ?? 0) > 0;
+  const hasTriggers = (options?.triggers?.length ?? 0) > 0;
   if (
     newWords.length === 0 &&
     !options?.chapterUpdates &&
     !hasInteractions &&
     !hasPresentations &&
+    !hasTriggers &&
     options?.isComplete === undefined &&
     options?.totalWordsExpected === undefined
   ) {
@@ -130,6 +140,17 @@ export function appendToWordStream(
   }
   mergedPresentations.sort((a, b) => a.boundary - b.boundary);
 
+  const existingTriggers = validateEngineTriggers(stream.triggers ?? [], offset);
+  const incomingTriggers = options?.triggers ? validateEngineTriggers(options.triggers, newWords.length) : [];
+  const triggerIds = new Set(existingTriggers.map((trigger) => trigger.id));
+  const mergedTriggers = [...existingTriggers];
+  for (const trigger of incomingTriggers) {
+    if (triggerIds.has(trigger.id)) throw new Error("duplicate engine trigger id: " + trigger.id);
+    triggerIds.add(trigger.id);
+    mergedTriggers.push({ ...trigger, boundary: trigger.boundary + offset });
+  }
+  mergedTriggers.sort((a, b) => a.boundary - b.boundary);
+
   const meta: StreamMeta = {
     ...stream.meta,
     totalWords: total,
@@ -144,5 +165,6 @@ export function appendToWordStream(
     meta,
     ...(mergedInteractions.length > 0 ? { interactions: mergedInteractions } : {}),
     ...(mergedPresentations.length > 0 ? { presentations: mergedPresentations } : {}),
+    ...(mergedTriggers.length > 0 ? { triggers: mergedTriggers } : {}),
   };
 }

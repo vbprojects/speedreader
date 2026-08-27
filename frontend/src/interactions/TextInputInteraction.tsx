@@ -75,6 +75,7 @@ export function TextInputInteraction({
             background: t.bg + "cc",
             color: t.fg,
             font: "inherit",
+            textAlign: "center",
             outlineColor: t.highlight,
           }}
         />

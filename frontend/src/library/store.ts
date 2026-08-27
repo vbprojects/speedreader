@@ -9,11 +9,15 @@ import { sha256 } from "./hash";
 import type { ImportResult, OpenableBook } from "./types";
 import { ACTIONS_BOOK_ID, ACTIONS_BOOK_REVISION, createActionsFixture } from "./default-books/actions";
 import { BLUESKY_JETSTREAM_BOOK_ID, BLUESKY_JETSTREAM_BOOK_REVISION, createBlueskyJetstreamFixture } from "./default-books/bluesky-jetstream";
+import type { InteractiveFormat } from "../ingestion/interactive";
+import type { ReaderEngineEvent } from "../engine-events/types";
 
 /** Bump when the parser output shape changes → cached streams re-ingest. */
 export const PARSER_VERSION = 1;
 
 export class LibraryStore {
+  private activeFormats = new Map<string, InteractiveFormat<unknown, Record<string, unknown>>>();
+
   constructor(
     private db: Db,
     private engine: IngestionEngine
@@ -56,24 +60,29 @@ export class LibraryStore {
     bookId: string,
     onStream: (stream: import("../epub/types").WordStream) => void,
     onError: (error: Error) => void,
+    initialReadPosition = 0,
   ): Promise<() => void> {
     const book = await this.db.getBook(bookId);
     const stream = await this.db.getStream(bookId);
     if (!book || !stream) throw new Error("Live book is missing from the library");
     const format = this.engine.interactiveFormatFor(book.format);
     if (!format) return () => undefined;
+    this.activeFormats.set(bookId, format);
     const init = await format.init(
       { hideSelfLabeledSensitivePosts: true },
       book.formatState as Record<string, unknown> | undefined,
     );
     let disposed = false;
     let writeQueue = Promise.resolve();
+    // Streams cached before engine triggers existed need one bootstrap pull at
+    // their current tail so the engine can add its first wake boundary.
+    const engineReadPosition = stream.triggers?.length ? initialReadPosition : stream.words.length;
     const stop = format.startStreaming(
       stream.words.length,
       (chunk) => {
         writeQueue = writeQueue.then(async () => {
           if (disposed) return;
-          if (chunk.words.length === 0 && !chunk.chapterUpdates?.length && !chunk.interactions?.length && !chunk.presentations?.length) {
+          if (chunk.words.length === 0 && !chunk.chapterUpdates?.length && !chunk.interactions?.length && !chunk.presentations?.length && !chunk.triggers?.length) {
             await this.db.updateBook(bookId, { formatState: chunk.state });
             return;
           }
@@ -81,6 +90,7 @@ export class LibraryStore {
             chapterUpdates: chunk.chapterUpdates,
             interactions: chunk.interactions,
             presentations: chunk.presentations,
+            triggers: chunk.triggers,
             isComplete: chunk.isComplete,
             totalWordsExpected: chunk.totalWordsExpected,
             formatState: chunk.state,
@@ -89,6 +99,7 @@ export class LibraryStore {
         }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))));
       },
       onError,
+      engineReadPosition,
     );
     if (JSON.stringify(init.initialState) !== JSON.stringify(book.formatState ?? {})) {
       await this.db.updateBook(bookId, { formatState: init.initialState });
@@ -96,7 +107,19 @@ export class LibraryStore {
     return () => {
       disposed = true;
       stop();
+      if (this.activeFormats.get(bookId) === format) this.activeFormats.delete(bookId);
     };
+  }
+
+  /** Deliver a durable reader event to the active format session. */
+  async handleReaderEngineEvent(bookId: string, event: ReaderEngineEvent): Promise<void> {
+    const format = this.activeFormats.get(bookId);
+    // Static books may use local interactions with no owning engine.
+    if (!format?.handleReaderEvent) {
+      if (event.kind === "interaction-response") return;
+      throw new Error("Book ingestion engine is not active");
+    }
+    await format.handleReaderEvent(event);
   }
 
   /** Import a file: hash → ingest → metadata → persist. Dedupes by hash. */
@@ -158,6 +181,7 @@ export class LibraryStore {
       chapterUpdates?: import("../epub/types").ChapterEntry[];
       interactions?: import("../interactions/types").ReaderInteraction[];
       presentations?: import("../presentation/types").HtmlPresentation[];
+      triggers?: import("../engine-events/types").EngineTrigger[];
       isComplete?: boolean;
       totalWordsExpected?: number;
       formatState?: Record<string, unknown>;

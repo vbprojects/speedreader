@@ -23,7 +23,9 @@ import type { DisplayConfig, DisplayFrame, ReaderViewMode } from "./types";
 import { WordContextMenu, type WordContextMenuState } from "./WordContextMenu";
 import { WordBreak } from "./WordBreak";
 import { HtmlPresentation } from "./HtmlPresentation";
-import { unresolvedInteractionAtBoundary } from "./playback-boundary";
+import { firstUnresolvedInteractionCrossed, unresolvedInteractionAtBoundary } from "./playback-boundary";
+import { crossedEngineTriggers } from "./crossed-triggers";
+import type { ReaderEngineEvent } from "../engine-events/types";
 
 /** True when the viewport is at or below the given breakpoint. */
 function useMediaQuery(query: string): boolean {
@@ -70,6 +72,10 @@ export interface SpeedReaderProps {
   initialInteractionRecords?: InteractionRecord[];
   /** Called after an answer is accepted and recorded in the flow. */
   onInteractionCommitted?: (record: InteractionRecord) => void;
+  /** IDs of nonblocking engine triggers already delivered for this reader. */
+  initialDeliveredTriggerIds?: string[];
+  /** Dispatch a passive reader event without affecting playback. */
+  onEngineEvent?: (event: ReaderEngineEvent) => Promise<void> | void;
 }
 
 const DEFAULT_CONFIG: DisplayConfig = {
@@ -86,7 +92,7 @@ const TRADITIONAL_BATCH_SIZE = 400;
 /** Distance from top/bottom scroll boundary (in px) before loading more words. */
 const TRADITIONAL_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -114,9 +120,11 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
   const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const currentWordRef = useRef<HTMLSpanElement | null>(null);
+  const focusedInteractionRef = useRef<HTMLDivElement | null>(null);
   // A pending bounded scroll adjustment from the gesture that entered native reading.
   const traditionalEntryNudgeRef = useRef<number | null>(null);
   const resolvedInteractionIdsRef = useRef(new Set(initialCompletedInteractionIds ?? []));
+  const deliveredTriggerIdsRef = useRef(new Set(initialDeliveredTriggerIds));
   const interactionRecordsRef = useRef(new Map(initialInteractionRecords.map((record) => [record.interactionId, record])));
   const resumeAfterInteractionRef = useRef(false);
   const onInteractionSubmitRef = useRef(onInteractionSubmit);
@@ -125,6 +133,24 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   onInteractionSubmitRef.current = onInteractionSubmit;
   onInteractionResolvedRef.current = onInteractionResolved;
   onInteractionCommittedRef.current = onInteractionCommitted;
+  const onEngineEventRef = useRef(onEngineEvent);
+  onEngineEventRef.current = onEngineEvent;
+
+  const dispatchTriggers = (fromBoundary: number, toBoundary: number) => {
+    for (const trigger of crossedEngineTriggers(streamRef.current, fromBoundary, toBoundary, deliveredTriggerIdsRef.current)) {
+      if (trigger.delivery !== "repeat") deliveredTriggerIdsRef.current.add(trigger.id);
+      const event: ReaderEngineEvent = {
+        schemaVersion: 1,
+        eventId: trigger.delivery === "repeat" ? `${trigger.id}:${toBoundary}` : trigger.id,
+        kind: "trigger",
+        triggerId: trigger.id,
+        signal: trigger.signal,
+        boundary: trigger.boundary,
+        position: toBoundary,
+      };
+      void Promise.resolve(onEngineEventRef.current?.(event)).catch(() => undefined);
+    }
+  };
 
   // Sync running state to parent coordinator
   useEffect(() => {
@@ -227,6 +253,13 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       interactionRecordsRef.current,
     );
 
+  const focusInteraction = (interaction: ReaderInteraction) => {
+    setPendingInteraction(interaction);
+    setInteractionError(null);
+    setInteractionBusy(false);
+    setRunning(false);
+  };
+
   // Create the clock for the current pacing profile. Appended words extend it
   // in the following effect rather than restarting the active word.
   useEffect(() => {
@@ -241,8 +274,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     const shouldResume = wasRunning || (running && currentStream.meta.isComplete === false);
     const clock = new SelfCorrectingClock({
       durations,
-      canStart: (index) => interactionAtBoundary(index) === null,
-      canAdvance: (_fromIndex, nextIndex) => {
+      canStart: (index) => {
+        dispatchTriggers(index - 1, index);
+        return interactionAtBoundary(index) === null;
+      },
+      canAdvance: (fromIndex, nextIndex) => {
+        dispatchTriggers(fromIndex, nextIndex);
         const allowed = interactionAtBoundary(nextIndex) === null;
         if (!allowed) resumeAfterInteractionRef.current = true;
         return allowed;
@@ -250,10 +287,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       onBlocked: (boundaryIndex) => {
         const interaction = interactionAtBoundary(boundaryIndex);
         if (!interaction) return;
-        setPendingInteraction(interaction);
-        setInteractionError(null);
-        setInteractionBusy(false);
-        setRunning(false);
+        focusInteraction(interaction);
       },
       onTick: (index) => {
         const latestStream = streamRef.current;
@@ -312,15 +346,19 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   // first (the "shadow" flash) before the text moved to center it.
   useLayoutEffect(() => {
     const viewport = scrollRef.current;
-    const word = currentWordRef.current;
-    if (!viewport || !word) return;
+    const target = pendingInteraction || editingInteractionId
+      ? focusedInteractionRef.current
+      : currentWordRef.current;
+    if (!viewport || !target) return;
     const vr = viewport.getBoundingClientRect();
-    const wr = word.getBoundingClientRect();
-    // Where the word's center currently is vs. where we want it (viewport center).
-    const dx = vr.left + vr.width / 2 - (wr.left + wr.width / 2);
-    const dy = vr.top + vr.height / 2 - (wr.top + wr.height / 2);
+    const tr = target.getBoundingClientRect();
+    // Active actions replace the word as the visual anchor. This is especially
+    // important on narrow screens, where their inline boundary can otherwise
+    // leave most of the controls outside the viewport.
+    const dx = vr.left + vr.width / 2 - (tr.left + tr.width / 2);
+    const dy = vr.top + vr.height / 2 - (tr.top + tr.height / 2);
     setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-  }, [frame]);
+  }, [frame, pendingInteraction, editingInteractionId]);
 
   const toggle = () => {
     // If we're in traditional mode, playing immediately returns to RSVP mode.
@@ -360,9 +398,18 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     const clock = clockRef.current!;
     if (!clock) return;
     const clamped = Math.max(0, Math.min(index, stream.words.length - 1));
-    clock.seek(clamped);
-    previewIndex(clamped);
-    onPositionChange?.(clamped);
+    const interaction = firstUnresolvedInteractionCrossed(
+      streamRef.current,
+      clock.index,
+      clamped,
+      resolvedInteractionIdsRef.current,
+      interactionRecordsRef.current,
+    );
+    const destination = interaction ? Math.max(0, interaction.boundary - 1) : clamped;
+    clock.seek(destination);
+    previewIndex(destination);
+    onPositionChange?.(destination);
+    if (interaction) focusInteraction(interaction);
   };
 
   const seekTo = (index: number) => {
@@ -757,20 +804,24 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     setEditingInteractionId(interaction.id);
   };
 
-  const renderInlineInteraction = (interaction: ReaderInteraction, record?: InteractionRecord) => (
-    <InlineInteraction
-      key={interaction.id}
-      interaction={interaction}
-      record={record}
-      theme={theme}
-      busy={interactionBusy && (pendingInteraction?.id === interaction.id || editingInteractionId === interaction.id)}
-      error={(pendingInteraction?.id === interaction.id || editingInteractionId === interaction.id) ? interactionError : null}
-      editing={editingInteractionId === interaction.id}
-      onSubmit={(response) => handleInteractionSubmit(interaction, response)}
-      onEdit={() => beginInteractionEdit(interaction)}
-      onCancelEdit={() => setEditingInteractionId(null)}
-    />
-  );
+  const renderInlineInteraction = (interaction: ReaderInteraction, record?: InteractionRecord) => {
+    const focused = pendingInteraction?.id === interaction.id || editingInteractionId === interaction.id;
+    return (
+      <div key={interaction.id} ref={focused ? focusedInteractionRef : undefined}>
+        <InlineInteraction
+          interaction={interaction}
+          record={record}
+          theme={theme}
+          busy={interactionBusy && focused}
+          error={focused ? interactionError : null}
+          editing={editingInteractionId === interaction.id}
+          onSubmit={(response) => handleInteractionSubmit(interaction, response)}
+          onEdit={() => beginInteractionEdit(interaction)}
+          onCancelEdit={() => setEditingInteractionId(null)}
+        />
+      </div>
+    );
+  };
 
   if (!frame) return null;
 

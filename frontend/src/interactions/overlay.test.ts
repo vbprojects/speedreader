@@ -22,4 +22,7 @@ test("overlay renders blocking accessible controls without source HTML", () => {
   match(html, /aria-modal="true"/);
   match(html, /aria-label="Your name"/);
   match(html, /Tell the story who you are\./);
+  match(html, /font-size:16px/);
+  match(html, /text-align:center/);
+  match(html, /min\(calc\(100vw - 32px\), 520px\)/);
 });

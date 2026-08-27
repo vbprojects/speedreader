@@ -2,6 +2,7 @@
 
 import type { ReaderInteraction } from "../interactions/types";
 import type { HtmlPresentation } from "../presentation/types";
+import type { EngineTrigger } from "../engine-events/types";
 // Shared types matching the plan's flexible `Word` model (Option B).
 
 /**
@@ -64,6 +65,8 @@ export interface WordStream {
   interactions?: ReaderInteraction[];
   /** Inert, optional display content keyed to word boundaries. */
   presentations?: HtmlPresentation[];
+  /** Nonblocking notifications dispatched when playback crosses a boundary. */
+  triggers?: EngineTrigger[];
 }
 
 export interface ChapterEntry {
