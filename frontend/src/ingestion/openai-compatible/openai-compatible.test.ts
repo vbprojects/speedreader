@@ -2,7 +2,7 @@ import { deepStrictEqual, equal, match, rejects, throws } from "node:assert/stri
 import { test } from "node:test";
 import type { ReaderEngineEvent } from "../../engine-events/types";
 import { normalizeOpenAIBaseUrl, OpenAICompatibleClient } from "./client";
-import { OpenAICompatibleFormat } from "./format";
+import { createSessionId, OpenAICompatibleFormat } from "./format";
 
 function json(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -18,6 +18,17 @@ test("endpoint validation permits HTTPS and loopback HTTP only", () => {
   equal(normalizeOpenAIBaseUrl("http://127.0.0.1:1234/v1"), "http://127.0.0.1:1234/v1");
   throws(() => normalizeOpenAIBaseUrl("http://provider.example/v1"), /must use HTTPS/);
   throws(() => normalizeOpenAIBaseUrl("file:///tmp/model"), /must use HTTPS/);
+});
+
+test("session IDs use cryptographic bytes when randomUUID is unavailable", () => {
+  const id = createSessionId({
+    getRandomValues(array) {
+      const bytes = array as Uint8Array;
+      for (let index = 0; index < bytes.length; index++) bytes[index] = index;
+      return array;
+    },
+  });
+  equal(id, "00010203-0405-4607-8809-0a0b0c0d0e0f");
 });
 
 test("client discovers a model and sends an OpenAI-compatible chat completion", async () => {

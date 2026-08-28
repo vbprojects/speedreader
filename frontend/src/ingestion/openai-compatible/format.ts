@@ -13,15 +13,27 @@ import {
 
 const MAX_PROCESSED_INTERACTIONS = 256;
 
-function sessionId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+interface SessionCrypto {
+  randomUUID?: () => string;
+  getRandomValues<T extends ArrayBufferView | null>(array: T): T;
+}
+
+/** Generate a checkpoint/thread identifier using cryptographic randomness. */
+export function createSessionId(cryptoImpl: SessionCrypto = globalThis.crypto): string {
+  if (cryptoImpl.randomUUID) return cryptoImpl.randomUUID();
+  const bytes = cryptoImpl.getRandomValues(new Uint8Array(16));
+  // RFC 4122 version/variant bits for environments without randomUUID().
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function initialState(saved?: OpenAICompatibleState, systemPrompt?: string): OpenAICompatibleState {
   if (saved?.schemaVersion === 1) {
     return {
       schemaVersion: 1,
-      sessionId: saved.sessionId || sessionId(),
+      sessionId: saved.sessionId || createSessionId(),
       turn: Number.isInteger(saved.turn) && saved.turn >= 0 ? saved.turn : 0,
       messages: Array.isArray(saved.messages) ? saved.messages : [],
       processedInteractionIds: Array.isArray(saved.processedInteractionIds)
@@ -32,7 +44,7 @@ function initialState(saved?: OpenAICompatibleState, systemPrompt?: string): Ope
   const messages: OpenAICompatibleMessage[] = systemPrompt?.trim()
     ? [{ role: "system", content: systemPrompt.trim() }]
     : [];
-  return { schemaVersion: 1, sessionId: sessionId(), turn: 0, messages, processedInteractionIds: [] };
+  return { schemaVersion: 1, sessionId: createSessionId(), turn: 0, messages, processedInteractionIds: [] };
 }
 
 export function llmInputInteraction(turn: number): ReaderInteraction {
