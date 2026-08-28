@@ -4,7 +4,7 @@
 import type { Db } from "./types";
 import { IndexedDb } from "./indexeddb";
 
-export type { Db, Book, CoverImage, ReaderState, StoredStream } from "./types";
+export type { Db, Book, CoverImage, ReaderState, StoredInteractiveSource, StoredStream } from "./types";
 
 /**
  * Create a db adapter. For now only the browser IndexedDB adapter exists;

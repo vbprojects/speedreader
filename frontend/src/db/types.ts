@@ -9,6 +9,7 @@ import type { HtmlPresentation } from "../presentation/types";
 import type { EngineTrigger } from "../engine-events/types";
 import type { ReaderEngineEvent } from "../engine-events/types";
 import type { ReaderSettings } from "../settings/types";
+import type { StoredSugarCubeSource } from "../ingestion/sugarcube/types";
 
 /** A cover image stored with a book (browser-safe Blob). */
 export interface CoverImage {
@@ -69,6 +70,9 @@ export interface StoredStream {
   stream: WordStream;
 }
 
+/** Executable interactive source kept separately from derived reader data. */
+export type StoredInteractiveSource = StoredSugarCubeSource;
+
 /**
  * The db interface. All methods async. Adapters implement this contract so
  * the client (IndexedDB), WASM, desktop, and server backends are swappable.
@@ -80,6 +84,11 @@ export interface Db {
   addBook(book: Book): Promise<void>;
   updateBook(id: string, patch: Partial<Book>): Promise<void>;
   deleteBook(id: string): Promise<void>;
+
+  // ---- Interactive executable sources ----
+  getInteractiveSource(bookId: string): Promise<StoredInteractiveSource | null>;
+  saveInteractiveSource(source: StoredInteractiveSource): Promise<void>;
+  deleteInteractiveSource(bookId: string): Promise<void>;
 
   // ---- Streams ----
   getStream(bookId: string): Promise<WordStream | null>;
@@ -101,8 +110,13 @@ export interface Db {
   // ---- Reader state ----
   getReaderState(bookId: string): Promise<ReaderState | null>;
   saveReaderState(state: ReaderState): Promise<void>;
+  /** Atomically merge a partial update without erasing format-owned state. */
+  patchReaderState(
+    bookId: string,
+    patch: Partial<Omit<ReaderState, "bookId">>,
+  ): Promise<ReaderState | null>;
   deleteReaderState(bookId: string): Promise<void>;
 
-  /** Atomically delete everything owned by a book (book + stream + state). */
+  /** Atomically delete everything owned by a book, including executable source. */
   deleteBookCascade(bookId: string): Promise<void>;
 }

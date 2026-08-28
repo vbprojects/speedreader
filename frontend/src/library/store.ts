@@ -13,6 +13,13 @@ import { LLM_CHAT_BOOK_ID, LLM_CHAT_BOOK_REVISION, createLlmChatFixture } from "
 import type { InteractiveFormat } from "../ingestion/interactive";
 import type { ReaderEngineEvent } from "../engine-events/types";
 import { assertFileSize } from "../ingestion/limits";
+import {
+  detectSugarCubeSource,
+  InvalidSugarCubeStoryError,
+  SUGARCUBE_RUNTIME_FORMAT,
+  type HtmlDocumentParser,
+  type StoredSugarCubeSource,
+} from "../ingestion/sugarcube";
 
 /** Bump when the parser output shape changes → cached streams re-ingest. */
 export const PARSER_VERSION = 1;
@@ -176,6 +183,58 @@ export class LibraryStore {
   }
 
   /**
+   * Validate and persist a trusted published SugarCube application without
+   * executing it. Runtime startup is deliberately a separate operation.
+   */
+  async importSugarCubeSource(file: FileInfo, parseHtml?: HtmlDocumentParser): Promise<ImportResult> {
+    assertFileSize(file.data.byteLength);
+    const id = await sha256(file.data);
+    const existing = await this.db.getBook(id);
+    const existingSource = await this.db.getInteractiveSource(id);
+    const existingStream = await this.db.getStream(id);
+    if (existing && existingSource && existingStream) {
+      return { book: existing, stream: existingStream, existed: true };
+    }
+
+    const detected = detectSugarCubeSource({ file, sourceHash: id, parseHtml });
+    if (!detected) throw new InvalidSugarCubeStoryError("File is not published SugarCube HTML");
+
+    const stream: import("../epub/types").WordStream = {
+      words: [],
+      chapterIndex: [],
+      meta: {
+        totalWords: 0,
+        avgWordLength: 0,
+        isDeterministic: false,
+        isComplete: false,
+        chapterAttribute: "chapterId",
+      },
+    };
+    const book: Book = {
+      id,
+      title: detected.source.story.title,
+      author: "Unknown author",
+      format: SUGARCUBE_RUNTIME_FORMAT,
+      addedAt: existing?.addedAt ?? Date.now(),
+      wordCount: 0,
+      chapterCount: 0,
+      parserVersion: PARSER_VERSION,
+      ingestionWarnings: [detected.warning],
+    };
+
+    await this.db.addBook(book);
+    await this.db.saveStream(id, stream);
+    await this.db.saveInteractiveSource(detected.source);
+    return { book, stream, existed: false };
+  }
+
+  /** Load executable source only for the runtime-host layer. */
+  async getSugarCubeSource(bookId: string): Promise<StoredSugarCubeSource | null> {
+    const source = await this.db.getInteractiveSource(bookId);
+    return source?.format === SUGARCUBE_RUNTIME_FORMAT ? source : null;
+  }
+
+  /**
    * Append a batch of new words to a book's stream in the background, updating
    * wordCount, stream cache, and optional formatState in the database.
    */
@@ -229,7 +288,9 @@ export class LibraryStore {
 
   /** Persist reader state (position + settings + lastOpenedAt). */
   async saveReaderState(state: ReaderState): Promise<void> {
-    await this.db.saveReaderState(state);
+    const { bookId, ...patch } = state;
+    const merged = await this.db.patchReaderState(bookId, patch);
+    if (!merged) await this.db.saveReaderState(state);
   }
 
   /** Remove a book and all its owned data (stream + state). */
