@@ -7,7 +7,8 @@ export type PacingAlgorithm =
   | "naive"
   | "bayesian"
   | "surprisal-normal"
-  | "surprisal-exponential-gamma";
+  | "surprisal-exponential-gamma"
+  | "surprisal-lognormal-nig";
 
 /** Global settings — apply to the whole app / library view. */
 export interface GlobalSettings {

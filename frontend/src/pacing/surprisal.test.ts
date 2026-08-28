@@ -75,9 +75,37 @@ test("Exponential-Gamma calibration updates its conjugate posterior", () => {
   assert.equal(stats.lastRelativeDifficulty, stats.lastRawSurprisal / stats.expectedScore - 1);
 });
 
-test("registers both surprisal calibrations as selectable app backends", () => {
+test("registers all surprisal calibrations as selectable app backends", () => {
   assert.ok(availableBackends().includes("surprisal-normal"));
   assert.ok(availableBackends().includes("surprisal-exponential-gamma"));
+  assert.ok(availableBackends().includes("surprisal-lognormal-nig"));
   assert.equal(selectBackend("surprisal-normal").name, "surprisal-normal");
   assert.equal(selectBackend("surprisal-exponential-gamma").name, "surprisal-exponential-gamma");
+  assert.equal(selectBackend("surprisal-lognormal-nig").name, "surprisal-lognormal-nig");
+});
+
+test("Lognormal-NIG calibration updates independent discounted length bands", () => {
+  const fn = createSurprisalPacingFn({
+    scoreModel: "lognormal-nig",
+    scoreHalfLifeWords: 10,
+    warmupWords: 0,
+  });
+
+  fn(word("red"), context);
+  const short = fn.getStats();
+  assert.equal(short.scoreBucket, "short");
+  assert.equal(short.scoreModel, "lognormal-nig");
+  assert.ok(Number.isFinite(short.lastRelativeDifficulty));
+  assert.ok(short.expectedScore > 0);
+
+  fn(word("extraordinary"), context);
+  const long = fn.getStats();
+  assert.equal(long.scoreBucket, "long");
+  assert.equal(long.scoreBucketEvidence, 0);
+
+  fn(word("uncharacteristically"), context);
+  const repeatedLong = fn.getStats();
+  assert.equal(repeatedLong.scoreBucket, "long");
+  assert.ok(repeatedLong.scoreBucketEvidence > 0);
+  assert.ok(repeatedLong.scoreAlpha > 3);
 });

@@ -51,7 +51,11 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
       new PacingEngine({
         backend: selectBackend(
           settings.pacingModel ?? "naive",
-          settings.pacingModel === "bayesian" ? { gamma: settings.bayesianGamma ?? 0.98 } : undefined,
+          settings.pacingModel === "bayesian"
+            ? { gamma: settings.bayesianGamma ?? 0.98 }
+            : settings.pacingModel === "surprisal-lognormal-nig"
+              ? { scoreHalfLifeWords: -1 / Math.log2(settings.bayesianGamma ?? 0.98) }
+              : undefined,
         ),
         profile: {
           wpm: settings.wpm,
