@@ -4,7 +4,7 @@
 
 Treat a conversation as an open-ended `InteractiveFormat`: the reader presents a native text action, LangGraph sends the response to a user-supplied OpenAI-compatible endpoint, and the assistant response becomes the next persistent segment of the same `WordStream`.
 
-The endpoint, model, and key are runtime dependencies. They are not book content and must never be written to `Book`, `ReaderState`, `WordStream`, checkpoints, logs, or test snapshots. The first implementation keeps them in memory and asks again after leaving the book or reloading the app.
+The endpoint, model, and key are runtime dependencies. They are not book content and must never be written to `Book`, `ReaderState`, `WordStream`, checkpoints, logs, or test snapshots. By default the first implementation keeps them in memory. The user may explicitly store an AES-GCM-encrypted key in a separate IndexedDB credential vault; its passphrase and derived key are never persisted.
 
 ## Current PR boundary
 
@@ -21,13 +21,16 @@ flowchart TD
 This PR includes:
 
 - A built-in `LLM Chat` book and normal library seeding/reset lifecycle.
-- A memory-only connection dialog requiring an endpoint and API key; model is explicit or discovered from `/models`.
+- A connection dialog requiring an endpoint and API key; model is explicit or discovered from `/models`.
+- Optional passphrase-based persistence using PBKDF2-HMAC-SHA-256 (600,000 iterations), fresh per-record salt/IV, AES-256-GCM, authenticated endpoint/model metadata, and a separate IndexedDB database.
 - CSP permits user-selected HTTPS connections and loopback HTTP only; compatible web endpoints must allow the app origin through CORS.
 - A LangGraph `StateGraph` with a replaceable checkpoint saver.
 - JSON-safe session, message, turn, and handled-interaction state.
 - One complete request at a time using non-streaming Chat Completions.
 - Plain word projection that preserves Markdown syntax literally.
 - Stable `llmTurnId` metadata so later replay can identify generated suffixes.
+
+The encrypted web vault protects an API key against offline extraction of IndexedDB. It does not protect an unlocked key from malicious same-origin JavaScript; native builds should still move credentials and requests behind a Tauri-owned transport.
 
 ## Follow-up 1: durable checkpointer and sessions
 

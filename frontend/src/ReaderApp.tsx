@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDb } from "./db";
 import type { Book } from "./db";
-import { BlueskyJetstreamFormat, IngestionEngine, EpubParser, OPENAI_COMPATIBLE_FORMAT, OpenAICompatibleFormat, PdfJsParser, pickFileBrowser } from "./ingestion";
+import { BlueskyJetstreamFormat, EncryptedCredentialVault, IngestionEngine, EpubParser, OPENAI_COMPATIBLE_FORMAT, OpenAICompatibleFormat, PdfJsParser, pickFileBrowser } from "./ingestion";
 import type { OpenAICompatibleConnection } from "./ingestion";
 import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
@@ -21,6 +21,7 @@ import type { ReaderEngineEvent } from "./engine-events/types";
 export default function ReaderApp() {
   // ---- Stores (created once) ----
   const [settingsStore] = useState(() => new SettingsStore());
+  const [credentialVault] = useState(() => new EncryptedCredentialVault());
   const [library] = useState(() => new LibraryStore(
     createDb("indexeddb"),
     new IngestionEngine(
@@ -445,6 +446,7 @@ export default function ReaderApp() {
       <LlmConnectionDialog
         open={pendingLlmBookId !== null}
         theme={global.theme}
+        vault={credentialVault}
         onConnect={handleLlmConnect}
         onCancel={() => setPendingLlmBookId(null)}
       />
