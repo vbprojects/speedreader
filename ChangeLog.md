@@ -4,6 +4,15 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-28 — OpenAI-compatible LangGraph ingestion
+
+- **Built-in LLM conversation**: Added an incomplete, resettable LLM Chat book whose inline text actions are routed through a LangGraph workflow and appended to the existing WordStream as assistant text.
+- **User-owned connection**: Opening LLM Chat asks for an OpenAI-compatible endpoint and API key, with optional model discovery through `/models`. No endpoint or credential is bundled, and connection values remain memory-only rather than entering IndexedDB, reader state, WordStream content, or format checkpoints. Remote endpoints require HTTPS and browser CORS; plaintext HTTP is restricted to loopback endpoints.
+- **Stateful seams**: Each conversation receives a durable session ID, JSON-safe message state, stable turn metadata, idempotent interaction handling, and an optional LangGraph checkpointer injection point for subsequent persistent threads and replay support.
+- **Coverage**: Added endpoint contract, authentication isolation, failure/retry, graph-to-WordStream, built-in seeding, and conversation reset tests.
+
+---
+
 ## 2026-08-27 — Repository security hardening
 
 - **Bounded document ingestion**: Added a shared 128 MiB input limit before browser allocation and again at the library boundary. EPUB imports now preflight archive entry counts, expanded sizes, compression ratios, spine/TOC cardinality, DOM traversal, extracted text, words, and cover size. Recursive EPUB traversal was replaced with a bounded iterative walk.

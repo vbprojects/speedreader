@@ -11,6 +11,7 @@ import {
 } from "./default-books/actions";
 import { LibraryStore } from "./store";
 import { BLUESKY_JETSTREAM_BOOK_ID } from "./default-books/bluesky-jetstream";
+import { LLM_CHAT_BOOK_ID } from "./default-books/llm-chat";
 
 class MemoryDb implements Db {
   books = new Map<string, Book>();
@@ -49,9 +50,10 @@ test("ensureBuiltInBooks seeds Actions once and repairs a missing stream", async
   const library = store(db);
   await library.ensureBuiltInBooks();
   await library.ensureBuiltInBooks();
-  equal((await library.getBooks()).length, 2);
+  equal((await library.getBooks()).length, 3);
   equal((await library.openBook(ACTIONS_BOOK_ID))?.book.title, "Actions");
   equal((await library.openBook(BLUESKY_JETSTREAM_BOOK_ID))?.stream.meta.isComplete, false);
+  equal((await library.openBook(LLM_CHAT_BOOK_ID))?.stream.interactions?.[0].id, "llm:input:0");
 
   db.streams.delete(ACTIONS_BOOK_ID);
   await library.ensureBuiltInBooks();
@@ -113,4 +115,20 @@ test("regular imported books remain removable", async () => {
   db.books.set(imported.id, imported);
   await library.removeBook(imported.id);
   equal(await db.getBook(imported.id), null);
+});
+
+test("clearing LLM Chat removes conversation state and restores its initial prompt", async () => {
+  const db = new MemoryDb();
+  const library = store(db);
+  await library.ensureBuiltInBooks();
+  const stream = (await db.getStream(LLM_CHAT_BOOK_ID))!;
+  stream.words.push({ text: "Generated", index: stream.words.length, metadata: [] });
+  await db.saveStream(LLM_CHAT_BOOK_ID, stream);
+  await db.updateBook(LLM_CHAT_BOOK_ID, { formatState: { schemaVersion: 1, sessionId: "session", turn: 1 } });
+  await db.saveReaderState({ bookId: LLM_CHAT_BOOK_ID, position: 2, lastOpenedAt: 1, settings: {} });
+
+  await library.resetReaderState(LLM_CHAT_BOOK_ID);
+  equal(await db.getReaderState(LLM_CHAT_BOOK_ID), null);
+  equal((await db.getStream(LLM_CHAT_BOOK_ID))?.interactions?.[0].id, "llm:input:0");
+  equal((await db.getBook(LLM_CHAT_BOOK_ID))?.formatState?.turn, 0);
 });

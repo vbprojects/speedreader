@@ -97,7 +97,11 @@ export function ContextMenu({ state, book, onClose, onRemove, onRestart, theme }
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
         {book?.builtIn
-          ? book.format === "bluesky-jetstream" ? "Clear live history" : "Restart demo"
+          ? book.format === "bluesky-jetstream"
+            ? "Clear live history"
+            : book.format === "openai-compatible-llm"
+              ? "Clear conversation"
+              : "Restart demo"
           : "Remove from library"}
       </button>
     </div>

@@ -7,9 +7,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDb } from "./db";
 import type { Book } from "./db";
-import { BlueskyJetstreamFormat, IngestionEngine, EpubParser, PdfJsParser, pickFileBrowser } from "./ingestion";
+import { BlueskyJetstreamFormat, IngestionEngine, EpubParser, OPENAI_COMPATIBLE_FORMAT, OpenAICompatibleFormat, PdfJsParser, pickFileBrowser } from "./ingestion";
+import type { OpenAICompatibleConnection } from "./ingestion";
 import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
+import { LlmConnectionDialog } from "./library/LlmConnectionDialog";
 import { ReaderScreen } from "./reader";
 import { SettingsStore, mergeSettings } from "./settings";
 import type { GlobalSettings, ReaderSettings } from "./settings";
@@ -23,7 +25,10 @@ export default function ReaderApp() {
     createDb("indexeddb"),
     new IngestionEngine(
       [new EpubParser(), new PdfJsParser()],
-      [() => new BlueskyJetstreamFormat()],
+      [
+        () => new BlueskyJetstreamFormat(),
+        () => new OpenAICompatibleFormat(),
+      ],
     ),
   ));
 
@@ -38,6 +43,7 @@ export default function ReaderApp() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [positions, setPositions] = useState<Record<string, number>>({});
+  const [pendingLlmBookId, setPendingLlmBookId] = useState<string | null>(null);
 
   // ---- Reader session ----
   const [openBookId, setOpenBookId] = useState<string | null>(null);
@@ -56,6 +62,7 @@ export default function ReaderApp() {
   const latestInteractionRecords = useRef<InteractionRecord[]>([]);
   const latestDeliveredTriggerIds = useRef<string[]>([]);
   const latestPendingEngineEvents = useRef<ReaderEngineEvent[]>([]);
+  const llmConnection = useRef<OpenAICompatibleConnection | null>(null);
   // Serialize IndexedDB writes so an older async transaction cannot finish
   // after and overwrite a newer reader position/settings snapshot.
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -182,6 +189,10 @@ export default function ReaderApp() {
     if (!openBookId) return;
     let disposed = false;
     let stop: (() => void) | null = null;
+    const book = books.find((candidate) => candidate.id === openBookId);
+    const formatInput = book?.format === OPENAI_COMPATIBLE_FORMAT && llmConnection.current
+      ? { connection: llmConnection.current }
+      : undefined;
     void library.startStreamingBook(
       openBookId,
       (stream) => {
@@ -191,6 +202,7 @@ export default function ReaderApp() {
         if (!disposed) setError(streamError.message);
       },
       latestPosition.current,
+      formatInput,
     ).then((cleanup) => {
       if (disposed) cleanup();
       else {
@@ -213,7 +225,7 @@ export default function ReaderApp() {
       disposed = true;
       stop?.();
     };
-  }, [enqueueReaderState, library, openBookId]);
+  }, [books, enqueueReaderState, library, openBookId]);
 
   const handleEngineEvent = useCallback(async (event: ReaderEngineEvent) => {
     const bookId = openBookId;
@@ -335,8 +347,26 @@ export default function ReaderApp() {
     setOpenBookId(null);
     setOpenStream(null);
     setReaderSettings(null);
+    llmConnection.current = null;
     await refreshBooks();
   }, [flushState, refreshBooks]);
+
+  const handleLibraryOpen = useCallback((bookId: string) => {
+    const book = books.find((candidate) => candidate.id === bookId);
+    if (book?.format === OPENAI_COMPATIBLE_FORMAT) {
+      setPendingLlmBookId(bookId);
+      return;
+    }
+    void openBook(bookId);
+  }, [books, openBook]);
+
+  const handleLlmConnect = useCallback((connection: OpenAICompatibleConnection) => {
+    const bookId = pendingLlmBookId;
+    if (!bookId) return;
+    llmConnection.current = connection;
+    setPendingLlmBookId(null);
+    void openBook(bookId);
+  }, [openBook, pendingLlmBookId]);
 
   // ---- Remove a book ----
   const handleRemove = useCallback(
@@ -360,7 +390,9 @@ export default function ReaderApp() {
         const book = books.find((candidate) => candidate.id === bookId);
         setNotice(book?.format === "bluesky-jetstream"
           ? "Bluesky Jetstream history was cleared."
-          : "Actions was restarted. Its interactive prompts are ready again.");
+          : book?.format === "openai-compatible-llm"
+            ? "The LLM conversation was cleared."
+            : "Actions was restarted. Its interactive prompts are ready again.");
         await refreshBooks();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -394,7 +426,8 @@ export default function ReaderApp() {
   }
 
   return (
-    <LibraryView
+    <>
+      <LibraryView
       books={books}
       loading={loading}
       importing={importing}
@@ -404,10 +437,17 @@ export default function ReaderApp() {
       settings={global}
       onUpdateSettings={(patch) => settingsStore.updateGlobal(patch)}
       onImport={handleImport}
-      onOpen={openBook}
+      onOpen={handleLibraryOpen}
       onRemove={handleRemove}
       onRestart={handleRestart}
       positions={positions}
-    />
+      />
+      <LlmConnectionDialog
+        open={pendingLlmBookId !== null}
+        theme={global.theme}
+        onConnect={handleLlmConnect}
+        onCancel={() => setPendingLlmBookId(null)}
+      />
+    </>
   );
 }
