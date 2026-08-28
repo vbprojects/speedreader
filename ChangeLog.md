@@ -4,6 +4,17 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-27 — Length-conditioned lognormal surprisal pacing
+
+- **Empirically selected calibration**: Added a pacing engine that models summed character n-gram surprisal on the log scale after distribution-fit experiments favored Lognormal over the existing global Normal and Exponential assumptions.
+- **Length-conditioned adaptation**: Maintains independent score models for 1–4, 5–8, and 9+ character words, preserving the intended extra reading time for longer words without forcing all word lengths into one distribution.
+- **Closed-form online learning**: Uses a Normal–Inverse-Gamma model with discounted sufficient statistics for each length band. Updates remain constant-time and require no numerical fitting during playback.
+- **Controlled forgetting and burn-in**: Exponentially discounts evidence according to the configurable memory factor and initializes each band from experiment-derived priors to avoid prohibitively slow early pacing.
+- **Reader integration**: Registered the engine as `surprisal-lognormal-nig`, added it to the pacing selector, and exposed the existing memory-factor control when it is selected.
+- **Coverage**: Added tests for backend registration, finite predictive calibration, independent length bands, discounting, and posterior updates. Lint, typechecking, 55 tests, and the production build pass.
+
+---
+
 ## 2026-08-27 — Repository security hardening
 
 - **Bounded document ingestion**: Added a shared 128 MiB input limit before browser allocation and again at the library boundary. EPUB imports now preflight archive entry counts, expanded sizes, compression ratios, spine/TOC cardinality, DOM traversal, extracted text, words, and cover size. Recursive EPUB traversal was replaced with a bounded iterative walk.

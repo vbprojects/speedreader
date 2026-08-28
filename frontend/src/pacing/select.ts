@@ -6,6 +6,7 @@ import { naiveBackend } from "./naive";
 import { createBayesianBackend, type BayesianPacingOptions } from "./bayesian";
 import {
   createExponentialGammaSurprisalBackend,
+  createLognormalNIGSurprisalBackend,
   createNormalSurprisalBackend,
   type SurprisalPacingOptions,
 } from "./surprisal";
@@ -18,6 +19,8 @@ const REGISTRY: Record<string, BackendFactory> = {
   "surprisal-normal": (opts?: unknown) => createNormalSurprisalBackend(opts as SurprisalPacingOptions | undefined),
   "surprisal-exponential-gamma": (opts?: unknown) =>
     createExponentialGammaSurprisalBackend(opts as SurprisalPacingOptions | undefined),
+  "surprisal-lognormal-nig": (opts?: unknown) =>
+    createLognormalNIGSurprisalBackend(opts as SurprisalPacingOptions | undefined),
 };
 
 /** Select a pacing backend by name. Throws on unknown names. */

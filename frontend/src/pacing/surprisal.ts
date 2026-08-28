@@ -4,9 +4,10 @@
 // recurrence rate. Observed recurrence gaps use an Exponential likelihood;
 // integrating out the rate gives a Lomax posterior-predictive density. Word
 // difficulty is the SUM of n-gram surprisals, intentionally retaining a
-// length effect. By default a second Exponential-Gamma model calibrates word
-// surprisal to a bounded duration multiplier. A Normal calibration remains
-// available only for experiment comparison.
+// length effect. A second online model calibrates word surprisal to a bounded
+// duration multiplier. Available calibrations include Exponential-Gamma,
+// Normal, and a length-conditioned Lognormal model with discounted conjugate
+// Normal-Inverse-Gamma updates.
 
 import type { Word } from "../epub/types";
 import type { PacingBackend, PacingContext } from "./types";
@@ -23,13 +24,17 @@ export interface SurprisalPacingOptions {
   /** EWMA learning rate for the Normal score approximation. */
   scoreLearningRate?: number;
   /** Distribution used to calibrate raw word surprisal. */
-  scoreModel?: "exponential-gamma" | "normal";
+  scoreModel?: "exponential-gamma" | "normal" | "lognormal-nig";
   /** Gamma shape prior for the Exponential word-surprisal rate. Must exceed 1. */
   scoreAlpha0?: number;
   /** Gamma rate prior for the Exponential word-surprisal rate. */
   scoreBeta0?: number;
   /** Evidence half-life for the word-surprisal model. */
   scoreHalfLifeWords?: number;
+  /** NIG prior effective sample size for each length-conditioned log-score model. */
+  scorePriorStrength?: number;
+  /** NIG prior shape for log-score variance. Must exceed 1. */
+  scorePriorAlpha?: number;
   /** Strength of the exponential z-score-to-duration mapping. */
   sensitivity?: number;
   /** Number of observations over which to fade in score adaptation. */
@@ -46,10 +51,14 @@ export interface SurprisalPacingStats {
   entries: number;
   scoreMean: number;
   scoreStdDev: number;
-  scoreModel: "exponential-gamma" | "normal";
+  scoreModel: "exponential-gamma" | "normal" | "lognormal-nig";
   expectedScore: number;
   scoreAlpha: number;
   scoreBeta: number;
+  /** Active length band for the most recently scored word. */
+  scoreBucket: "short" | "medium" | "long";
+  /** Discounted effective observations in the active length band. */
+  scoreBucketEvidence: number;
   lastRawSurprisal: number;
   /** Centered calibration value: z-score, or S/E[S] - 1. */
   lastRelativeDifficulty: number;
@@ -60,6 +69,15 @@ export interface SurprisalPacingStats {
 interface NGramState {
   alpha: number;
   beta: number;
+  lastPosition: number;
+}
+
+type ScoreBucket = "short" | "medium" | "long";
+
+interface LogScoreState {
+  count: number;
+  sum: number;
+  sumSquares: number;
   lastPosition: number;
 }
 
@@ -98,6 +116,13 @@ function lomaxSurprisal(gap: number, alpha: number, beta: number): number {
   return -Math.log(alpha) - alpha * Math.log(beta) + (alpha + 1) * Math.log(beta + gap);
 }
 
+function scoreBucketFor(text: string): ScoreBucket {
+  const length = [...text.normalize("NFKC").replace(/[^\p{L}\p{N}]+/gu, "")].length;
+  if (length <= 4) return "short";
+  if (length <= 8) return "medium";
+  return "long";
+}
+
 export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
   (word: Word, ctx: PacingContext): number;
   reset(): void;
@@ -112,6 +137,8 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
   const scoreAlpha0 = options.scoreAlpha0 ?? 2;
   const scoreBeta0 = options.scoreBeta0 ?? 20;
   const scoreHalfLifeWords = options.scoreHalfLifeWords ?? 250;
+  const scorePriorStrength = options.scorePriorStrength ?? 4;
+  const scorePriorAlpha = options.scorePriorAlpha ?? 3;
   const sensitivity = options.sensitivity ?? 0.25;
   const warmupWords = options.warmupWords ?? 30;
   const minMultiplier = options.minMultiplier ?? 0.5;
@@ -123,6 +150,8 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
   if (!(scoreLearningRate > 0 && scoreLearningRate <= 1)) throw new Error("scoreLearningRate must be in (0, 1]");
   if (!(scoreAlpha0 > 1 && scoreBeta0 > 0)) throw new Error("score Gamma prior requires scoreAlpha0 > 1 and scoreBeta0 > 0");
   if (!(scoreHalfLifeWords > 0)) throw new Error("scoreHalfLifeWords must be positive");
+  if (!(scorePriorStrength > 0)) throw new Error("scorePriorStrength must be positive");
+  if (!(scorePriorAlpha > 1)) throw new Error("scorePriorAlpha must exceed 1");
   if (!(minMultiplier > 0 && maxMultiplier >= minMultiplier)) throw new Error("invalid multiplier bounds");
   if (!Number.isInteger(maxEntries) || maxEntries < 1) throw new Error("maxEntries must be a positive integer");
 
@@ -138,6 +167,21 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
   let lastRelativeDifficulty = 0;
   let lastMultiplier = 1;
   let prunedEntries = 0;
+  let scoreBucket: ScoreBucket = "short";
+  let scoreBucketEvidence = 0;
+  const logScoreStates: Record<ScoreBucket, LogScoreState> = {
+    short: { count: 0, sum: 0, sumSquares: 0, lastPosition: 0 },
+    medium: { count: 0, sum: 0, sumSquares: 0, lastPosition: 0 },
+    long: { count: 0, sum: 0, sumSquares: 0, lastPosition: 0 },
+  };
+  // Centers taken from the experiment's three length strata. They only
+  // govern burn-in; discounted observations rapidly replace their influence.
+  const logScorePriorMean: Record<ScoreBucket, number> = {
+    short: Math.log(18),
+    medium: Math.log(40),
+    long: Math.log(72),
+  };
+  const logScorePriorBeta = scorePriorAlpha - 1;
 
   const retention = (gap: number): number => 2 ** (-gap / halfLifeWords);
 
@@ -190,9 +234,42 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
       // Marginally S follows Lomax(a, b), whose mean is b / (a - 1).
       expectedScore = discountedScoreBeta / (discountedScoreAlpha - 1);
       rawRelativeDifficulty = rawSurprisal / expectedScore - 1;
-    } else {
+    } else if (scoreModel === "normal") {
       expectedScore = scoreCount === 0 ? rawSurprisal : scoreMean;
       rawRelativeDifficulty = scoreCount === 0 ? 0 : (rawSurprisal - scoreMean) / scoreStdDev;
+    } else {
+      scoreBucket = scoreBucketFor(word.text);
+      const state = logScoreStates[scoreBucket];
+      const gap = Math.max(0, position - state.lastPosition);
+      const rho = 2 ** (-gap / scoreHalfLifeWords);
+      const count = rho * state.count;
+      const sum = rho * state.sum;
+      const sumSquares = rho * state.sumSquares;
+      const priorMean = logScorePriorMean[scoreBucket];
+      const kappa = scorePriorStrength + count;
+      const posteriorMean = (scorePriorStrength * priorMean + sum) / kappa;
+      const posteriorAlpha = scorePriorAlpha + count / 2;
+      const posteriorBeta = Math.max(
+        1e-6,
+        logScorePriorBeta + 0.5 * (sumSquares + scorePriorStrength * priorMean * priorMean - kappa * posteriorMean * posteriorMean),
+      );
+      // Student-t posterior-predictive variance on log(S). alpha > 1 keeps
+      // this finite, allowing a direct standardized pacing signal.
+      const predictiveVariance = posteriorBeta * (kappa + 1) / (kappa * (posteriorAlpha - 1));
+      const predictiveStdDev = Math.sqrt(Math.max(predictiveVariance, 1e-6));
+      const logScore = Math.log(Math.max(rawSurprisal, 1e-9));
+      expectedScore = Math.exp(posteriorMean);
+      rawRelativeDifficulty = (logScore - posteriorMean) / predictiveStdDev;
+      scoreMean = posteriorMean;
+      scoreVariance = predictiveVariance;
+      scoreAlpha = posteriorAlpha;
+      scoreBeta = posteriorBeta;
+      scoreBucketEvidence = count;
+
+      state.count = count + 1;
+      state.sum = sum + logScore;
+      state.sumSquares = sumSquares + logScore * logScore;
+      state.lastPosition = position;
     }
     const warmupWeight = warmupWords <= 0 ? 1 : Math.min(1, scoreCount / warmupWords);
     const relativeDifficulty = Math.max(-3, Math.min(3, rawRelativeDifficulty * warmupWeight));
@@ -207,13 +284,15 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
     }
     pruneIfNeeded();
 
-    if (scoreCount === 0) {
-      scoreMean = rawSurprisal;
-      scoreVariance = 1;
-    } else {
-      const delta = rawSurprisal - scoreMean;
-      scoreMean += scoreLearningRate * delta;
-      scoreVariance = (1 - scoreLearningRate) * (scoreVariance + scoreLearningRate * delta * delta);
+    if (scoreModel === "normal") {
+      if (scoreCount === 0) {
+        scoreMean = rawSurprisal;
+        scoreVariance = 1;
+      } else {
+        const delta = rawSurprisal - scoreMean;
+        scoreMean += scoreLearningRate * delta;
+        scoreVariance = (1 - scoreLearningRate) * (scoreVariance + scoreLearningRate * delta * delta);
+      }
     }
     if (scoreModel === "exponential-gamma") {
       // Conjugate update for S | eta ~ Exponential(eta), eta ~ Gamma(a, b).
@@ -242,6 +321,14 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
     lastRelativeDifficulty = 0;
     lastMultiplier = 1;
     prunedEntries = 0;
+    scoreBucket = "short";
+    scoreBucketEvidence = 0;
+    for (const state of Object.values(logScoreStates)) {
+      state.count = 0;
+      state.sum = 0;
+      state.sumSquares = 0;
+      state.lastPosition = 0;
+    }
   };
 
   fn.getStats = () => ({
@@ -253,6 +340,8 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
     expectedScore,
     scoreAlpha,
     scoreBeta,
+    scoreBucket,
+    scoreBucketEvidence,
     lastRawSurprisal,
     lastRelativeDifficulty,
     lastMultiplier,
@@ -275,4 +364,9 @@ export function createNormalSurprisalBackend(options: SurprisalPacingOptions = {
 /** Production backend using an Exponential likelihood with a Gamma rate prior. */
 export function createExponentialGammaSurprisalBackend(options: SurprisalPacingOptions = {}): PacingBackend {
   return createSurprisalBackend({ ...options, scoreModel: "exponential-gamma" });
+}
+
+/** Length-conditioned Lognormal calibration with discounted NIG updates. */
+export function createLognormalNIGSurprisalBackend(options: SurprisalPacingOptions = {}): PacingBackend {
+  return createSurprisalBackend({ ...options, scoreModel: "lognormal-nig" });
 }

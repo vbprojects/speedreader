@@ -84,12 +84,13 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
           <option style={optionStyle} value="bayesian">Bayesian Adaptive (Poisson–Gamma)</option>
           <option style={optionStyle} value="surprisal-normal">N-Gram Surprisal (Normal)</option>
           <option style={optionStyle} value="surprisal-exponential-gamma">N-Gram Surprisal (Exponential–Gamma)</option>
+          <option style={optionStyle} value="surprisal-lognormal-nig">N-Gram Surprisal (Length-Conditioned Lognormal)</option>
         </select>
       </Field>
 
-      {(settings.pacingModel === "bayesian") && (
+      {(settings.pacingModel === "bayesian" || settings.pacingModel === "surprisal-lognormal-nig") && (
         <Field
-          label={`Bayesian Gamma (Memory factor): ${(settings.bayesianGamma ?? 0.98).toFixed(3)} (~${Math.round(1 / (1 - (settings.bayesianGamma ?? 0.98)))} words)`}
+          label={`Memory factor: ${(settings.bayesianGamma ?? 0.98).toFixed(3)} (~${Math.round(1 / (1 - (settings.bayesianGamma ?? 0.98)))} words)`}
           color={t.muted}
         >
           <input

@@ -9,6 +9,7 @@ export {
   createSurprisalBackend,
   createNormalSurprisalBackend,
   createExponentialGammaSurprisalBackend,
+  createLognormalNIGSurprisalBackend,
   createSurprisalPacingFn,
   characterNGrams,
 } from "./surprisal";
