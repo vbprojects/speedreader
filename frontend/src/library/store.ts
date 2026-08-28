@@ -9,6 +9,7 @@ import { sha256 } from "./hash";
 import type { ImportResult, OpenableBook } from "./types";
 import { ACTIONS_BOOK_ID, ACTIONS_BOOK_REVISION, createActionsFixture } from "./default-books/actions";
 import { BLUESKY_JETSTREAM_BOOK_ID, BLUESKY_JETSTREAM_BOOK_REVISION, createBlueskyJetstreamFixture } from "./default-books/bluesky-jetstream";
+import { LLM_CHAT_BOOK_ID, LLM_CHAT_BOOK_REVISION, createLlmChatFixture } from "./default-books/llm-chat";
 import type { InteractiveFormat } from "../ingestion/interactive";
 import type { ReaderEngineEvent } from "../engine-events/types";
 import { assertFileSize } from "../ingestion/limits";
@@ -35,6 +36,7 @@ export class LibraryStore {
     const definitions = [
       { id: ACTIONS_BOOK_ID, revision: ACTIONS_BOOK_REVISION, create: createActionsFixture },
       { id: BLUESKY_JETSTREAM_BOOK_ID, revision: BLUESKY_JETSTREAM_BOOK_REVISION, create: createBlueskyJetstreamFixture },
+      { id: LLM_CHAT_BOOK_ID, revision: LLM_CHAT_BOOK_REVISION, create: createLlmChatFixture },
     ];
     for (const definition of definitions) {
       const fixture = definition.create();
@@ -62,6 +64,7 @@ export class LibraryStore {
     onStream: (stream: import("../epub/types").WordStream) => void,
     onError: (error: Error) => void,
     initialReadPosition = 0,
+    formatInput?: unknown,
   ): Promise<() => void> {
     const book = await this.db.getBook(bookId);
     const stream = await this.db.getStream(bookId);
@@ -70,7 +73,7 @@ export class LibraryStore {
     if (!format) return () => undefined;
     this.activeFormats.set(bookId, format);
     const init = await format.init(
-      { hideSelfLabeledSensitivePosts: true },
+      formatInput ?? (book.format === "bluesky-jetstream" ? { hideSelfLabeledSensitivePosts: true } : {}),
       book.formatState as Record<string, unknown> | undefined,
     );
     let disposed = false;
@@ -256,6 +259,15 @@ export class LibraryStore {
         wordCount: 0,
         chapterCount: 0,
         formatState: fixture.book.formatState,
+      });
+    } else if (bookId === LLM_CHAT_BOOK_ID) {
+      const fixture = createLlmChatFixture(book.addedAt);
+      await this.db.saveStream(bookId, fixture.stream);
+      await this.db.updateBook(bookId, {
+        wordCount: fixture.book.wordCount,
+        chapterCount: fixture.book.chapterCount,
+        formatState: fixture.book.formatState,
+        builtInRevision: fixture.book.builtInRevision,
       });
     }
     await this.db.deleteReaderState(bookId);

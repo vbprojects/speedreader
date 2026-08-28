@@ -4,6 +4,16 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-08-28 — OpenAI-compatible LangGraph ingestion
+
+- **Built-in LLM conversation**: Added an incomplete, resettable LLM Chat book whose inline text actions are routed through a LangGraph workflow and appended to the existing WordStream as assistant text.
+- **User-owned connection**: Opening LLM Chat asks for an OpenAI-compatible endpoint and API key, with optional model discovery through `/models`. No endpoint or credential is bundled. Remote endpoints require HTTPS and browser CORS; plaintext HTTP is restricted to loopback endpoints.
+- **Optional encrypted credential vault**: Users can keep the key memory-only or encrypt it into a separate IndexedDB vault using AES-256-GCM and a non-extractable key derived with PBKDF2-HMAC-SHA-256 at 600,000 iterations. Every record uses a fresh salt and IV, authenticates its endpoint/model metadata, and requires a non-persisted passphrase to unlock. Saved credentials can be replaced or forgotten from the connection dialog.
+- **Stateful seams**: Each conversation receives a durable session ID, JSON-safe message state, stable turn metadata, idempotent interaction handling, and an optional LangGraph checkpointer injection point for subsequent persistent threads and replay support.
+- **Coverage**: Added endpoint contract, authentication isolation, failure/retry, graph-to-WordStream, built-in seeding, and conversation reset tests.
+
+---
+
 ## 2026-08-27 — Length-conditioned lognormal surprisal pacing
 
 - **Empirically selected calibration**: Added a pacing engine that models summed character n-gram surprisal on the log scale after distribution-fit experiments favored Lognormal over the existing global Normal and Exponential assumptions.

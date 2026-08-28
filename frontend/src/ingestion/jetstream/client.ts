@@ -117,7 +117,8 @@ export class JetstreamClient {
   private scheduleReconnect(): void {
     if (this.disposed || this.reconnectTimer) return;
     this.endpointIndex = (this.endpointIndex + 1) % this.endpoints.length;
-    const jitter = 0.8 + Math.random() * 0.4;
+    const randomValue = globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+    const jitter = 0.8 + randomValue * 0.4;
     const delay = Math.round(this.reconnectMs * jitter);
     this.reconnectMs = Math.min(this.maxReconnectMs, this.reconnectMs * 2);
     this.reconnectTimer = setTimeout(() => {
