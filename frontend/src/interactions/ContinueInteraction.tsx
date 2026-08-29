@@ -24,13 +24,15 @@ export function ContinueInteraction({
       {interaction.description && <p style={{ margin: "0 0 18px", color: t.muted }}>{interaction.description}</p>}
       <button
         type="button"
+        autoFocus={!inline}
         disabled={busy}
         onClick={() => void onSubmit({ schemaVersion: 1, interactionId: interaction.id, kind: "continue" })}
         style={{
           width: "100%",
-          padding: "11px 14px",
+          minHeight: 44,
+          padding: "10px 14px",
           border: 0,
-          borderRadius: 12,
+          borderRadius: 8,
           background: t.highlight,
           color: t.highlightFg,
           font: "inherit",

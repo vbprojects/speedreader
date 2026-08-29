@@ -24,6 +24,22 @@ test("validation rejects malformed boundaries and duplicate ids", () => {
   ], 1));
 });
 
+test("blocking choices require at least one enabled option", () => {
+  throws(
+    () => validateInteraction({
+      schemaVersion: 1,
+      id: "blocked",
+      boundary: 0,
+      kind: "single-choice",
+      options: [
+        { id: "one", label: "One", disabled: true },
+        { id: "two", label: "Two", disabled: true },
+      ],
+    }),
+    /at least one enabled option/,
+  );
+});
+
 test("responses are validated independently of the UI", () => {
   const response = validateInteractionResponse({
     schemaVersion: 1,

@@ -108,6 +108,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [jumpInputVal, setJumpInputVal] = useState("");
   const [pendingInteraction, setPendingInteraction] = useState<ReaderInteraction | null>(null);
   const [interactionBusy, setInteractionBusy] = useState(false);
+  const interactionSubmitInFlightRef = useRef(false);
   const [interactionError, setInteractionError] = useState<string | null>(null);
   const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null);
   const [recordsVersion, setRecordsVersion] = useState(0);
@@ -739,7 +740,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
   const handleInteractionSubmit = async (interaction: ReaderInteraction, response: InteractionResponse) => {
     const current = interaction;
-    if (response.interactionId !== current.id || interactionBusy) return;
+    if (response.interactionId !== current.id || interactionSubmitInFlightRef.current) return;
+    interactionSubmitInFlightRef.current = true;
     setInteractionBusy(true);
     setInteractionError(null);
     try {
@@ -789,6 +791,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     } catch (error) {
       setInteractionError(error instanceof Error ? error.message : String(error));
     } finally {
+      interactionSubmitInFlightRef.current = false;
       setInteractionBusy(false);
     }
   };
@@ -815,6 +818,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           busy={interactionBusy && focused}
           error={focused ? interactionError : null}
           editing={editingInteractionId === interaction.id}
+          active={focused}
           onSubmit={(response) => handleInteractionSubmit(interaction, response)}
           onEdit={() => beginInteractionEdit(interaction)}
           onCancelEdit={() => setEditingInteractionId(null)}
