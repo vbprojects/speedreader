@@ -77,6 +77,7 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
       <Field label="Reading view" color={t.muted}>
         <select style={selectStyle} value={settings.viewMode} onChange={(e) => set({ viewMode: e.target.value as ReaderViewMode })}>
           <option style={optionStyle} value="rsvp">RSVP — single word</option>
+          <option style={optionStyle} value="context">Context — centered moving text</option>
           <option style={optionStyle} value="read-along">Read along — highlighted text</option>
         </select>
       </Field>

@@ -3,7 +3,7 @@
 // Per-reader settings override global ones for that reader instance.
 
 export type Theme = "light" | "dark" | "sepia" | "high-contrast";
-export type ReaderViewMode = "rsvp" | "read-along";
+export type ReaderViewMode = "rsvp" | "context" | "read-along";
 export type PacingAlgorithm =
   | "naive"
   | "bayesian"

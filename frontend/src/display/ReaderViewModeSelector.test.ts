@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReaderViewModeSelector } from "./ReaderViewModeSelector";
 
-test("view selector exposes two persistent toggle options", () => {
+test("view selector exposes all three persistent toggle options", () => {
   const html = renderToStaticMarkup(createElement(ReaderViewModeSelector, {
     value: "read-along",
     onChange: () => undefined,
@@ -12,5 +12,6 @@ test("view selector exposes two persistent toggle options", () => {
   match(html, /role="group"/);
   match(html, /aria-label="Reading view"/);
   match(html, />RSVP<\/button>/);
+  match(html, />Context<\/button>/);
   match(html, /aria-pressed="true"[^>]*>Read along<\/button>/);
 });
