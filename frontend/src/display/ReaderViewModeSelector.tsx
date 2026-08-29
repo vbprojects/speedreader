@@ -54,6 +54,7 @@ export function ReaderViewModeSelector({
       }}
     >
       {option("rsvp", "RSVP")}
+      {option("context", "Context")}
       {option("read-along", "Read along")}
     </div>
   );

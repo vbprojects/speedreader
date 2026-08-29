@@ -1,7 +1,7 @@
 // src/display/SpeedReader.tsx
-// Two reading presentations share one playback clock: RSVP shows exactly one
-// active word, while read-along keeps text in a stable flowing layout and
-// gently scrolls only when its highlight leaves a comfortable reading band.
+// Three reading presentations share one playback clock: RSVP shows exactly
+// one active word, Context moves surrounding text while pinning the active
+// word to center, and Read along keeps text in a stable flowing layout.
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
@@ -83,6 +83,10 @@ const DEFAULT_CONFIG: DisplayConfig = {
   wpm: 600,
 };
 
+/** Stable surrounding-text window used by the centered Context view. */
+const CONTEXT_CHUNK_SIZE = 400;
+/** Rebuild the Context window before the active word reaches an edge. */
+const CONTEXT_CHUNK_REFRESH_MARGIN = 100;
 /** Initial number of words rendered around the read-along position. */
 const READ_ALONG_BATCH_SIZE = 400;
 /** Distance from a scroll boundary before extending the read-along window. */
@@ -96,6 +100,9 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [viewMode, setViewMode] = useState<ReaderViewMode>(initialViewMode);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [contextChunkStart, setContextChunkStart] = useState(
+    Math.max(0, initialIndex - Math.floor(CONTEXT_CHUNK_SIZE / 2)),
+  );
   const [readAlongRange, setReadAlongRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const [controlsOpen, setControlsOpen] = useState(true);
   const [wordMenu, setWordMenu] = useState<WordContextMenuState | null>(null);
@@ -112,6 +119,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const streamRef = useRef(stream);
   const durationCountRef = useRef(0);
   streamRef.current = stream;
+  const contextViewportRef = useRef<HTMLDivElement | null>(null);
+  const contextCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const readAlongContainerRef = useRef<HTMLDivElement | null>(null);
   const readAlongCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const focusedInteractionRef = useRef<HTMLDivElement | null>(null);
@@ -206,6 +215,17 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   cfgRef.current = cfg;
 
   const persistedRecords = useMemo(() => new Map(interactionRecordsRef.current), [stream, frame, pendingInteraction, editingInteractionId, recordsVersion]);
+  const contextFlow = useMemo(
+    () => buildReaderFlowRange(
+      stream.words,
+      stream.interactions ?? [],
+      persistedRecords,
+      contextChunkStart,
+      Math.min(stream.words.length, contextChunkStart + CONTEXT_CHUNK_SIZE),
+      stream.presentations ?? [],
+    ),
+    [stream, contextChunkStart, persistedRecords],
+  );
   const readAlongFlow = useMemo(
     () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, readAlongRange.start, readAlongRange.end, stream.presentations ?? []),
     [stream, readAlongRange, persistedRecords]
@@ -221,6 +241,18 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     setViewMode(mode);
     onViewModeChange?.(mode);
   };
+
+  // Keep enough surrounding text on both sides of the centered Context word.
+  useEffect(() => {
+    if (viewMode !== "context" || !frame) return;
+    const relativeIndex = frame.index - contextChunkStart;
+    if (
+      relativeIndex < CONTEXT_CHUNK_REFRESH_MARGIN
+      || relativeIndex > CONTEXT_CHUNK_SIZE - CONTEXT_CHUNK_REFRESH_MARGIN
+    ) {
+      setContextChunkStart(Math.max(0, frame.index - Math.floor(CONTEXT_CHUNK_SIZE / 2)));
+    }
+  }, [viewMode, frame, contextChunkStart]);
 
   // Keep the highlighted word rendered after mode entry and large seeks.
   useEffect(() => {
@@ -326,6 +358,25 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     }
   }, [stream.words.length, pacing, running]);
 
+  const [contextOffset, setContextOffset] = useState({ x: 0, y: 0 });
+
+  // Context mode translates the full text window synchronously so the active
+  // word (or blocking action) remains at the exact visual center without a
+  // one-frame flash at its natural inline position.
+  useLayoutEffect(() => {
+    if (viewMode !== "context") return;
+    const viewport = contextViewportRef.current;
+    const target = pendingInteraction || editingInteractionId
+      ? focusedInteractionRef.current
+      : contextCurrentWordRef.current;
+    if (!viewport || !target) return;
+    const viewportRect = viewport.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const dx = viewportRect.left + viewportRect.width / 2 - (targetRect.left + targetRect.width / 2);
+    const dy = viewportRect.top + viewportRect.height / 2 - (targetRect.top + targetRect.height / 2);
+    setContextOffset((previous) => ({ x: previous.x + dx, y: previous.y + dy }));
+  }, [viewMode, frame, pendingInteraction, editingInteractionId, contextChunkStart]);
+
   const toggle = () => {
     const clock = clockRef.current!;
     if (clock.running) {
@@ -349,6 +400,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const previewIndex = (index: number) => {
     const clamped = Math.max(0, Math.min(index, stream.words.length - 1));
     const f = buildFrame(stream.words, clamped, cfg);
+    setContextChunkStart(Math.max(0, clamped - Math.floor(CONTEXT_CHUNK_SIZE / 2)));
     setFrame(f);
     setProgress(stream.words.length ? clamped / stream.words.length : 0);
   };
@@ -459,8 +511,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     };
   }, []);
 
-  // --- RSVP swipe scrubber and entry gesture ---
-  // - Horizontal swipes scrub only in RSVP mode.
+  // --- Centered-view swipe scrubber and read-along entry gesture ---
+  // - Horizontal swipes scrub in RSVP and Context modes.
   // - The first paused vertical swipe enters read-along near the current word;
   //   read-along then uses the browser's native vertical scrolling.
   const SWIPE_ACTIVATION_PX = 10;
@@ -963,6 +1015,84 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     ··· Scroll for more ···
                   </div>
                 )}
+              </div>
+            </div>
+          ) : viewMode === "context" ? (
+            /* Surrounding text moves while the active word remains centered. */
+            <div
+              ref={contextViewportRef}
+              onClick={onViewportClick}
+              onPointerDown={onSwipeStart}
+              onPointerMove={onSwipeMove}
+              onPointerUp={onSwipeEnd}
+              onPointerCancel={onSwipeCancel}
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                position: "relative",
+                boxSizing: "border-box",
+                cursor: "pointer",
+                touchAction: "none",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  transform: `translateX(${dragX}px)`,
+                  transition: dragging ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                  pointerEvents: "auto",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize,
+                    lineHeight: 1.8,
+                    margin: 0,
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    width: "70ch",
+                    maxWidth: "80%",
+                    transform: `translate(calc(-50% + ${contextOffset.x}px), calc(-50% + ${contextOffset.y}px))`,
+                    overflowWrap: "normal",
+                    wordBreak: "normal",
+                  }}
+                >
+                  {contextFlow.map((node) => {
+                    if (node.kind === "presentation") {
+                      // Context restores the old RSVP stream semantics, so
+                      // existing RSVP-targeted inert content remains visible.
+                      return <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="rsvp" />;
+                    }
+                    if (node.kind === "interaction") {
+                      return renderInlineInteraction(node.interaction, node.record);
+                    }
+                    return (
+                      <Fragment key={node.word.index}>
+                        <WordBreak word={node.word} />
+                        {node.word.index === frame.index ? (
+                          <span
+                            ref={contextCurrentWordRef}
+                            data-word-index={node.word.index}
+                            data-word-text={node.word.text}
+                            style={{
+                              color: themeStyle.highlightFg,
+                              background: themeStyle.highlight,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                            }}
+                          >
+                            {node.word.text}
+                          </span>
+                        ) : (
+                          <span style={{ color: themeStyle.muted }}>{node.word.text} </span>
+                        )}
+                        <WordBreak word={node.word} position="after" />
+                      </Fragment>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ) : (
