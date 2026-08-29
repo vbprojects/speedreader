@@ -8,7 +8,7 @@ import { validatePresentations } from "./validation";
 test("presentation validation accepts boundaries and rejects duplicates", () => {
   const nodes = validatePresentations([
     { schemaVersion: 1, id: "start", boundary: 0, kind: "html", html: "<p>Start</p>" },
-    { schemaVersion: 1, id: "end", boundary: 2, kind: "html", html: "<hr>" },
+    { schemaVersion: 1, id: "end", boundary: 2, kind: "html", html: "<hr>", renderIn: ["read-along"] },
   ], 2);
   equal(nodes.length, 2);
   throws(() => validatePresentations([

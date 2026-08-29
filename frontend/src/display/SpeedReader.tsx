@@ -1,11 +1,7 @@
 // src/display/SpeedReader.tsx
-// Reading-view display: a normal wrapped text block (like an epub reader)
-// where the current word is highlighted inline. As reading progresses, the
-// block auto-scrolls so the current word stays vertically centered.
-//
-// Design: DOM-only (no canvas/Pretext). The visible window of words renders
-// as a flowing paragraph; the current word gets a highlight pill; a scroll
-// effect keeps the highlighted word centered in the viewport.
+// Two reading presentations share one playback clock: RSVP shows exactly one
+// active word, while read-along keeps text in a stable flowing layout and
+// gently scrolls only when its highlight leaves a comfortable reading band.
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
@@ -18,7 +14,8 @@ import { themeTokens } from "../settings/themes";
 import { NavTreeView } from "../navigation";
 import { SelfCorrectingClock } from "./clock";
 import { buildFrame } from "./renderer";
-import { traditionalEntryScrollNudge } from "./traditional-gesture";
+import { readAlongEntryScrollNudge, readAlongScrollAdjustment } from "./read-along-scroll";
+import { ReaderViewModeSelector } from "./ReaderViewModeSelector";
 import type { DisplayConfig, DisplayFrame, ReaderViewMode } from "./types";
 import { WordContextMenu, type WordContextMenuState } from "./WordContextMenu";
 import { WordBreak } from "./WordBreak";
@@ -48,6 +45,10 @@ export interface SpeedReaderProps {
   fontFamily?: string;
   fontSize?: number;
   theme?: Theme;
+  /** Initial persisted reading presentation. */
+  initialViewMode?: ReaderViewMode;
+  /** Persist a reading presentation change. */
+  onViewModeChange?: (mode: ReaderViewMode) => void;
   /** Show the navigation tree sidebar. */
   showNav?: boolean;
   /** Max tree depth (undefined = all metadata levels). */
@@ -82,26 +83,20 @@ const DEFAULT_CONFIG: DisplayConfig = {
   wpm: 600,
 };
 
-/** Size of the stable text chunk rendered around the current word in RSVP mode. */
-const CHUNK_SIZE = 400;
-/** When the current word gets within this distance of a chunk edge, re-chunk in RSVP mode. */
-const CHUNK_REFRESH_MARGIN = 100;
+/** Initial number of words rendered around the read-along position. */
+const READ_ALONG_BATCH_SIZE = 400;
+/** Distance from a scroll boundary before extending the read-along window. */
+const READ_ALONG_SCROLL_THRESHOLD = 300;
 
-/** Initial number of words to render around current position in traditional infinite-scroll mode. */
-const TRADITIONAL_BATCH_SIZE = 400;
-/** Distance from top/bottom scroll boundary (in px) before loading more words. */
-const TRADITIONAL_SCROLL_THRESHOLD = 300;
-
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
   const [frame, setFrame] = useState<DisplayFrame | null>(null);
-  const [viewMode, setViewMode] = useState<ReaderViewMode>("rsvp");
+  const [viewMode, setViewMode] = useState<ReaderViewMode>(initialViewMode);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [chunkStart, setChunkStart] = useState(0);
-  const [traditionalRange, setTraditionalRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [readAlongRange, setReadAlongRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const [controlsOpen, setControlsOpen] = useState(true);
   const [wordMenu, setWordMenu] = useState<WordContextMenuState | null>(null);
   const [jumpDialogOpen, setJumpDialogOpen] = useState(false);
@@ -117,13 +112,11 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const streamRef = useRef(stream);
   const durationCountRef = useRef(0);
   streamRef.current = stream;
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const traditionalContainerRef = useRef<HTMLDivElement | null>(null);
-  const traditionalCurrentWordRef = useRef<HTMLSpanElement | null>(null);
-  const currentWordRef = useRef<HTMLSpanElement | null>(null);
+  const readAlongContainerRef = useRef<HTMLDivElement | null>(null);
+  const readAlongCurrentWordRef = useRef<HTMLSpanElement | null>(null);
   const focusedInteractionRef = useRef<HTMLDivElement | null>(null);
-  // A pending bounded scroll adjustment from the gesture that entered native reading.
-  const traditionalEntryNudgeRef = useRef<number | null>(null);
+  // A pending bounded scroll adjustment from the gesture that entered read-along.
+  const readAlongEntryNudgeRef = useRef<number | null>(null);
   const resolvedInteractionIdsRef = useRef(new Set(initialCompletedInteractionIds ?? []));
   const deliveredTriggerIdsRef = useRef(new Set(initialDeliveredTriggerIds));
   const interactionRecordsRef = useRef(new Map(initialInteractionRecords.map((record) => [record.interactionId, record])));
@@ -158,7 +151,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     onRunningChange?.(running);
   }, [running, onRunningChange]);
 
-  // Long-press detection on words in traditional view
+  // Long-press detection on words in read-along view.
   const wordLongPressRef = useRef<{
     timer: ReturnType<typeof setTimeout> | null;
     wordIndex: number | null;
@@ -212,38 +205,33 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const cfgRef = useRef(cfg);
   cfgRef.current = cfg;
 
-  // The stable chunk of words rendered around the current position in RSVP mode. Only
-  // re-chunks when the current word nears the chunk edge — between refreshes
-  // the text is static, so nothing reflows or shifts while reading.
   const persistedRecords = useMemo(() => new Map(interactionRecordsRef.current), [stream, frame, pendingInteraction, editingInteractionId, recordsVersion]);
-  const traditionalFlow = useMemo(
-    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, traditionalRange.start, traditionalRange.end, stream.presentations ?? []),
-    [stream, traditionalRange, persistedRecords]
+  const readAlongFlow = useMemo(
+    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, readAlongRange.start, readAlongRange.end, stream.presentations ?? []),
+    [stream, readAlongRange, persistedRecords]
   );
-  const rsvpFlow = useMemo(
-    () => buildReaderFlowRange(stream.words, stream.interactions ?? [], persistedRecords, chunkStart, Math.min(stream.words.length, chunkStart + CHUNK_SIZE), stream.presentations ?? []),
-    [stream, chunkStart, persistedRecords]
-  );
+  const editingInteraction = editingInteractionId
+    ? stream.interactions?.find((interaction) => interaction.id === editingInteractionId) ?? null
+    : null;
+  const singleWordInteraction = pendingInteraction ?? editingInteraction;
 
-  // Initialize or center traditional range when entering traditional mode or when frame index jumps
-  useEffect(() => {
-    if (viewMode === "traditional") {
-      const cur = frame?.index ?? initialIndex;
-      const start = Math.max(0, cur - Math.floor(TRADITIONAL_BATCH_SIZE / 2));
-      const end = Math.min(stream.words.length, start + TRADITIONAL_BATCH_SIZE);
-      setTraditionalRange({ start, end });
-    }
-  }, [viewMode, stream.words.length]);
+  useEffect(() => setViewMode(initialViewMode), [initialViewMode]);
 
-  // Re-chunk when the current word drifts near the chunk's edge.
+  const changeViewMode = (mode: ReaderViewMode) => {
+    setViewMode(mode);
+    onViewModeChange?.(mode);
+  };
+
+  // Keep the highlighted word rendered after mode entry and large seeks.
   useEffect(() => {
-    if (!frame) return;
-    const rel = frame.index - chunkStart;
-    if (rel < CHUNK_REFRESH_MARGIN || rel > CHUNK_SIZE - CHUNK_REFRESH_MARGIN) {
-      const nextStart = Math.max(0, frame.index - Math.floor(CHUNK_SIZE / 2));
-      setChunkStart(nextStart);
-    }
-  }, [frame, chunkStart]);
+    if (viewMode !== "read-along") return;
+    const currentIndex = frame?.index ?? initialIndex;
+    setReadAlongRange((previous) => {
+      if (currentIndex >= previous.start && currentIndex < previous.end) return previous;
+      const start = Math.max(0, currentIndex - Math.floor(READ_ALONG_BATCH_SIZE / 2));
+      return { start, end: Math.min(stream.words.length, start + READ_ALONG_BATCH_SIZE) };
+    });
+  }, [viewMode, frame?.index, initialIndex, stream.words.length]);
 
   // A boundary is a count of consumed words. Only unresolved interactions gate playback.
   const interactionAtBoundary = (boundary: number): ReaderInteraction | null =>
@@ -309,6 +297,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     setFrame(buildFrame(currentStream.words, prevIndex, cfgRef.current));
     const effectiveTotal = currentStream.meta.totalWordsExpected || currentStream.words.length;
     setProgress(effectiveTotal ? Math.min(1, prevIndex / effectiveTotal) : 0);
+    const interaction = interactionAtBoundary(prevIndex);
+    if (interaction) focusInteraction(interaction);
     if (shouldResume) {
       resumeAfterInteractionRef.current = true;
       clock.start(prevIndex);
@@ -336,36 +326,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     }
   }, [stream.words.length, pacing, running]);
 
-  // Pin the current word to the exact center of the viewport (both axes) by
-  // translating the whole text block. Unlike scrolling, this guarantees the
-  // word is at a FIXED point — the eye never has to move (true speedreader).
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-
-  // useLayoutEffect (not useEffect): it runs synchronously BEFORE paint, so the
-  // corrected offset is applied in the SAME frame as the new word's highlight.
-  // With useEffect, the browser would paint the highlight at the old position
-  // first (the "shadow" flash) before the text moved to center it.
-  useLayoutEffect(() => {
-    const viewport = scrollRef.current;
-    const target = pendingInteraction || editingInteractionId
-      ? focusedInteractionRef.current
-      : currentWordRef.current;
-    if (!viewport || !target) return;
-    const vr = viewport.getBoundingClientRect();
-    const tr = target.getBoundingClientRect();
-    // Active actions replace the word as the visual anchor. This is especially
-    // important on narrow screens, where their inline boundary can otherwise
-    // leave most of the controls outside the viewport.
-    const dx = vr.left + vr.width / 2 - (tr.left + tr.width / 2);
-    const dy = vr.top + vr.height / 2 - (tr.top + tr.height / 2);
-    setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-  }, [frame, pendingInteraction, editingInteractionId]);
-
   const toggle = () => {
-    // If we're in traditional mode, playing immediately returns to RSVP mode.
-    if (viewMode === "traditional") {
-      setViewMode("rsvp");
-    }
     const clock = clockRef.current!;
     if (clock.running) {
       resumeAfterInteractionRef.current = false;
@@ -384,17 +345,15 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     jumpTo(next);
   };
 
-  /** Update visible frame and chunk without stopping clock or persisting every frame. */
+  /** Update the visible frame without stopping the clock or persisting every preview. */
   const previewIndex = (index: number) => {
     const clamped = Math.max(0, Math.min(index, stream.words.length - 1));
     const f = buildFrame(stream.words, clamped, cfg);
-    const start = Math.max(0, clamped - Math.floor(CHUNK_SIZE / 2));
-    setChunkStart(start);
     setFrame(f);
     setProgress(stream.words.length ? clamped / stream.words.length : 0);
   };
 
-  /** Jump to an absolute index: update frame, chunk, clock, and notify coordinator. */
+  /** Jump to an absolute index: update frame, clock, and notify coordinator. */
   const jumpTo = (index: number) => {
     const clock = clockRef.current!;
     if (!clock) return;
@@ -417,42 +376,64 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     jumpTo(index);
   };
 
-  // The first vertical gesture centers the current word in traditional mode,
+  // The first vertical gesture centers the current word in read-along,
   // then applies only a small directional nudge. Once there, subsequent
   // gestures use ordinary native vertical scrolling.
   useLayoutEffect(() => {
-    if (viewMode !== "traditional" || traditionalEntryNudgeRef.current === null) return;
-    const word = traditionalCurrentWordRef.current;
-    const container = traditionalContainerRef.current;
+    if (viewMode !== "read-along" || readAlongEntryNudgeRef.current === null) return;
+    const word = readAlongCurrentWordRef.current;
+    const container = readAlongContainerRef.current;
     if (!word || !container) return;
 
     word.scrollIntoView({ block: "center", behavior: "auto" });
-    const nudge = traditionalEntryNudgeRef.current;
+    const nudge = readAlongEntryNudgeRef.current;
     requestAnimationFrame(() => {
       container.scrollBy({ top: nudge, behavior: "smooth" });
-      traditionalEntryNudgeRef.current = null;
+      readAlongEntryNudgeRef.current = null;
     });
-  }, [viewMode, traditionalRange]);
+  }, [viewMode, readAlongRange]);
 
-  // Handle infinite scroll in traditional view
-  const onTraditionalScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  // Scroll only after the highlight leaves a generous central band. This
+  // avoids constant per-word motion while keeping upcoming text in view.
+  useEffect(() => {
+    if (viewMode !== "read-along" || readAlongEntryNudgeRef.current !== null) return;
+    const container = readAlongContainerRef.current;
+    const target = pendingInteraction || editingInteractionId
+      ? focusedInteractionRef.current
+      : readAlongCurrentWordRef.current;
+    if (!container || !target) return;
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const top = readAlongScrollAdjustment(
+      containerRect.top,
+      containerRect.height,
+      targetRect.top,
+      targetRect.height,
+    );
+    if (Math.abs(top) < 1) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    container.scrollBy({ top, behavior: reducedMotion ? "auto" : "smooth" });
+  }, [viewMode, frame?.index, pendingInteraction, editingInteractionId, readAlongRange]);
+
+  // Extend the native read-along window as scrolling nears an edge.
+  const onReadAlongScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const { scrollTop, scrollHeight, clientHeight } = el;
 
     // Load more subsequent words when scrolling near the bottom
-    if (scrollHeight - (scrollTop + clientHeight) < TRADITIONAL_SCROLL_THRESHOLD) {
-      setTraditionalRange((prev) => {
+    if (scrollHeight - (scrollTop + clientHeight) < READ_ALONG_SCROLL_THRESHOLD) {
+      setReadAlongRange((prev) => {
         if (prev.end >= stream.words.length) return prev;
-        const nextEnd = Math.min(stream.words.length, prev.end + TRADITIONAL_BATCH_SIZE);
+        const nextEnd = Math.min(stream.words.length, prev.end + READ_ALONG_BATCH_SIZE);
         return { ...prev, end: nextEnd };
       });
     }
 
     // Load more previous words when scrolling near the top
-    if (scrollTop < TRADITIONAL_SCROLL_THRESHOLD) {
-      setTraditionalRange((prev) => {
+    if (scrollTop < READ_ALONG_SCROLL_THRESHOLD) {
+      setReadAlongRange((prev) => {
         if (prev.start <= 0) return prev;
-        const nextStart = Math.max(0, prev.start - TRADITIONAL_BATCH_SIZE);
+        const nextStart = Math.max(0, prev.start - READ_ALONG_BATCH_SIZE);
         if (nextStart === prev.start) return prev;
 
         // Preserve scroll position when prepending words above
@@ -480,8 +461,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
   // --- RSVP swipe scrubber and entry gesture ---
   // - Horizontal swipes scrub only in RSVP mode.
-  // - The first paused vertical swipe enters traditional reading near the
-  //   current word; traditional mode then uses the browser's native scrolling.
+  // - The first paused vertical swipe enters read-along near the current word;
+  //   read-along then uses the browser's native vertical scrolling.
   const SWIPE_ACTIVATION_PX = 10;
   const VERTICAL_MODE_SWIPE_PX = 36;
   const PX_PER_WORD = 16;
@@ -535,12 +516,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           // ignore if capture unsupported
         }
       } else if (Math.abs(dy) >= Math.abs(dx) * 1.2 && !running) {
-        // Vertical swipe detected while paused -> enter traditional e-reader mode near the current word
+        // A paused vertical swipe enters read-along near the current word.
         if (Math.abs(dy) >= VERTICAL_MODE_SWIPE_PX) {
           s.active = false;
           swipedRef.current = true;
-          traditionalEntryNudgeRef.current = traditionalEntryScrollNudge(dy);
-          setViewMode("traditional");
+          readAlongEntryNudgeRef.current = readAlongEntryScrollNudge(dy);
+          changeViewMode("read-along");
         }
         return;
       } else {
@@ -630,7 +611,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     }
   };
 
-  // --- Long-Press Context Menu on Traditional View Words ---
+  // --- Long-press context menu on read-along words ---
   const WORD_LONG_PRESS_MS = 400;
 
   const clearWordLongPress = () => {
@@ -767,7 +748,6 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         setPendingInteraction(null);
         const restartIndex = Math.min(current.boundary, Math.max(0, stream.words.length - 1));
         jumpTo(restartIndex);
-        setViewMode("rsvp");
         resumeAfterInteractionRef.current = true;
         const clock = clockRef.current;
         if (clock && !clock.running) {
@@ -880,15 +860,20 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
         {/* Reader viewport column */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
-          {viewMode === "traditional" ? (
-            /* Traditional e-reader scrollable view with infinite scrolling, tap-to-resume, and long-press word context menu */
+          {!running && (
+            <div style={{ display: "flex", justifyContent: "center", padding: "8px 12px", borderBottom: `1px solid ${themeStyle.border}`, background: themeStyle.bg, flexShrink: 0 }}>
+              <ReaderViewModeSelector value={viewMode} onChange={changeViewMode} theme={theme} />
+            </div>
+          )}
+          {viewMode === "read-along" ? (
+            /* Native flowing text with a stationary highlight and banded autoscroll. */
             <div
-              ref={traditionalContainerRef}
+              ref={readAlongContainerRef}
               className="glass-scroll"
               onClick={onViewportClick}
               onScroll={(e) => {
                 clearWordLongPress();
-                onTraditionalScroll(e);
+                onReadAlongScroll(e);
               }}
               onContextMenu={handleWordContextMenu}
               onPointerDown={handleWordPointerDown}
@@ -915,41 +900,6 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  maxWidth: "68ch",
-                  marginBottom: 20,
-                  paddingBottom: 10,
-                  borderBottom: `1px solid ${themeStyle.border}88`,
-                }}
-              >
-                <span style={{ fontSize: 13, color: themeStyle.muted }}>
-                  📖 Traditional View (Tap to play · Long-press word for options)
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setViewMode("rsvp");
-                  }}
-                  style={{
-                    background: `${themeStyle.panel}ee`,
-                    border: `1px solid ${themeStyle.border}`,
-                    color: themeStyle.fg,
-                    borderRadius: 8,
-                    padding: "4px 12px",
-                    fontSize: 12,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  ⚡ Return to RSVP
-                </button>
-              </div>
-
-              <div
-                style={{
                   width: "100%",
                   maxWidth: "68ch",
                   fontSize,
@@ -958,27 +908,26 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                   overflowWrap: "normal",
                 }}
               >
-                {traditionalRange.start > 0 && (
+                {readAlongRange.start > 0 && (
                   <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
                     ··· Scrolling to earlier text ···
                   </div>
                 )}
-                {traditionalFlow.map((node) => node.kind === "presentation" ? (
-                  <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="traditional" />
+                {readAlongFlow.map((node) => node.kind === "presentation" ? (
+                  <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="read-along" />
                 ) : node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
                   <Fragment key={node.word.index}>
                     <WordBreak word={node.word} />
                     <span>
                     <span
-                      ref={traditionalCurrentWordRef}
+                      ref={readAlongCurrentWordRef}
                       data-word-index={node.word.index}
                       data-word-text={node.word.text}
                       style={{
                         color: themeStyle.highlightFg,
                         background: themeStyle.highlight,
-                        padding: "2px 6px",
+                        padding: "1px 3px",
                         borderRadius: 4,
-                        fontWeight: 600,
                         display: "inline-block",
                       }}
                     >
@@ -998,8 +947,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                       style={{
                         color: themeStyle.fg,
                         display: "inline-block",
-                        borderRadius: 3,
-                        padding: "0 1px",
+                        borderRadius: 4,
+                        padding: "1px 3px",
                       }}
                     >
                       {node.word.text}
@@ -1009,7 +958,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                     <WordBreak word={node.word} position="after" />
                   </Fragment>
                 ))}
-                {traditionalRange.end < stream.words.length && (
+                {readAlongRange.end < stream.words.length && (
                   <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
                     ··· Scroll for more ···
                   </div>
@@ -1017,9 +966,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
               </div>
             </div>
           ) : (
-            /* RSVP centered reading viewport */
+            /* RSVP: exactly one word or blocking action at the reading point. */
             <div
-              ref={scrollRef}
               onClick={onViewportClick}
               onPointerDown={onSwipeStart}
               onPointerMove={onSwipeMove}
@@ -1034,10 +982,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                 touchAction: "none", // let us handle horizontal swipes
               }}
             >
-              {/* Drag wrapper: carries the swipe offset + settle transition.
-                  Kept separate from the <p> so the centering transform below has
-                  NO transition — otherwise the centering useLayoutEffect would
-                  measure mid-animation and the word would never settle centered. */}
+              {/* Drag resistance keeps horizontal scrubbing tactile without
+                  allowing the single word to leave the reading area. */}
               <div
                 style={{
                   position: "absolute",
@@ -1045,51 +991,36 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                   transform: `translateX(${dragX}px)`,
                   transition: dragging ? "none" : "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                   pointerEvents: "auto",
+                  display: "grid",
+                  placeItems: "center",
+                  padding: "clamp(16px, 5vw, 48px)",
+                  boxSizing: "border-box",
                 }}
               >
-                <div
-                  style={{
-                    fontSize,
-                    lineHeight: 1.8,
-                    margin: 0,
-                    position: "absolute",
-                    left: "50%",
-                    top: "50%",
-                    width: "70ch",
-                    maxWidth: "80%",
-                    transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-                    overflowWrap: "normal",
-                    wordBreak: "normal",
-                  }}
-                >
-                  {rsvpFlow.map((node) => {
-                    if (node.kind === "presentation") {
-                      return <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="rsvp" />;
-                    }
-                    if (node.kind === "interaction") return renderInlineInteraction(node.interaction, node.record);
-                    return (
-                      <Fragment key={node.word.index}>
-                        <WordBreak word={node.word} />
-                        {node.word.index === frame.index ? (
-                          <span
-                            ref={currentWordRef}
-                            style={{
-                              color: themeStyle.highlightFg,
-                              background: themeStyle.highlight,
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                            }}
-                          >
-                            {node.word.text}
-                          </span>
-                        ) : (
-                          <span style={{ color: themeStyle.muted }}>{node.word.text} </span>
-                        )}
-                        <WordBreak word={node.word} position="after" />
-                      </Fragment>
-                    );
-                  })}
-                </div>
+                {singleWordInteraction ? (
+                  <div style={{ width: "min(100%, 520px)" }}>
+                    {renderInlineInteraction(
+                      singleWordInteraction,
+                      persistedRecords.get(singleWordInteraction.id),
+                    )}
+                  </div>
+                ) : (
+                  <span
+                    data-word-index={frame.index}
+                    data-word-text={frame.current.text}
+                    style={{
+                      color: themeStyle.fg,
+                      fontFamily,
+                      fontSize: Math.max(fontSize, 40),
+                      fontWeight: 650,
+                      lineHeight: 1.2,
+                      textAlign: "center",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {frame.current.text}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -1366,7 +1297,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         </div>
       )}
 
-      {/* Traditional view word context menu */}
+      {/* Read-along word context menu */}
       <WordContextMenu
         state={wordMenu}
         onClose={() => setWordMenu(null)}
@@ -1375,7 +1306,6 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         }}
         onResumeFromHere={(idx) => {
           jumpTo(idx);
-          setViewMode("rsvp");
           const clock = clockRef.current;
           if (clock && !clock.running) {
             resumeAfterInteractionRef.current = true;

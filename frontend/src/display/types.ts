@@ -3,9 +3,10 @@
 // renderer that flashes the current word.
 
 import type { Word } from "../epub/types";
+import type { ReaderViewMode as SettingsReaderViewMode } from "../settings/types";
 
 /** Presentation mode for the reader view. */
-export type ReaderViewMode = "rsvp" | "traditional";
+export type ReaderViewMode = SettingsReaderViewMode;
 
 /** Display configuration. */
 export interface DisplayConfig {

@@ -125,6 +125,8 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           fontFamily={settings.fontFamily}
           fontSize={settings.fontSize}
           theme={settings.theme}
+          initialViewMode={settings.viewMode}
+          onViewModeChange={(viewMode) => onSettingsChange({ viewMode })}
           navCollapsed={navCollapsed}
           onToggleNav={() => setNavCollapsed((c) => !c)}
           initialIndex={initialIndex}

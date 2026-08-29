@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { SelfCorrectingClock } from "../src/display/clock.ts";
 import { buildFrame } from "../src/display/renderer.ts";
-import { MAX_TRADITIONAL_ENTRY_NUDGE_PX, traditionalEntryScrollNudge } from "../src/display/traditional-gesture.ts";
+import { MAX_READ_ALONG_ENTRY_NUDGE_PX, readAlongEntryScrollNudge } from "../src/display/read-along-scroll.ts";
 import type { Word } from "../src/epub/types.ts";
 
 function makeWords(n: number): Word[] {
@@ -58,13 +58,13 @@ async function main() {
   console.log("Resume keeps restored index:", restored.index === 3 ? "PASS" : `FAIL (${restored.index})`);
   restored.destroy();
 
-  // --- Native reader entry gesture ---
+  // --- Read-along entry gesture ---
   // The entry swipe only shifts the centered current word by a small amount;
   // after entry, native scrolling takes over without this cap.
-  assert.equal(traditionalEntryScrollNudge(-36), 12.6);
-  assert.equal(traditionalEntryScrollNudge(-1000), MAX_TRADITIONAL_ENTRY_NUDGE_PX);
-  assert.equal(traditionalEntryScrollNudge(1000), -MAX_TRADITIONAL_ENTRY_NUDGE_PX);
-  console.log("Traditional entry nudge bounds: PASS");
+  assert.equal(readAlongEntryScrollNudge(-36), 12.6);
+  assert.equal(readAlongEntryScrollNudge(-1000), MAX_READ_ALONG_ENTRY_NUDGE_PX);
+  assert.equal(readAlongEntryScrollNudge(1000), -MAX_READ_ALONG_ENTRY_NUDGE_PX);
+  console.log("Read-along entry nudge bounds: PASS");
 }
 
 main().catch((e) => {
