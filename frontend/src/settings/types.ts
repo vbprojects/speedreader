@@ -3,6 +3,7 @@
 // Per-reader settings override global ones for that reader instance.
 
 export type Theme = "light" | "dark" | "sepia" | "high-contrast";
+export type ReaderViewMode = "rsvp" | "read-along";
 export type PacingAlgorithm =
   | "naive"
   | "bayesian"
@@ -19,6 +20,8 @@ export interface GlobalSettings {
   fontSize: number;
   /** Default WPM. */
   wpm: number;
+  /** Default reader presentation. */
+  viewMode: ReaderViewMode;
   /** Sentence pause (ms). */
   sentencePauseMs: number;
   /** Paragraph pause (ms). */
@@ -42,6 +45,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   fontFamily: "system-ui",
   fontSize: 28,
   wpm: 600,
+  viewMode: "rsvp",
   sentencePauseMs: 150,
   paragraphPauseMs: 200,
   pacingModel: "naive",

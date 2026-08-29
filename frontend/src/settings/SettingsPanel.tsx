@@ -3,7 +3,7 @@
 // per-reader (local) settings. Calls onChange with partial updates.
 
 import { useState } from "react";
-import type { GlobalSettings, PacingAlgorithm, ReaderSettings, Theme } from "./types";
+import type { GlobalSettings, PacingAlgorithm, ReaderSettings, ReaderViewMode, Theme } from "./types";
 import { themeTokens } from "./themes";
 import { getLatestChangeLog } from "./changelog";
 
@@ -71,6 +71,13 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
           {FONTS.map((f) => (
             <option style={optionStyle} key={f} value={f}>{f.split(",")[0]}</option>
           ))}
+        </select>
+      </Field>
+
+      <Field label="Reading view" color={t.muted}>
+        <select style={selectStyle} value={settings.viewMode} onChange={(e) => set({ viewMode: e.target.value as ReaderViewMode })}>
+          <option style={optionStyle} value="rsvp">RSVP — single word</option>
+          <option style={optionStyle} value="read-along">Read along — highlighted text</option>
         </select>
       </Field>
 

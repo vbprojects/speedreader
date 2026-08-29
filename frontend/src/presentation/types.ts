@@ -1,4 +1,4 @@
-export type PresentationView = "rsvp" | "traditional";
+export type PresentationView = "rsvp" | "read-along" | "traditional";
 
 /** Inert display content attached to a consumed-word boundary. */
 export interface HtmlPresentation {

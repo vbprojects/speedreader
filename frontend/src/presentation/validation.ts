@@ -1,7 +1,7 @@
 import type { HtmlPresentation, PresentationView } from "./types";
 import { sanitizePresentationHtml } from "./sanitize";
 
-const VIEWS = new Set<PresentationView>(["rsvp", "traditional"]);
+const VIEWS = new Set<PresentationView>(["rsvp", "read-along", "traditional"]);
 
 /** Validate JSON-safe inert presentation descriptors at word boundaries. */
 export function validatePresentations(

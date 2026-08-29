@@ -1,6 +1,6 @@
 // src/display/WordContextMenu.tsx
-// Context menu shown on long-press (or right-click) on a word in traditional view.
-// Offers actions such as setting playback position, resuming RSVP from the word,
+// Context menu shown on long-press (or right-click) on a word in read-along view.
+// Offers actions such as setting playback position, resuming from the word,
 // or extensible actions (e.g., highlighting / selection / copying).
 
 import { useEffect, useRef } from "react";
@@ -153,7 +153,7 @@ export function WordContextMenu({
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
         <span>⚡</span>
-        <span>Jump & Resume RSVP</span>
+        <span>Jump & Resume</span>
       </button>
     </div>
   );

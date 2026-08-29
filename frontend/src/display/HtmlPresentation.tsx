@@ -9,7 +9,10 @@ export function HtmlPresentation({
   presentation: HtmlPresentationDescriptor;
   view: PresentationView;
 }) {
-  const visible = !presentation.renderIn || presentation.renderIn.includes(view);
+  // Cached streams created before read-along was named used "traditional".
+  const visible = !presentation.renderIn
+    || presentation.renderIn.includes(view)
+    || (view === "read-along" && presentation.renderIn.includes("traditional"));
   const html = useMemo(
     () => visible ? sanitizePresentationHtml(presentation.html) : "",
     [presentation.html, visible],
