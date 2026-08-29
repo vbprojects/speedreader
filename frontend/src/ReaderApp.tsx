@@ -129,7 +129,7 @@ export default function ReaderApp() {
     setError(null);
     setNotice(null);
     try {
-      const file = await pickFileBrowser(".epub,.pdf");
+      const file = await pickFileBrowser();
       if (!file) return;
       const result = await library.importFile(file);
       await refreshBooks();

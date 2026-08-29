@@ -134,8 +134,15 @@ export class LibraryStore {
   }
 
   /** Import a file: hash → ingest → metadata → persist. Dedupes by hash. */
-  async importFile(file: FileInfo): Promise<ImportResult> {
+  async importFile(file: FileInfo, parseHtml?: HtmlDocumentParser): Promise<ImportResult> {
     assertFileSize(file.data.byteLength);
+    if (
+      file.extension.toLowerCase() === "html"
+      || file.extension.toLowerCase() === "htm"
+      || file.mimeType?.toLowerCase() === "text/html"
+    ) {
+      return this.importSugarCubeSource(file, parseHtml);
+    }
     const id = await sha256(file.data);
 
     // Dedupe: identical bytes → reuse the existing book (no duplicate tile).

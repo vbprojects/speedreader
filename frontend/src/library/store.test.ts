@@ -160,7 +160,7 @@ test("regular imported books remain removable", async () => {
   equal(await db.getInteractiveSource(imported.id), null);
 });
 
-test("published SugarCube imports persist executable source separately and dedupe by bytes", async () => {
+test("the file import selector path persists published SugarCube source and dedupes by bytes", async () => {
   const db = new MemoryDb();
   const library = store(db);
   const html = `<!doctype html><html><head><script id="script-sugarcube"></script></head><body>
@@ -170,7 +170,7 @@ test("published SugarCube imports persist executable source separately and dedup
   const file = { name: "branching.html", extension: "html", mimeType: "text/html", data: encoded.buffer };
   const parseHtml = (source: string) => new JSDOM(source).window.document;
 
-  const imported = await library.importSugarCubeSource(file, parseHtml);
+  const imported = await library.importFile(file, parseHtml);
   equal(imported.existed, false);
   equal(imported.book.format, "sugarcube-2-runtime");
   equal(imported.book.title, "Branching Story");
@@ -181,7 +181,7 @@ test("published SugarCube imports persist executable source separately and dedup
   equal(source?.sourceHash, imported.book.id);
   equal(source?.story.formatVersion, "2.37.3");
 
-  const duplicate = await library.importSugarCubeSource(file, parseHtml);
+  const duplicate = await library.importFile(file, parseHtml);
   equal(duplicate.existed, true);
   equal((await library.getBooks()).filter((book) => book.id === imported.book.id).length, 1);
 });
