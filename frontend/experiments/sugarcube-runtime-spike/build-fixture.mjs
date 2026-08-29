@@ -5,14 +5,16 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const formatPath = process.argv[2];
+const sourcePath = process.argv[3] ? path.resolve(process.argv[3]) : path.join(here, "fixture.twee");
+const outputPath = process.argv[4] ? path.resolve(process.argv[4]) : path.join(here, "fixture-current.html");
 
 if (!formatPath) {
-  throw new Error("Usage: node build-fixture.mjs /path/to/sugarcube-2/format.js");
+  throw new Error("Usage: node build-fixture.mjs /path/to/sugarcube-2/format.js [source.twee] [output.html]");
 }
 
 const [formatScript, tweeSource] = await Promise.all([
   fs.readFile(formatPath, "utf8"),
-  fs.readFile(path.join(here, "fixture.twee"), "utf8"),
+  fs.readFile(sourcePath, "utf8"),
 ]);
 
 let storyFormat;
@@ -99,6 +101,5 @@ if (published.includes("{{STORY_DATA}}") || !published.includes("id=\"script-sug
   throw new Error("SugarCube template substitution failed");
 }
 
-const outputPath = path.join(here, "fixture-current.html");
 await fs.writeFile(outputPath, published.replace(/[ \t]+$/gm, ""));
 process.stdout.write(`Built ${outputPath} with SugarCube ${storyFormat.version}\n`);

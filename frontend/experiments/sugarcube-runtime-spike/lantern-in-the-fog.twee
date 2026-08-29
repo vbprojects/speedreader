@@ -1,0 +1,70 @@
+:: StoryTitle
+Lantern in the Fog
+
+:: StoryData
+{
+  "ifid": "F661FB62-CB12-4DD2-9E34-C9C0016200F8",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Start"
+}
+
+:: StoryStylesheet [stylesheet]
+body { background: #101725; color: #eef2ff; }
+.passage { max-width: 42rem; line-height: 1.6; }
+a, .link-internal, button { color: #fbbf24; }
+
+:: StoryInit
+<<set $name to "Traveler", $courage to 0, $keepsake to "nothing", $firefliesSeen to false>>
+
+:: Start
+The road disappears into a bank of silver fog.
+
+What should the story call you? Type a name, then press Enter to light the lantern.
+
+<<textbox "$name" "Traveler" "Crossroads" autofocus>>
+
+:: Crossroads
+The lantern wakes in $name's hand. Two paths emerge.
+
+[[Follow the fireflies->Grove][$courage += 1]]
+
+[[Enter the old tunnel->Tunnel][$courage += 2]]
+
+:: Grove
+Blue fireflies drift between the trees.
+
+<<linkappend "Watch them more closely">>
+  <<set $firefliesSeen to true>>
+  They arrange themselves into an arrow pointing home.
+<</linkappend>>
+
+<<linkreplace "Pick up the silver leaf">>
+  <<set $keepsake to "a silver leaf">>
+  The leaf is warm despite the cold fog.
+<</linkreplace>>
+
+[[Walk toward the distant bell->Ending]]
+
+:: Tunnel
+Water taps against the stones. A small chest rests beside the wall.
+
+<<linkreplace "Open the chest">>
+  <<set $keepsake to "a brass key">>
+  Inside is a brass key engraved with a tiny sunrise.
+<</linkreplace>>
+
+[[Climb the stair beyond the chest->Ending]]
+
+:: Ending
+The fog thins, and $name steps into morning.
+
+<<if $courage >= 2>>You chose the darker road and found courage there.<<else>>You trusted the lights and found a gentler way through.<</if>>
+
+<<if $keepsake isnot "nothing">>You carry $keepsake with you.<<else>>Your hands are empty, but the lantern is still burning.<</if>>
+
+<<if $firefliesSeen>>Far behind you, the fireflies complete their bright little map.<<endif>>
+
+''The End''
+
+[[Play again->Start][$name = "Traveler"; $courage = 0; $keepsake = "nothing"; $firefliesSeen = false]]
