@@ -13,3 +13,4 @@ export { PdfJsParser, PdfAdvancedLayoutError } from "./pdf";
 export * from "./pdf";
 export * from "./jetstream";
 export * from "./openai-compatible";
+export * from "./sugarcube";

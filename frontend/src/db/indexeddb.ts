@@ -1,17 +1,19 @@
 // src/db/indexeddb.ts
 // IndexedDB adapter for the `db` interface. Offline-first, origin-local.
-// Stores books, full word streams, and per-book reader state as structured
-// clones. Versioned schema with an upgrade path.
+// Stores books, full word streams, executable interactive sources, and
+// per-book reader state as structured clones. Versioned schema with an upgrade
+// path.
 
-import type { Book, CoverImage, Db, ReaderState, StoredStream } from "./types";
+import type { Book, CoverImage, Db, ReaderState, StoredInteractiveSource, StoredStream } from "./types";
 import { appendToWordStream } from "../ingestion/interactive";
 
 const DB_NAME = "speedreader";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORE_BOOKS = "books";
 const STORE_STREAMS = "streams";
 const STORE_STATES = "readerStates";
+const STORE_SOURCES = "interactiveSources";
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -26,6 +28,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_STATES)) {
         db.createObjectStore(STORE_STATES, { keyPath: "bookId" });
+      }
+      if (!db.objectStoreNames.contains(STORE_SOURCES)) {
+        db.createObjectStore(STORE_SOURCES, { keyPath: "bookId" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -99,6 +104,26 @@ export class IndexedDb implements Db {
     const db = await this.db();
     const tx = db.transaction(STORE_BOOKS, "readwrite");
     tx.objectStore(STORE_BOOKS).delete(id);
+    await txDone(tx);
+  }
+
+  async getInteractiveSource(bookId: string): Promise<StoredInteractiveSource | null> {
+    const db = await this.db();
+    const tx = db.transaction(STORE_SOURCES, "readonly");
+    return (await reqResult(tx.objectStore(STORE_SOURCES).get(bookId))) ?? null;
+  }
+
+  async saveInteractiveSource(source: StoredInteractiveSource): Promise<void> {
+    const db = await this.db();
+    const tx = db.transaction(STORE_SOURCES, "readwrite");
+    tx.objectStore(STORE_SOURCES).put(source);
+    await txDone(tx);
+  }
+
+  async deleteInteractiveSource(bookId: string): Promise<void> {
+    const db = await this.db();
+    const tx = db.transaction(STORE_SOURCES, "readwrite");
+    tx.objectStore(STORE_SOURCES).delete(bookId);
     await txDone(tx);
   }
 
@@ -192,6 +217,29 @@ export class IndexedDb implements Db {
     await txDone(tx);
   }
 
+  async patchReaderState(
+    bookId: string,
+    patch: Partial<Omit<ReaderState, "bookId">>,
+  ): Promise<ReaderState | null> {
+    const db = await this.db();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_STATES, "readwrite");
+      const store = tx.objectStore(STORE_STATES);
+      const request = store.get(bookId);
+      let updated: ReaderState | null = null;
+      request.onerror = () => reject(request.error ?? new Error("Failed to read reader state for patch"));
+      request.onsuccess = () => {
+        const existing = request.result as ReaderState | undefined;
+        if (!existing) return;
+        updated = { ...existing, ...patch, bookId };
+        store.put(updated);
+      };
+      tx.oncomplete = () => resolve(updated);
+      tx.onerror = () => reject(tx.error ?? new Error("Reader state patch transaction failed"));
+      tx.onabort = () => reject(tx.error ?? new Error("Reader state patch transaction aborted"));
+    });
+  }
+
   async deleteReaderState(bookId: string): Promise<void> {
     const db = await this.db();
     const tx = db.transaction(STORE_STATES, "readwrite");
@@ -201,10 +249,11 @@ export class IndexedDb implements Db {
 
   async deleteBookCascade(bookId: string): Promise<void> {
     const db = await this.db();
-    const tx = db.transaction([STORE_BOOKS, STORE_STREAMS, STORE_STATES], "readwrite");
+    const tx = db.transaction([STORE_BOOKS, STORE_STREAMS, STORE_STATES, STORE_SOURCES], "readwrite");
     tx.objectStore(STORE_BOOKS).delete(bookId);
     tx.objectStore(STORE_STREAMS).delete(bookId);
     tx.objectStore(STORE_STATES).delete(bookId);
+    tx.objectStore(STORE_SOURCES).delete(bookId);
     await txDone(tx);
   }
 }

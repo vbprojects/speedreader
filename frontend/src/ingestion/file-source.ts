@@ -25,7 +25,7 @@ export async function fileFromBrowserFile(file: File): Promise<FileInfo> {
 }
 
 /** Open a native file picker (browser fallback) and return a FileInfo. */
-export function pickFileBrowser(accept = ".epub,.pdf"): Promise<FileInfo | null> {
+export function pickFileBrowser(accept = ".epub,.pdf,.html,.htm"): Promise<FileInfo | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";

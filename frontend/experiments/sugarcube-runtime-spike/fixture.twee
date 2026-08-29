@@ -1,0 +1,111 @@
+:: StoryTitle
+Speedreader SugarCube Runtime Spike
+
+:: StoryData
+{
+  "ifid": "8DB7D882-19FD-4E26-B392-5AFAB8DB41FD",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Start"
+}
+
+:: StoryScript [script]
+window.spikeStoryScriptRan = true;
+window.__speedreaderSpikeEvents = window.__speedreaderSpikeEvents || [];
+window.__speedreaderSpikeErrors = window.__speedreaderSpikeErrors || [];
+if (!window.__speedreaderSugarCubeListenerInstalled) {
+  window.__speedreaderSugarCubeListenerInstalled = true;
+  const eventTypes = [":storyready", ":passageinit", ":passagestart", ":passagerender", ":passagedisplay", ":passageend", ":historyupdate", ":typingstart", ":typingcomplete"];
+  jQuery(document).on(eventTypes.join(" "), (event) => {
+    const detail = event.detail || {};
+    const passageObject = detail.passage || event.passage;
+    const passage = passageObject && (passageObject.name || passageObject.title);
+    window.__speedreaderSpikeEvents.push({ type: event.type, at: performance.now(), passage });
+  });
+}
+Macro.add("spikebadge", {
+  handler() {
+    const badge = document.createElement("strong");
+    badge.className = "spike-badge";
+    badge.textContent = `[custom macro: ${this.args[0] ?? "ready"}]`;
+    this.output.append(badge);
+  },
+});
+
+:: StoryStylesheet [stylesheet]
+.spike-badge { font-weight: bold; }
+.delayed { color: rebeccapurple; }
+
+:: StoryInit
+<<set $name to "Reader", $score to 0, $visits to 0, $agreed to false, $route to "north", $mood to "calm">>
+
+:: Widgets [widget]
+<<widget "spikewidget">>
+<span class="spike-widget">Widget says: <<= _args[0]>></span>
+<</widget>>
+
+:: Start
+<<set $visits += 1>>
+Welcome to the runtime spike. <<spikebadge "running">>
+
+This visit count is $visits. Choose a path.
+
+[[Take the forest path->Forest][$score += 2]]
+
+[[Take the river path->River][$score += 1]]
+
+:: Forest
+You entered the forest with a score of <<= $score>>.
+
+<<if $score >= 2>>The setter link ran before navigation.<<else>>The setter link did not run.<</if>>
+
+<<spikewidget "forest bridge active">>
+
+[[Open the controls->Controls]]
+
+:: River
+You followed the river with a score of <<= $score>>.
+
+<<if $score is 1>>The river condition evaluated correctly.<<else>>The river condition failed.<</if>>
+
+[[Open the controls->Controls]]
+
+:: Controls
+Enter a name: <<textbox "$name" "Reader">>
+
+Accept the expedition: <<checkbox "$agreed" false true>>
+
+Choose a route:
+<<radiobutton "$route" "north" checked>> North
+<<radiobutton "$route" "south">> South
+
+Choose a mood:
+<<listbox "$mood" autoselect>>
+  <<option "Calm" "calm">>
+  <<option "Curious" "curious">>
+  <<option "Bold" "bold">>
+<</listbox>>
+
+[[Continue to DOM mutations->Mutations]]
+
+:: Mutations
+Hello, $name. Agreement is <<= $agreed>>, route is <<= $route>>, and mood is <<= $mood>>.
+
+<<linkappend "Reveal appended prose">> Newly appended words appeared.<</linkappend>>
+
+<<linkreplace "Replace this control">> Replacement words appeared.<</linkreplace>>
+
+<<cycle "$mood" autoselect>>
+  <<option "Calm" "calm">>
+  <<option "Curious" "curious">>
+  <<option "Bold" "bold">>
+<</cycle>>
+
+<<timed 100ms>><span class="delayed">Delayed words appeared.</span><</timed>>
+
+[[Revisit the beginning->Start]]
+
+[[Finish the spike->End]]
+
+:: End
+The runtime spike reached its ending. Final score: <<= $score>>. Total Start visits: <<= $visits>>.
