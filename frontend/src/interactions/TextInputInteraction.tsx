@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 import type { TextInputInteraction as TextInputDescriptor, TextInputResponse } from "./types";
@@ -21,6 +21,7 @@ export function TextInputInteraction({
 }) {
   const [value, setValue] = useState(interaction.defaultValue ?? "");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const inputId = useId();
   useEffect(() => {
     setValue(interaction.defaultValue ?? "");
     setValidationError(null);
@@ -54,28 +55,54 @@ export function TextInputInteraction({
   return (
     <InteractionCard interaction={interaction} theme={theme} busy={busy} error={error ?? validationError} inline={inline}>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           if (!busy) void submit();
         }}
       >
+        <label
+          htmlFor={inputId}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        >
+          {interaction.label}
+        </label>
         <input
-          autoFocus
+          id={inputId}
+          name={interaction.id}
+          autoFocus={!inline}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            setValue(event.target.value);
+            if (validationError) setValidationError(null);
+          }}
           placeholder={interaction.placeholder}
           disabled={busy}
-          aria-label={interaction.label}
+          required={constraints?.required}
+          minLength={constraints?.minLength}
+          maxLength={constraints?.maxLength}
+          aria-invalid={Boolean(error ?? validationError) || undefined}
           style={{
             width: "100%",
             boxSizing: "border-box",
-            padding: "12px 14px",
-            borderRadius: 12,
+            minHeight: 44,
+            padding: "10px 12px",
+            borderRadius: 8,
             border: "1px solid " + t.border,
-            background: t.bg + "cc",
+            background: t.bg,
             color: t.fg,
             font: "inherit",
-            textAlign: "center",
+            textAlign: "left",
             outlineColor: t.highlight,
           }}
         />
@@ -85,9 +112,10 @@ export function TextInputInteraction({
           style={{
             marginTop: 14,
             width: "100%",
-            padding: "11px 14px",
+            minHeight: 44,
+            padding: "10px 14px",
             border: 0,
-            borderRadius: 12,
+            borderRadius: 8,
             background: t.highlight,
             color: t.highlightFg,
             font: "inherit",

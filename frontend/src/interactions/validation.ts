@@ -63,7 +63,7 @@ function validateChoiceOptions(value: unknown): ChoiceOption[] {
     throw new InteractionValidationError("single-choice interactions need at least one option");
   }
   const ids = new Set<string>();
-  return value.map((option, index) => {
+  const options = value.map((option, index) => {
     if (!isRecord(option)) {
       throw new InteractionValidationError("options[" + index + "] must be an object");
     }
@@ -76,6 +76,10 @@ function validateChoiceOptions(value: unknown): ChoiceOption[] {
     requireString(option.label, "options[" + index + "].label");
     return option as unknown as ChoiceOption;
   });
+  if (options.every((option) => option.disabled)) {
+    throw new InteractionValidationError("single-choice interactions need at least one enabled option");
+  }
+  return options;
 }
 
 export function validateInteraction(

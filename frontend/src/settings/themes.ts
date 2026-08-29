@@ -25,13 +25,17 @@ export interface ThemeTokens {
   active: string;
   /** Active row text color. */
   activeFg: string;
+  /** Destructive/error text color. */
+  danger: string;
+  /** Subtle error message background. */
+  dangerBg: string;
 }
 
 export const THEMES: Record<Theme, ThemeTokens> = {
   light: {
     bg: "#ffffff",
     fg: "#111111",
-    muted: "#888888",
+    muted: "#666666",
     highlight: "#2563eb",
     highlightFg: "#ffffff",
     panel: "#f7f7f7",
@@ -39,11 +43,13 @@ export const THEMES: Record<Theme, ThemeTokens> = {
     hover: "#e5e7eb",
     active: "#2563eb",
     activeFg: "#ffffff",
+    danger: "#b42318",
+    dangerBg: "#fef3f2",
   },
   dark: {
     bg: "#1e1e1e",
     fg: "#e0e0e0",
-    muted: "#777777",
+    muted: "#a3a3a3",
     highlight: "#3b82f6",
     highlightFg: "#ffffff",
     panel: "#2a2a2a",
@@ -51,11 +57,13 @@ export const THEMES: Record<Theme, ThemeTokens> = {
     hover: "#333333",
     active: "#3b82f6",
     activeFg: "#ffffff",
+    danger: "#fda29b",
+    dangerBg: "#3b1414",
   },
   sepia: {
     bg: "#f4ecd8",
     fg: "#5b4636",
-    muted: "#9c8b76",
+    muted: "#75624f",
     highlight: "#c0392b",
     highlightFg: "#ffffff",
     panel: "#efe6d0",
@@ -63,6 +71,8 @@ export const THEMES: Record<Theme, ThemeTokens> = {
     hover: "#e8dcc0",
     active: "#c0392b",
     activeFg: "#ffffff",
+    danger: "#9b2c2c",
+    dangerBg: "#f8e4d8",
   },
   "high-contrast": {
     bg: "#000000",
@@ -75,6 +85,8 @@ export const THEMES: Record<Theme, ThemeTokens> = {
     hover: "#222222",
     active: "#ffff00",
     activeFg: "#000000",
+    danger: "#ff8a8a",
+    dangerBg: "#220000",
   },
 };
 

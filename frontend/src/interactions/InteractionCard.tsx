@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 import type { ReaderInteraction } from "./types";
@@ -21,8 +21,9 @@ export function InteractionCard({
   inline = false,
 }: InteractionCardProps) {
   const t = themeTokens(theme);
-  const titleId = "interaction-title-" + interaction.id;
-  const descriptionId = "interaction-description-" + interaction.id;
+  const generatedId = useId();
+  const titleId = generatedId + "-title";
+  const descriptionId = generatedId + "-description";
   const title =
     interaction.kind === "text-input"
       ? interaction.label
@@ -36,24 +37,22 @@ export function InteractionCard({
       aria-modal={inline ? undefined : "true"}
       aria-labelledby={titleId}
       aria-describedby={interaction.prompt && interaction.kind !== "single-choice" ? descriptionId : undefined}
+      aria-busy={busy || undefined}
       style={{
         width: inline ? "min(100%, 480px)" : "min(calc(100vw - 32px), 520px)",
         maxWidth: "100%",
         boxSizing: "border-box",
         padding: "clamp(16px, 4vw, 24px)",
-        borderRadius: 20,
-        border: "1px solid " + t.border + "99",
-        background: t.panel + "ef",
+        borderRadius: 12,
+        border: "1px solid " + t.border,
+        background: t.panel,
         color: t.fg,
-        boxShadow: inline ? "0 10px 30px rgba(0, 0, 0, 0.14)" : "0 24px 80px rgba(0, 0, 0, 0.28)",
-        backdropFilter: "blur(22px) saturate(130%)",
-        WebkitBackdropFilter: "blur(22px) saturate(130%)",
-        opacity: busy ? 0.75 : 1,
+        boxShadow: inline ? "0 2px 8px rgba(0, 0, 0, 0.1)" : "0 16px 48px rgba(0, 0, 0, 0.24)",
         // Reader text size is intentionally large in RSVP mode. Controls need
         // their own stable scale so they remain usable on narrow screens.
         fontSize: 16,
         lineHeight: 1.4,
-        textAlign: "center",
+        textAlign: "left",
       }}
         data-interaction-id={interaction.id}
         data-interaction-inline={inline ? "true" : undefined}
@@ -67,7 +66,7 @@ export function InteractionCard({
         </p>
       )}
       {error && (
-        <p role="alert" style={{ margin: "0 0 12px", color: t.highlight, fontSize: 14 }}>
+        <p role="alert" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: 8, color: t.danger, background: t.dangerBg, fontSize: 14 }}>
           {error}
         </p>
       )}
