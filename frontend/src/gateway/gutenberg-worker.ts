@@ -136,13 +136,6 @@ function catalogTarget(url: URL): { accept: string; label: string } {
     }
     return { accept: "application/json", label: "IFDB" };
   }
-  if (url.origin === IFDB_ORIGIN && url.pathname === "/viewgame") {
-    if (!exactParameters(url, ["json", "id"]) || url.searchParams.get("json") !== ""
-      || !/^[a-z0-9]{8,32}$/u.test(url.searchParams.get("id") ?? "")) {
-      throw new GatewayError(400, "The IFDB game request is invalid.");
-    }
-    return { accept: "application/json", label: "IFDB" };
-  }
   throw new GatewayError(400, "Unsupported catalog URL.");
 }
 
@@ -218,7 +211,12 @@ export async function handleCatalogGateway(
     if (!acceptedTypes.has(contentType)) throw new GatewayError(502, `${policy.label} returned an unexpected content type.`);
     const body = await boundedCatalogBody(response);
     const headers = corsHeaders(origin);
-    headers.set("Cache-Control", "no-store");
+    headers.set(
+      "Cache-Control",
+      target.origin === IFDB_ORIGIN
+        ? "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400"
+        : "no-store",
+    );
     headers.set("Content-Length", String(body.byteLength));
     headers.set("Content-Type", contentType);
     headers.set("X-Content-Type-Options", "nosniff");

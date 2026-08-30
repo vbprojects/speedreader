@@ -215,51 +215,37 @@ const IFDB_SEARCH_JSON = JSON.stringify({
   ],
 });
 
-const IFDB_DETAIL_JSON = JSON.stringify({
-  bibliographic: { title: "Bogeyman", author: "Elizabeth Smyth", language: "en", firstpublished: "2018", description: "<p>A Twine story.</p>" },
-  ifdb: {
-    tuid: "ltwvgb2lubkx82yi",
-    pageversion: 4,
-    link: "https://ifdb.org/viewgame?id=ltwvgb2lubkx82yi",
-    tags: [{ name: "twine" }],
-    downloads: { links: [
-      { url: "https://ifarchive.org/if-archive/games/twine/bogeyman.html", title: "HTML release", isGame: true, format: "html" },
-      { url: "https://attacker.example/bogeyman.html", title: "Untrusted mirror", isGame: true, format: "html" },
-      { url: "https://ifarchive.org/if-archive/games/twine/bogeyman.zip", title: "ZIP release", isGame: true, format: "zip" },
-    ] },
-  },
-});
-
-test("Twine adapter searches IFDB and exposes only allowlisted direct HTML as a manual import", async () => {
+test("Twine adapter makes one cached IFDB search and routes acquisition through the listing page", async () => {
   const requests: Array<{ url: string; gateway: unknown }> = [];
   const host: ForeignLibraryHost = {
     async request(request) {
       requests.push({ url: request.url, gateway: request.gateway });
-      return foreignResponse(request.url.includes("/search?") ? IFDB_SEARCH_JSON : IFDB_DETAIL_JSON, request.url);
+      return foreignResponse(IFDB_SEARCH_JSON, request.url);
     },
   };
-  const parseHtml = (source: string) => new JSDOM(source).window.document as unknown as Document;
   const registry = new ForeignLibraryRegistry(() => host);
-  registry.register(new TwineForeignLibrary(parseHtml));
+  registry.register(new TwineForeignLibrary());
   const session = await registry.open(TWINE_LIBRARY_ID);
+  const featured = await session.browse!({ pageSize: 10 });
+  equal(featured.items[0].title, "Open Sorcery");
+  equal(requests.length, 0, "opening the featured shelf should not contact IFDB");
   const page = await session.search!({ query: "Bogeyman" });
   equal(page.items.length, 1);
   matchUrl(requests[0].url, "Bogeyman system:Twine");
   deepStrictEqual(requests[0].gateway, { route: "catalog" });
   const item = await session.resolve(page.items[0].ref);
-  equal(item.summary, "A Twine story.");
   equal(item.offers.length, 1);
   equal(item.offers[0].outputType, "html");
   const plan = await session.planImport(item.ref, item.offers[0].id);
   equal(plan.kind, "download");
   equal(plan.acquisition, "manual");
-  equal(plan.request.url, "https://ifarchive.org/if-archive/games/twine/bogeyman.html");
+  equal(plan.manualAction, "source-page");
+  equal(plan.request.url, "https://ifdb.org/viewgame?id=ltwvgb2lubkx82yi");
+  equal(manualForeignDownload(plan, registry)?.action, "source-page");
   equal(manualForeignDownload(plan, registry)?.fileName.endsWith(".html"), true);
   throws(() => registry.validatePlan({ ...plan, request: { url: "https://attacker.example/bogeyman.html" } }), /undeclared origin/);
-  const featured = await session.browse!({ pageSize: 10 });
-  equal(featured.items[0].title, "Bogeyman");
-  matchUrl(requests[2].url, "system:Twine");
-  equal(requests.length, 3, "resolved IFDB details should be cached for acquisition");
+  await session.search!({ query: "bogeyman", pageSize: 10 });
+  equal(requests.length, 1, "search, inspection, acquisition, and normalized repeated search should share one request");
 });
 
 function matchUrl(raw: string, searchFor: string): void {
@@ -377,6 +363,7 @@ test("manual download fallback is limited to safe gateway acquisition failures",
   };
   const fallback = manualForeignDownload(plan, registry, new ForeignLibraryError("network-unavailable", "offline"));
   equal(fallback?.url, "https://catalog.example/book.epub");
+  throws(() => registry.validatePlan({ ...plan, manualAction: "source-page" }), /require manual acquisition/);
   equal(manualForeignDownload(plan, registry, new Error("parser failed")), null);
   equal(manualForeignDownload({ ...plan, request: { ...plan.request, url: "https://attacker.example/book.epub" } }, registry, new ForeignLibraryError("network-unavailable", "offline")), null);
 });

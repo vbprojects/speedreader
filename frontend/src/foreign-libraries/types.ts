@@ -170,6 +170,8 @@ export interface ForeignDownloadPlan {
   kind: "download";
   /** `manual` opens the source in the browser and imports the file the user selects. */
   acquisition?: "host" | "manual";
+  /** How a manual acquisition URL should be presented. Defaults to a direct download. */
+  manualAction?: "download" | "source-page";
   request: ForeignRequest;
   file: {
     name: string;
