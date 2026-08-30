@@ -20,6 +20,17 @@ test("endpoint validation permits HTTPS and loopback HTTP only", () => {
   throws(() => normalizeOpenAIBaseUrl("file:///tmp/model"), /must use HTTPS/);
 });
 
+test("endpoint normalization accepts complete OpenRouter resource URLs", () => {
+  equal(
+    normalizeOpenAIBaseUrl("https://openrouter.ai/api/v1/chat/completions"),
+    "https://openrouter.ai/api/v1",
+  );
+  equal(
+    normalizeOpenAIBaseUrl("https://openrouter.ai/api/v1/models/"),
+    "https://openrouter.ai/api/v1",
+  );
+});
+
 test("session IDs use cryptographic bytes when randomUUID is unavailable", () => {
   const id = createSessionId({
     getRandomValues(array) {
@@ -63,6 +74,33 @@ test("client sends the user-provided key without putting it in the request body"
     .complete([{ role: "user", content: "Hello" }]);
   equal((request?.headers as Record<string, string>).Authorization, "Bearer user-key");
   equal(String(request?.body).includes("user-key"), false);
+});
+
+test("OpenRouter uses its configured default without catalog discovery", async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requests.push({ url: String(input), init });
+    return json({ choices: [{ message: { content: "Default route response" } }] });
+  };
+  const baseUrl = normalizeOpenAIBaseUrl("https://openrouter.ai/api/v1/chat/completions");
+  await new OpenAICompatibleClient({ baseUrl, apiKey: "user-key" }, fetchImpl)
+    .complete([{ role: "user", content: "Hello" }]);
+
+  equal(requests.length, 1);
+  equal(requests[0].url, "https://openrouter.ai/api/v1/chat/completions");
+  equal("model" in JSON.parse(String(requests[0].init?.body)), false);
+});
+
+test("client turns opaque fetch failures into actionable connection errors", async () => {
+  const failing: typeof fetch = async () => { throw new TypeError("Failed to fetch"); };
+  await rejects(
+    () => new OpenAICompatibleClient({
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "user-key",
+      model: "openai/gpt-5.2",
+    }, failing).complete([{ role: "user", content: "Hello" }]),
+    /Could not connect to https:\/\/openrouter\.ai.*browser CORS access.*Failed to fetch/,
+  );
 });
 
 test("client reports compatible endpoint errors without accepting empty responses", async () => {
