@@ -248,6 +248,23 @@ test("Twine adapter makes one cached IFDB search and routes acquisition through 
   equal(requests.length, 1, "search, inspection, acquisition, and normalized repeated search should share one request");
 });
 
+test("Twine search replaces transport failures with a page-first recovery message", async () => {
+  const registry = new ForeignLibraryRegistry(() => ({
+    async request() {
+      throw new ForeignLibraryError("network-unavailable", "Could not reach https://ifdb.org. (Load failed)", true);
+    },
+  }));
+  registry.register(new TwineForeignLibrary());
+  const session = await registry.open(TWINE_LIBRARY_ID);
+  await rejects(
+    session.search!({ query: "Bogeyman" }),
+    (error: unknown) => error instanceof ForeignLibraryError
+      && error.code === "network-unavailable"
+      && error.message === "Live IFDB search is unavailable. Use Visit source to search IFDB directly."
+      && error.retryable,
+  );
+});
+
 function matchUrl(raw: string, searchFor: string): void {
   equal(new URL(raw).searchParams.get("searchfor"), searchFor);
 }

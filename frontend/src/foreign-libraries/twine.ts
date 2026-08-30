@@ -18,6 +18,12 @@ import {
 const IFDB_ORIGIN = "https://ifdb.org";
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
 const SEARCH_CACHE_LIMIT = 24;
+const IFDB_AVAILABILITY_ERRORS = new Set([
+  "network-unavailable",
+  "cors-blocked",
+  "rate-limited",
+  "acquisition-failed",
+]);
 
 export const TWINE_LIBRARY_ID = "org.ifdb.twine";
 
@@ -197,7 +203,19 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
       async search(request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> {
         const query = request.query.trim();
         if (!query) throw new ForeignLibraryError("invalid-request", "Enter a Twine title or author to search IFDB.");
-        return pageForSearch(`${query} system:Twine`, request.pageSize ?? 25, request.signal);
+        try {
+          return await pageForSearch(`${query} system:Twine`, request.pageSize ?? 25, request.signal);
+        } catch (error) {
+          if (error instanceof ForeignLibraryError && IFDB_AVAILABILITY_ERRORS.has(error.code)) {
+            throw new ForeignLibraryError(
+              error.code,
+              "Live IFDB search is unavailable. Use Visit source to search IFDB directly.",
+              error.retryable,
+              error.retryAfterMs,
+            );
+          }
+          throw error;
+        }
       },
       async browse(request: ForeignBrowseRequest): Promise<ForeignPage<ForeignItem>> {
         return { items: FEATURED_TWINE_GAMES.slice(0, Math.min(request.pageSize ?? 24, FEATURED_TWINE_GAMES.length)).map(featuredItem) };
