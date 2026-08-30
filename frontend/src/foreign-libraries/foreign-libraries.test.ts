@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import { ForeignImportCoordinator } from "./coordinator";
 import { GUTENBERG_LIBRARY_ID, GutenbergForeignLibrary } from "./gutenberg";
 import { ForeignLibraryRegistry } from "./registry";
+import { filterForeignLibraries, foreignOutputFilters } from "./browser";
 import { ConstrainedForeignLibraryHost } from "./transport";
 import { manualForeignDownload } from "./manual-download";
 import {
@@ -23,6 +24,13 @@ const TEST_MANIFEST: ForeignLibraryManifest = {
   name: "Test Library",
   description: "A test Foreign Library.",
   capabilities: ["catalog.search", "item.resolve", "item.acquire"],
+  outputs: [{
+    type: "epub",
+    label: "EPUB",
+    delivery: ["download"],
+    mediaTypes: ["application/epub+zip"],
+    extensions: ["epub"],
+  }],
   permissions: { networkOrigins: ["https://catalog.example"], maxResponseBytes: 32 },
 };
 
@@ -36,6 +44,41 @@ test("manifest validation requires namespaced IDs, exact HTTPS origins, and matc
   rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, id: "invalid" }), /namespaced/);
   rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, permissions: { networkOrigins: ["https://catalog.example/path"] } }), /exact HTTPS origins/);
   rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, apiVersion: "future" as typeof FOREIGN_LIBRARY_API }), /Unsupported/);
+});
+
+test("manifest validation requires unique, usable output declarations", () => {
+  equal(validateForeignManifest(TEST_MANIFEST).outputs[0].type, "epub");
+  rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, outputs: [] }), /output declarations/);
+  rejects(async () => validateForeignManifest({
+    ...TEST_MANIFEST,
+    outputs: [...TEST_MANIFEST.outputs, { ...TEST_MANIFEST.outputs[0] }],
+  }), /output types must be unique/);
+  rejects(async () => validateForeignManifest({
+    ...TEST_MANIFEST,
+    outputs: [{ type: "x-unsafe/type", label: "Unsafe", delivery: ["download"] }],
+  }), /output type is invalid/);
+});
+
+test("library browser exposes built-in output filters and filters manifest lists", () => {
+  const htmlManifest: ForeignLibraryManifest = {
+    ...TEST_MANIFEST,
+    id: "test.example.html",
+    name: "HTML Library",
+    outputs: [{ type: "html", label: "HTML", delivery: ["download"], mediaTypes: ["text/html"], extensions: ["html"] }],
+  };
+  const customManifest: ForeignLibraryManifest = {
+    ...TEST_MANIFEST,
+    id: "test.example.custom",
+    name: "Markdown Library",
+    outputs: [{ type: "x-markdown", label: "Markdown", delivery: ["download"], mediaTypes: ["text/markdown"], extensions: ["md"] }],
+  };
+  const manifests = [TEST_MANIFEST, htmlManifest, customManifest];
+  deepStrictEqual(foreignOutputFilters(manifests).map((filter) => filter.label), [
+    "EPUB", "HTML", "PDF", "JSON response", "SugarCube", "Markdown",
+  ]);
+  deepStrictEqual(filterForeignLibraries(manifests, "html").map((manifest) => manifest.id), [htmlManifest.id]);
+  deepStrictEqual(filterForeignLibraries(manifests, "pdf"), []);
+  equal(filterForeignLibraries(manifests, "all").length, 3);
 });
 
 test("constrained transport denies undeclared origins, forbidden headers, and oversized bodies", async () => {
@@ -147,6 +190,7 @@ test("Gutenberg plugin searches OPDS, resolves editions, and plans the preferred
   equal(item.language, "en");
   deepStrictEqual(item.subjects, ["Love stories"]);
   equal(item.offers[0].label, "EPUB3 with images");
+  equal(item.offers[0].outputType, "epub");
   const plan = await session.planImport(item.ref, "epub-preferred");
   equal(plan.kind, "download");
   equal(plan.request.url, "https://www.gutenberg.org/ebooks/1342.epub3.images");
@@ -201,6 +245,28 @@ test("registry validates plugin capabilities and coordinator returns parser-read
   equal(acquired.file.name, "fixture.epub");
   equal(acquired.provenance.itemId, "book-1");
   equal(typeof acquired.provenance.acquiredAt, "string");
+});
+
+test("registry rejects offers outside a plugin's declared outputs", async () => {
+  const registry = new ForeignLibraryRegistry(() => ({ request: async (request) => foreignResponse("unused", request.url) }));
+  registry.register({
+    manifest: TEST_MANIFEST,
+    async open() {
+      return {
+        search: async () => ({ items: [] }),
+        resolve: async (ref) => ({
+          ref,
+          kind: "book",
+          title: "Undeclared PDF",
+          offers: [{ id: "pdf", label: "PDF", outputType: "pdf", importKind: "download" }],
+        }),
+        planImport: async () => { throw new Error("unused"); },
+        dispose: () => undefined,
+      };
+    },
+  });
+  const session = await registry.open(TEST_MANIFEST.id);
+  await rejects(() => session.resolve({ libraryId: TEST_MANIFEST.id, itemId: "fixture" }), /undeclared output type/);
 });
 
 test("coordinator rejects a download that does not match the plugin checksum", async () => {

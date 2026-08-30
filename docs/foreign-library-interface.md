@@ -1,4 +1,4 @@
-# Foreign Library Interface v1
+# Foreign Library Interface v2
 
 Foreign Libraries let Speedreader discover and acquire content from external catalogs and services. A library describes remote items and returns an import plan; it does not parse books, construct `WordStream` objects, access application storage, or receive raw credential values.
 
@@ -6,10 +6,14 @@ The normative TypeScript contract is [`frontend/src/foreign-libraries/types.ts`]
 
 ## Compatibility and packaging
 
-- Every manifest uses the exact API identifier `speedreader.foreign-library/v1`.
+- Every manifest uses the exact API identifier `speedreader.foreign-library/v2`.
 - Breaking contract changes require a new API identifier. Compatible plugin changes increment the manifest's semantic `version`.
-- v1 plugins are trusted modules bundled with Speedreader and registered at startup.
+- v2 plugins are trusted modules bundled with Speedreader and registered at startup.
 - Inputs and outputs are deliberately serializable, apart from `AbortSignal`, so a later API can execute third-party plugins in workers without changing catalog or import semantics.
+
+### Migrating from v1
+
+Version 2 adds required manifest `outputs` and required offer `outputType` fields so the application can describe and filter a library before opening plugin code. A v1 adapter migrates by declaring each format it can produce and assigning every offer to one declaration; session and import-plan behavior is otherwise unchanged.
 
 ## Manifest
 
@@ -22,12 +26,15 @@ Each plugin exposes one immutable `ForeignLibraryManifest` and an asynchronous `
 | `version` | Semantic plugin implementation version |
 | `name`, `description`, `homepage` | User-facing source information |
 | `capabilities` | Operations the opened session actually implements |
+| `outputs` | Stable output types, labels, delivery modes, MIME types, and extensions |
 | `permissions.networkOrigins` | Exact HTTPS origins the host may contact |
 | `permissions.credentials` | Named credential slots; never credential values |
 | `permissions.rateLimit` | Host-enforced concurrency/spacing ceiling |
 | `permissions.maxResponseBytes` | Per-response ceiling, also capped by ingestion limits |
 
-Supported v1 capabilities are `catalog.search`, `catalog.browse`, `item.resolve`, and `item.acquire`. Every plugin must resolve and acquire items; search and browse are optional but must match the methods exposed by its session.
+Supported v2 capabilities are `catalog.search`, `catalog.browse`, `item.resolve`, and `item.acquire`. Every plugin must resolve and acquire items; search and browse are optional but must match the methods exposed by its session.
+
+Every plugin declares at least one output. Built-in filter types are `epub`, `html`, `pdf`, `json`, and `sugarcube`; future formats use a namespaced `x-*` identifier. `delivery` declares whether an output is downloaded, interactive, or both. Optional `mediaTypes` and `extensions` constrain the offers a plugin may return. These declarations populate the library browser before plugin code is opened, so users can filter sources without granting network or credential access.
 
 ## Session lifecycle
 
@@ -47,12 +54,13 @@ An item has a stable `(libraryId, itemId, revision?)` reference, a content kind,
 
 | Offer field | Meaning |
 |---|---|
+| `outputType` | One output type declared by the plugin manifest |
 | `importKind` | `download` for bytes or `interactive` for an existing interactive format |
 | `mediaType`, `extension`, `byteLength` | Format hints shown before import |
 | `priority` | Plugin preference; lower values are preferred |
 | `risk` | `ordinary-content`, `remote-service`, or `executable-content` disclosure |
 
-All returned item metadata must be JSON-safe and bounded. The registry rejects duplicate offer IDs, invalid references, unsupported kinds, non-JSON data, and output attributed to another plugin.
+All returned item metadata must be JSON-safe and bounded. The registry rejects duplicate offer IDs, invalid references, unsupported kinds, non-JSON data, output attributed to another plugin, and offers whose output type, delivery mode, MIME type, or extension exceeds the manifest declaration.
 
 ## Import plans
 
@@ -68,7 +76,7 @@ A `ForeignInteractivePlan` names an interactive format already registered with `
 
 Interactive plans never contain secrets. The host resolves credential slots at request time, and persisted books, reader state, streams, logs, and tests contain only public configuration and slot references. Multiple interactive imports use local instance IDs even when they refer to the same provider item.
 
-Interactive plan execution is specified by v1 but is not enabled by the first implementation slice.
+Interactive plan execution is specified by v2 but is not enabled by the first implementation slice.
 
 ## Host security requirements
 
@@ -84,6 +92,6 @@ Plugins must treat remote responses as untrusted. The registry validates plugin 
 
 ## Bundled adapters
 
-The first adapter, `org.gutenberg.catalog`, searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. Its final EPUB acquisition may use the allowlisted Cloudflare Worker in `gateway/`; search and resolution remain direct. If the gateway is absent or unavailable, the selector offers a manual browser download followed by a constrained file picker while retaining provenance. The generic selector is source-agnostic; additional adapters register with the same registry rather than adding source-specific UI.
+The first adapter, `org.gutenberg.catalog`, searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. Its final EPUB acquisition may use the allowlisted Cloudflare Worker in `gateway/`; search and resolution remain direct. If the gateway is absent or unavailable, the selector offers a manual browser download followed by a constrained file picker while retaining provenance. The generic selector presents registered sources as a list and filters them from manifest output declarations; additional adapters register with the same registry rather than adding source-specific UI.
 
 An arXiv adapter is intentionally deferred until a first-party web gateway exists for its API and PDF downloads. Model-provider adapters will use interactive plans and the host credential-slot mechanism rather than embedding endpoint logic or keys in books.

@@ -1,4 +1,4 @@
-export const FOREIGN_LIBRARY_API = "speedreader.foreign-library/v1" as const;
+export const FOREIGN_LIBRARY_API = "speedreader.foreign-library/v2" as const;
 
 export type Json =
   | null
@@ -13,6 +13,24 @@ export type ForeignCapability =
   | "catalog.browse"
   | "item.resolve"
   | "item.acquire";
+
+export type ForeignOutputType =
+  | "epub"
+  | "html"
+  | "pdf"
+  | "json"
+  | "sugarcube"
+  | `x-${string}`;
+
+export interface ForeignLibraryOutput {
+  /** Stable machine-readable type used by the library browser's filters. */
+  type: ForeignOutputType;
+  /** Short user-facing name, such as “JSON response”. */
+  label: string;
+  delivery: Array<"download" | "interactive">;
+  mediaTypes?: string[];
+  extensions?: string[];
+}
 
 export interface ForeignCredentialSlot {
   id: string;
@@ -30,6 +48,7 @@ export interface ForeignLibraryManifest {
   description: string;
   homepage?: string;
   capabilities: ForeignCapability[];
+  outputs: ForeignLibraryOutput[];
   permissions: {
     networkOrigins: string[];
     credentials?: ForeignCredentialSlot[];
@@ -58,6 +77,7 @@ export interface ForeignLicense {
 export interface ForeignOffer {
   id: string;
   label: string;
+  outputType: ForeignOutputType;
   importKind: "download" | "interactive";
   mediaType?: string;
   extension?: string;

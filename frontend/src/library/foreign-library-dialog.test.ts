@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ForeignLibraryRegistry, GutenbergForeignLibrary } from "../foreign-libraries";
 import { ForeignLibraryDialog } from "./ForeignLibraryDialog";
 
-test("foreign library selector renders an accessible generic catalog dialog", () => {
+test("foreign library selector renders an accessible output-filtered source list", () => {
   const registry = new ForeignLibraryRegistry(() => ({ request: async () => { throw new Error("unused"); } }));
   registry.register(new GutenbergForeignLibrary());
   const html = renderToStaticMarkup(createElement(ForeignLibraryDialog, {
@@ -18,6 +18,13 @@ test("foreign library selector renders an accessible generic catalog dialog", ()
   match(html, /role="dialog"/);
   match(html, /aria-modal="true"/);
   match(html, /Find external content/);
-  match(html, /Search Project Gutenberg/);
-  match(html, /Title or author/);
+  match(html, /Filter libraries by output type/);
+  match(html, /Foreign libraries/);
+  match(html, /Project Gutenberg/);
+  match(html, />EPUB</);
+  match(html, />HTML</);
+  match(html, />PDF</);
+  match(html, />JSON response</);
+  match(html, />SugarCube</);
+  match(html, /1 library/);
 });

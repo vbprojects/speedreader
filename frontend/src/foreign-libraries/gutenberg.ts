@@ -95,6 +95,13 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
     description: "Search and import public-domain EPUB books through Project Gutenberg's OPDS catalog.",
     homepage: GUTENBERG_ORIGIN,
     capabilities: ["catalog.search", "item.resolve", "item.acquire"],
+    outputs: [{
+      type: "epub",
+      label: "EPUB",
+      delivery: ["download"],
+      mediaTypes: ["application/epub+zip"],
+      extensions: ["epub"],
+    }],
     permissions: {
       networkOrigins: [GUTENBERG_ORIGIN],
       rateLimit: { maxConcurrent: 1, minIntervalMs: 250 },
@@ -148,6 +155,7 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
               offer: {
                 id,
                 label,
+                outputType: "epub",
                 importKind: "download",
                 mediaType: "application/epub+zip",
                 extension: "epub",
@@ -202,7 +210,7 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
           ...(author ? { authors: [author] } : {}),
           canonicalUrl: `${GUTENBERG_ORIGIN}/ebooks/${itemId}`,
           license: { name: "Project Gutenberg License", url: `${GUTENBERG_ORIGIN}/policy/license.html` },
-          offers: [{ id: "epub-preferred", label: "Preferred EPUB", importKind: "download", mediaType: "application/epub+zip", extension: "epub", risk: "ordinary-content" }],
+          offers: [{ id: "epub-preferred", label: "Preferred EPUB", outputType: "epub", importKind: "download", mediaType: "application/epub+zip", extension: "epub", risk: "ordinary-content" }],
         };
         cachedItems.set(itemId, item);
         return item;
