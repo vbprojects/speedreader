@@ -140,19 +140,19 @@ export function LlmConnectionDialog({
       >
         <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Connect LLM Chat</h2>
         <p style={{ margin: "0 0 18px", color: t.muted, fontSize: 14, lineHeight: 1.5 }}>
-          Enter an OpenAI-compatible endpoint and key. The endpoint must allow browser CORS.
+          Enter an OpenAI-compatible endpoint and key. You can paste either a base URL or the full <code>/chat/completions</code> URL. The endpoint must allow browser CORS.
           {saved ? " Unlock the encrypted key saved on this device, or enter a replacement key." : " The key stays in memory unless you opt into encrypted storage."}
         </p>
         <label style={{ display: "grid", gap: 6, marginBottom: 14, fontSize: 13 }}>
           Endpoint
-          <input autoFocus type="url" inputMode="url" placeholder="https://provider.example/v1" value={baseUrl} disabled={busy || loadingVault} onChange={(event) => setBaseUrl(event.target.value)} style={inputStyle} />
+          <input autoFocus type="url" inputMode="url" placeholder="https://openrouter.ai/api/v1" value={baseUrl} disabled={busy || loadingVault} onChange={(event) => setBaseUrl(event.target.value)} style={inputStyle} />
         </label>
         <label style={{ display: "grid", gap: 6, marginBottom: 14, fontSize: 13 }}>
           API key {saved && <span style={{ color: t.muted }}>(leave blank to use the saved key)</span>}
           <input type="password" autoComplete="new-password" placeholder={saved ? "Saved encrypted key" : "API key"} value={apiKey} disabled={busy || loadingVault} onChange={(event) => setApiKey(event.target.value)} style={inputStyle} />
         </label>
         <label style={{ display: "grid", gap: 6, marginBottom: 14, fontSize: 13 }}>
-          Model <span style={{ color: t.muted }}>(optional; discovered from /models)</span>
+          Model <span style={{ color: t.muted }}>(optional; OpenRouter uses your default, others use /models)</span>
           <input placeholder="Model ID" value={model} disabled={busy || loadingVault} onChange={(event) => setModel(event.target.value)} style={inputStyle} />
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12, fontSize: 13 }}>
