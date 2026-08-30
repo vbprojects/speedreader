@@ -8,3 +8,4 @@ export * from "./manual-download";
 export * from "./browser";
 export * from "./twine";
 export * from "./arxiv";
+export * from "./openrouter";

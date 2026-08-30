@@ -38,6 +38,8 @@ export interface Book {
   ingestionWarnings?: string[];
   /** External catalog provenance, stored separately from content identity. */
   foreignSource?: ForeignProvenance;
+  /** Non-secret configuration for an imported interactive source. */
+  interactiveConfig?: Record<string, unknown>;
   /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
   formatState?: Record<string, unknown>;
   /** True for content bundled by the application rather than imported by the user. */

@@ -2,7 +2,7 @@ import { match } from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ArxivForeignLibrary, ForeignLibraryRegistry, GutenbergForeignLibrary, TwineForeignLibrary } from "../foreign-libraries";
+import { ArxivForeignLibrary, ForeignLibraryRegistry, GutenbergForeignLibrary, OpenRouterForeignLibrary, TwineForeignLibrary } from "../foreign-libraries";
 import { ForeignLibraryDialog } from "./ForeignLibraryDialog";
 
 test("foreign library selector renders an accessible output-filtered source list", () => {
@@ -10,6 +10,7 @@ test("foreign library selector renders an accessible output-filtered source list
   registry.register(new GutenbergForeignLibrary());
   registry.register(new TwineForeignLibrary());
   registry.register(new ArxivForeignLibrary());
+  registry.register(new OpenRouterForeignLibrary());
   const html = renderToStaticMarkup(createElement(ForeignLibraryDialog, {
     open: true,
     theme: "light",
@@ -25,10 +26,12 @@ test("foreign library selector renders an accessible output-filtered source list
   match(html, /Project Gutenberg/);
   match(html, /Twine on IFDB/);
   match(html, /arXiv/);
+  match(html, /OpenRouter Models/);
   match(html, />EPUB</);
   match(html, />HTML</);
   match(html, />PDF</);
   match(html, />JSON response</);
   match(html, />SugarCube</);
-  match(html, /3 libraries/);
+  match(html, />LLM model</);
+  match(html, /4 libraries/);
 });

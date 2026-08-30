@@ -3,6 +3,7 @@ import {
   FOREIGN_LIBRARY_API,
   ForeignLibraryError,
   type ForeignDownloadPlan,
+  type ForeignBrowseRequest,
   type ForeignItem,
   type ForeignItemRef,
   type ForeignLibraryHost,
@@ -82,7 +83,7 @@ export class ArxivForeignLibrary implements ForeignLibraryPlugin {
     name: "arXiv",
     description: "Search research e-prints and import PDFs for personal reading. Thank you to arXiv for use of its open access interoperability.",
     homepage: ARXIV_ORIGIN,
-    capabilities: ["catalog.search", "item.resolve", "item.acquire"],
+    capabilities: ["catalog.search", "catalog.browse", "item.resolve", "item.acquire"],
     outputs: [{ type: "pdf", label: "PDF", delivery: ["download"], mediaTypes: ["application/pdf"], extensions: ["pdf"] }],
     permissions: {
       networkOrigins: [EXPORT_ORIGIN],
@@ -142,6 +143,18 @@ export class ArxivForeignLibrary implements ForeignLibraryPlugin {
     };
 
     return {
+      async browse(request: ForeignBrowseRequest): Promise<ForeignPage<ForeignItem>> {
+        const pageSize = Math.min(Math.max(request.pageSize ?? 24, 1), 25);
+        const start = request.cursor ? Number(request.cursor) : 0;
+        if (!Number.isSafeInteger(start) || start < 0 || start > 10_000) throw new ForeignLibraryError("invalid-request", "The arXiv result cursor is invalid.");
+        const url = new URL(`${EXPORT_ORIGIN}/api/query`);
+        url.searchParams.set("search_query", "cat:cs.AI OR cat:cs.CL OR cat:cs.LG");
+        url.searchParams.set("start", String(start));
+        url.searchParams.set("max_results", String(pageSize));
+        url.searchParams.set("sortBy", "submittedDate");
+        url.searchParams.set("sortOrder", "descending");
+        return pageFromFeed(await fetchFeed(url, request.signal), start, pageSize);
+      },
       async search(request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> {
         const query = safeQuery(request.query);
         if (!query) throw new ForeignLibraryError("invalid-request", "Enter a title, author, abstract term, or arXiv identifier.");

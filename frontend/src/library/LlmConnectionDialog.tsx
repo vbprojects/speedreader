@@ -14,18 +14,22 @@ export function LlmConnectionDialog({
   open,
   theme,
   vault,
+  initialBaseUrl,
+  initialModel,
   onConnect,
   onCancel,
 }: {
   open: boolean;
   theme: Theme;
   vault: CredentialVault;
+  initialBaseUrl?: string;
+  initialModel?: string;
   onConnect: (connection: OpenAICompatibleConnection) => void;
   onCancel: () => void;
 }) {
-  const [baseUrl, setBaseUrl] = useState("");
+  const [baseUrl, setBaseUrl] = useState(initialBaseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(initialModel ?? "");
   const [passphrase, setPassphrase] = useState("");
   const [remember, setRemember] = useState(false);
   const [saved, setSaved] = useState<CredentialMetadata | null>(null);
@@ -35,9 +39,9 @@ export function LlmConnectionDialog({
   const t = themeTokens(theme);
 
   useEffect(() => {
-    setBaseUrl("");
+    setBaseUrl(initialBaseUrl ?? "");
     setApiKey("");
-    setModel("");
+    setModel(initialModel ?? "");
     setPassphrase("");
     setRemember(false);
     setSaved(null);
@@ -49,8 +53,8 @@ export function LlmConnectionDialog({
     void vault.metadata(LLM_CREDENTIAL_ID).then((metadata) => {
       if (!active || !metadata) return;
       setSaved(metadata);
-      setBaseUrl(metadata.baseUrl);
-      setModel(metadata.model ?? "");
+      setBaseUrl(initialBaseUrl ?? metadata.baseUrl);
+      setModel(initialModel ?? metadata.model ?? "");
       setRemember(true);
     }).catch((vaultError: unknown) => {
       if (active) setError(vaultError instanceof Error ? vaultError.message : String(vaultError));
@@ -58,7 +62,7 @@ export function LlmConnectionDialog({
       if (active) setLoadingVault(false);
     });
     return () => { active = false; };
-  }, [open, vault]);
+  }, [initialBaseUrl, initialModel, open, vault]);
 
   useEffect(() => {
     if (!open) return;

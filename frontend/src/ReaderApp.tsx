@@ -24,6 +24,7 @@ import {
   ForeignLibraryError,
   ForeignLibraryRegistry,
   GutenbergForeignLibrary,
+  OpenRouterForeignLibrary,
   TwineForeignLibrary,
   type ForeignDownloadPlan,
   type ForeignImportPlan,
@@ -42,6 +43,7 @@ export default function ReaderApp() {
     registry.register(new GutenbergForeignLibrary());
     registry.register(new TwineForeignLibrary());
     registry.register(new ArxivForeignLibrary());
+    registry.register(new OpenRouterForeignLibrary());
     return registry;
   });
   const [foreignCoordinator] = useState(() => new ForeignImportCoordinator(foreignRegistry));
@@ -172,13 +174,17 @@ export default function ReaderApp() {
   }, [library, refreshBooks]);
 
   const handleForeignImport = useCallback(async (plan: ForeignImportPlan) => {
-    if (plan.kind !== "download") {
-      throw new ForeignLibraryError("unsupported", "Interactive Foreign Library imports are not enabled in this implementation slice.");
-    }
     setImporting(true);
     setError(null);
     setNotice(null);
     try {
+      if (plan.kind === "interactive") {
+        const result = await library.importForeignInteractive(plan);
+        await refreshBooks();
+        if (result.existed) setNotice(`“${result.book.title}” is already in your library.`);
+        setPendingLlmBookId(result.book.id);
+        return;
+      }
       const acquired = await foreignCoordinator.acquire(plan);
       const result = await library.importForeignFile(acquired.file, acquired.provenance);
       await refreshBooks();
@@ -508,6 +514,14 @@ export default function ReaderApp() {
     );
   }
 
+  const pendingLlmConfig = books.find((book) => book.id === pendingLlmBookId)?.interactiveConfig;
+  const pendingLlmBaseUrl = typeof pendingLlmConfig?.baseUrl === "string"
+    ? pendingLlmConfig.baseUrl
+    : undefined;
+  const pendingLlmModel = typeof pendingLlmConfig?.model === "string"
+    ? pendingLlmConfig.model
+    : undefined;
+
   return (
     <>
       <LibraryView
@@ -530,6 +544,8 @@ export default function ReaderApp() {
         open={pendingLlmBookId !== null}
         theme={global.theme}
         vault={credentialVault}
+        initialBaseUrl={pendingLlmBaseUrl}
+        initialModel={pendingLlmModel}
         onConnect={handleLlmConnect}
         onCancel={() => setPendingLlmBookId(null)}
       />

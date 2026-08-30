@@ -9,6 +9,7 @@ import { filterForeignLibraries, foreignOutputFilters } from "./browser";
 import { ConstrainedForeignLibraryHost } from "./transport";
 import { manualForeignDownload } from "./manual-download";
 import { TWINE_LIBRARY_ID, TwineForeignLibrary } from "./twine";
+import { OPENROUTER_LIBRARY_ID, OpenRouterForeignLibrary } from "./openrouter";
 import {
   FOREIGN_LIBRARY_API,
   ForeignLibraryError,
@@ -201,7 +202,10 @@ test("Gutenberg plugin searches OPDS, resolves editions, and plans the preferred
   deepStrictEqual(plan.request.gateway, { route: "gutenberg" });
   equal(plan.file.extension, "epub");
   equal(plan.provenance.libraryId, GUTENBERG_LIBRARY_ID);
-  equal(requests.length, 2, "resolved catalog details should be cached for acquisition");
+  const featured = await session.browse!({ pageSize: 10 });
+  equal(featured.items[0].title, "Pride and Prejudice");
+  equal(new URL(requests[2]).searchParams.get("sort_order"), "downloads");
+  equal(requests.length, 3, "resolved catalog details should be cached for acquisition");
 });
 
 const IFDB_SEARCH_JSON = JSON.stringify({
@@ -252,7 +256,10 @@ test("Twine adapter searches IFDB and exposes only allowlisted direct HTML as a 
   equal(plan.request.url, "https://ifarchive.org/if-archive/games/twine/bogeyman.html");
   equal(manualForeignDownload(plan, registry)?.fileName.endsWith(".html"), true);
   throws(() => registry.validatePlan({ ...plan, request: { url: "https://attacker.example/bogeyman.html" } }), /undeclared origin/);
-  equal(requests.length, 2, "resolved IFDB details should be cached for acquisition");
+  const featured = await session.browse!({ pageSize: 10 });
+  equal(featured.items[0].title, "Bogeyman");
+  matchUrl(requests[2].url, "system:Twine");
+  equal(requests.length, 3, "resolved IFDB details should be cached for acquisition");
 });
 
 function matchUrl(raw: string, searchFor: string): void {
@@ -301,7 +308,59 @@ test("arXiv adapter searches Atom metadata and leaves PDF acquisition to the bro
   equal(plan.file.extension, "pdf");
   equal(manualForeignDownload(plan, registry)?.url, "https://arxiv.org/pdf/2304.14163v2");
   await rejects(() => new ForeignImportCoordinator(registry).acquire(plan), /browser file picker/);
-  equal(requests.length, 1, "search metadata should be reused for acquisition");
+  const featured = await session.browse!({ pageSize: 10 });
+  equal(featured.items[0].title, "Answering Uncertain API Queries");
+  equal(new URL(requests[1].url).searchParams.get("sortBy"), "submittedDate");
+  equal(requests.length, 2, "search metadata should be reused for acquisition");
+});
+
+const OPENROUTER_JSON = JSON.stringify({
+  data: [{
+    id: "openai/gpt-test",
+    canonical_slug: "openai/gpt-test-20260830",
+    name: "OpenAI: GPT Test",
+    created: 1788060000,
+    description: "A test model for chat and tool use.",
+    context_length: 128000,
+    architecture: { input_modalities: ["text", "image"], output_modalities: ["text"], tokenizer: "GPT" },
+    pricing: { prompt: "0.000001", completion: "0.000004", request: "0" },
+    supported_parameters: ["temperature", "tools"],
+    reasoning: { mandatory: false },
+  }],
+  total_count: 1,
+  links: { next: "/api/v1/models?limit=1&offset=1&output_modalities=text&sort=most-popular" },
+});
+
+test("OpenRouter adapter browses models and creates a credential-free interactive import plan", async () => {
+  const requests: string[] = [];
+  const host: ForeignLibraryHost = {
+    async request(request) {
+      requests.push(request.url);
+      return foreignResponse(OPENROUTER_JSON, request.url);
+    },
+  };
+  const registry = new ForeignLibraryRegistry(() => host);
+  registry.register(new OpenRouterForeignLibrary());
+  const session = await registry.open(OPENROUTER_LIBRARY_ID);
+  const featured = await session.browse!({ pageSize: 1 });
+  equal(featured.items.length, 1);
+  equal(featured.items[0].kind, "model");
+  equal(featured.items[0].metadata && (featured.items[0].metadata as { contextLength?: number }).contextLength, 128000);
+  const featuredUrl = new URL(requests[0]);
+  equal(featuredUrl.searchParams.get("sort"), "most-popular");
+  equal(featuredUrl.searchParams.get("output_modalities"), "text");
+
+  const searched = await session.search!({ query: "GPT Test", pageSize: 1 });
+  equal(searched.items[0].ref.itemId, "openai/gpt-test");
+  equal(new URL(requests[1]).searchParams.get("q"), "GPT Test");
+
+  const plan = await session.planImport(searched.items[0].ref, "add-model");
+  equal(plan.kind, "interactive");
+  if (plan.kind !== "interactive") throw new Error("expected interactive plan");
+  deepStrictEqual(plan.publicConfig, { baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-test" });
+  deepStrictEqual(plan.credentialBindings, { apiKey: "openrouter-api-key" });
+  equal(JSON.stringify(plan).includes("apiKeyValue"), false);
+  await rejects(() => session.browse!({ cursor: "https://attacker.example/api/v1/models?limit=1" }), /cursor is invalid/);
 });
 
 test("manual download fallback is limited to safe gateway acquisition failures", () => {

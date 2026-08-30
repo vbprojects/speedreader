@@ -73,11 +73,11 @@ Downloaded content keeps Speedreader's content-addressed SHA-256 book identity, 
 
 ### Interactive
 
-A `ForeignInteractivePlan` names an interactive format already registered with `IngestionEngine`, supplies public JSON configuration, and maps format credential bindings to declared manifest credential slots. This supports model providers and other remote streams while preserving the existing format/runtime owner—for example, LangGraph remains responsible for the LLM chat flow.
+A `ForeignInteractivePlan` names an interactive format already registered with the application, supplies public JSON configuration, and maps format credential bindings to declared manifest credential slots. This supports model providers and other remote streams while preserving the existing format/runtime owner—for example, the OpenAI-compatible runtime remains responsible for the LLM chat flow.
 
-Interactive plans never contain secrets. The host resolves credential slots at request time, and persisted books, reader state, streams, logs, and tests contain only public configuration and slot references. Multiple interactive imports use local instance IDs even when they refer to the same provider item.
+Interactive plans never contain secrets. Speedreader validates the declared slot bindings before execution and stores only allowlisted public configuration on an ordinary library item. Credential values remain in the existing credential flow and encrypted vault; they are not written to books, reader state, streams, provenance, logs, or tests. Re-importing the same provider item resolves to the same deterministic local item and reports it as a duplicate.
 
-Interactive plan execution is specified by v2 but is not enabled by the first implementation slice.
+Speedreader currently executes the registered `openai-compatible-llm` interactive format. Adding another interactive format requires an explicit executor and public-configuration validator in the application; a foreign plugin cannot introduce executable behavior merely by naming a new format.
 
 ## Host security requirements
 
@@ -99,7 +99,8 @@ The bundled adapters are:
 - `org.gutenberg.catalog` searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. Its final EPUB acquisition may use the allowlisted Worker; search and resolution remain direct. If the gateway is absent or unavailable, the selector offers a manual browser download followed by a constrained file picker.
 - `org.ifdb.twine` uses [IFDB's official JSON APIs](https://ifdb.org/api/) with its required Twine system constraint. It exposes only direct `.html`/`.htm` game files on IFDB or IF Archive origins; third-party mirrors and archives are omitted. Downloads are manual, retain IFDB provenance, and pass through SugarCube detection without executing story scripts.
 - `org.arxiv.catalog` uses the [arXiv Atom API](https://info.arxiv.org/help/api/) with a single connection and a three-second request interval. PDF acquisition is manual from `arxiv.org`; the Worker handles metadata only and never stores or serves papers, following the [arXiv API terms](https://info.arxiv.org/help/api/tou.html).
+- `ai.openrouter.models` uses [OpenRouter's model catalog API](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties) to browse popular text-output models and search by provider or model name. Selecting a model creates a reusable LLM Chat item containing only OpenRouter's public API base URL and model ID. The API key is requested by the existing connection dialog and may be stored only in Speedreader's encrypted credential vault.
 
-The generic selector presents registered sources as a list and filters them from manifest output declarations; additional adapters register with the same registry rather than adding source-specific UI.
+The generic selector presents registered sources as a filterable list. Selecting a source opens a library-style catalog with semantic item icons, a persistent search bar, a featured collection, result counts, and cursor pagination. Featured collections are source-defined: popular downloads for Gutenberg, ranked Twine works from IFDB, recent AI papers from arXiv, and popular text-output models from OpenRouter. Additional adapters register with the same registry and expose `catalog.browse` and/or `catalog.search` rather than adding source-specific UI.
 
-Model-provider adapters will use interactive plans and the host credential-slot mechanism rather than embedding endpoint logic or keys in books.
+Model-provider adapters use interactive plans and declared credential slots rather than embedding request logic or keys in books. A catalog endpoint that permits browser CORS, such as OpenRouter's current model endpoint, can be queried directly under the host's origin and response-size constraints; it does not require a Worker route.
