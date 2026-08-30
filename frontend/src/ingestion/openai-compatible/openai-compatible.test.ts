@@ -165,6 +165,40 @@ test("LangGraph format turns a text action into words and the next inline action
   equal(chunks.length, 1, "replayed durable events must not duplicate a turn");
 });
 
+test("one LLM action joins concurrent deliveries into one provider request", async () => {
+  let requestCount = 0;
+  let resolveResponse!: (response: Response) => void;
+  const response = new Promise<Response>((resolve) => { resolveResponse = resolve; });
+  const format = new OpenAICompatibleFormat({
+    fetchImpl: async () => {
+      requestCount += 1;
+      return response;
+    },
+  });
+  await format.init({ connection: { baseUrl: "https://example.test/v1", apiKey: "secret", model: "test-model" } });
+  const chunks: unknown[] = [];
+  format.startStreaming(0, (chunk) => chunks.push(chunk), () => undefined);
+  const event: ReaderEngineEvent = {
+    schemaVersion: 1,
+    eventId: "interaction-response:llm:input:0",
+    kind: "interaction-response",
+    interactionId: "llm:input:0",
+    response: { schemaVersion: 1, interactionId: "llm:input:0", kind: "text-input", value: "Only once" },
+    boundary: 0,
+    position: 0,
+  };
+
+  const first = format.handleReaderEvent(event);
+  const replay = format.handleReaderEvent(event);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  equal(requestCount, 1);
+  resolveResponse(json({ choices: [{ message: { content: "One response" } }] }));
+  await Promise.all([first, replay]);
+
+  equal(requestCount, 1);
+  equal(chunks.length, 1);
+});
+
 test("failed model calls leave the input action unresolved and retryable", async () => {
   const fetchImpl: typeof fetch = async () => json({ error: { message: "offline" } }, { status: 503 });
   const format = new OpenAICompatibleFormat({ fetchImpl });

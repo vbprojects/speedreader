@@ -93,6 +93,10 @@ export default function ReaderApp() {
   // Serialize IndexedDB writes so an older async transaction cannot finish
   // after and overwrite a newer reader position/settings snapshot.
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  // Durable events can be observed by the UI and the pending-event replay
+  // path at the same time. One task per book/event keeps both callers joined
+  // to the same engine delivery instead of issuing duplicate provider calls.
+  const engineEventTasks = useRef(new Map<string, Promise<void>>());
 
   const enqueueReaderState = useCallback(
     (
@@ -136,6 +140,32 @@ export default function ReaderApp() {
       setLoading(false);
     }
   }, [library]);
+
+  const processEngineEvent = useCallback((bookId: string, event: ReaderEngineEvent): Promise<void> => {
+    const taskKey = `${bookId}:${event.eventId}`;
+    const existing = engineEventTasks.current.get(taskKey);
+    if (existing) return existing;
+
+    const task = (async () => {
+      if (event.kind === "trigger" && latestDeliveredTriggerIds.current.includes(event.triggerId)) return;
+      if (!latestPendingEngineEvents.current.some((pending) => pending.eventId === event.eventId)) {
+        latestPendingEngineEvents.current = [...latestPendingEngineEvents.current, event];
+        await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+      }
+      await library.handleReaderEngineEvent(bookId, event);
+      latestPendingEngineEvents.current = latestPendingEngineEvents.current.filter((pending) => pending.eventId !== event.eventId);
+      if (event.kind === "trigger") {
+        latestDeliveredTriggerIds.current = Array.from(new Set([...latestDeliveredTriggerIds.current, event.triggerId]));
+        setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
+      }
+      await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+    })();
+    const tracked = task.finally(() => {
+      if (engineEventTasks.current.get(taskKey) === tracked) engineEventTasks.current.delete(taskKey);
+    });
+    engineEventTasks.current.set(taskKey, tracked);
+    return tracked;
+  }, [enqueueReaderState, library]);
 
   // Load the library on mount.
   useEffect(() => {
@@ -297,14 +327,8 @@ export default function ReaderApp() {
       else {
         stop = cleanup;
         for (const event of latestPendingEngineEvents.current) {
-          void library.handleReaderEngineEvent(openBookId, event).then(() => {
-            latestPendingEngineEvents.current = latestPendingEngineEvents.current.filter((pending) => pending.eventId !== event.eventId);
-            if (event.kind === "trigger") {
-              latestDeliveredTriggerIds.current = Array.from(new Set([...latestDeliveredTriggerIds.current, event.triggerId]));
-              setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
-            }
-            return enqueueReaderState(openBookId, latestPosition.current, latestSettings.current);
-          }).catch((eventError: unknown) => setError(eventError instanceof Error ? eventError.message : String(eventError)));
+          void processEngineEvent(openBookId, event)
+            .catch((eventError: unknown) => setError(eventError instanceof Error ? eventError.message : String(eventError)));
         }
       }
     }).catch((streamError: unknown) => {
@@ -314,31 +338,20 @@ export default function ReaderApp() {
       disposed = true;
       stop?.();
     };
-  }, [books, enqueueReaderState, library, openBookId]);
+  }, [books, library, openBookId, processEngineEvent]);
 
   const handleEngineEvent = useCallback(async (event: ReaderEngineEvent) => {
     const bookId = openBookId;
     if (!bookId) return;
-    if (event.kind === "trigger" && latestDeliveredTriggerIds.current.includes(event.triggerId)) return;
-    if (!latestPendingEngineEvents.current.some((pending) => pending.eventId === event.eventId)) {
-      latestPendingEngineEvents.current = [...latestPendingEngineEvents.current, event];
-      await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
-    }
-    await library.handleReaderEngineEvent(bookId, event);
-    latestPendingEngineEvents.current = latestPendingEngineEvents.current.filter((pending) => pending.eventId !== event.eventId);
-    if (event.kind === "trigger") {
-      latestDeliveredTriggerIds.current = Array.from(new Set([...latestDeliveredTriggerIds.current, event.triggerId]));
-      setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
-    }
-    await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
-  }, [enqueueReaderState, library, openBookId]);
+    await processEngineEvent(bookId, event);
+  }, [openBookId, processEngineEvent]);
 
   const handleInteractionEngineSubmit = useCallback(async (response: import("./interactions/types").InteractionResponse) => {
     const interaction = openStream?.interactions?.find((candidate) => candidate.id === response.interactionId);
     if (!interaction) return;
     await handleEngineEvent({
       schemaVersion: 1,
-      eventId: `${response.interactionId}:${Date.now()}`,
+      eventId: `interaction-response:${response.interactionId}`,
       kind: "interaction-response",
       interactionId: response.interactionId,
       response,
