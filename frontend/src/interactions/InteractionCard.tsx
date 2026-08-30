@@ -53,6 +53,9 @@ export function InteractionCard({
         fontSize: 16,
         lineHeight: 1.4,
         textAlign: "left",
+        overflowWrap: "anywhere",
+        wordBreak: "normal",
+        minWidth: 0,
       }}
         data-interaction-id={interaction.id}
         data-interaction-inline={inline ? "true" : undefined}
@@ -61,12 +64,12 @@ export function InteractionCard({
         {title}
       </h2>
       {interaction.prompt && interaction.kind !== "single-choice" && (
-        <p id={descriptionId} style={{ margin: "10px 0 18px", color: t.muted, lineHeight: 1.5 }}>
+        <p id={descriptionId} style={{ margin: "10px 0 18px", color: t.muted, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {interaction.prompt}
         </p>
       )}
       {error && (
-        <p role="alert" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: 8, color: t.danger, background: t.dangerBg, fontSize: 14 }}>
+        <p role="alert" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: 8, color: t.danger, background: t.dangerBg, fontSize: 14, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {error}
         </p>
       )}

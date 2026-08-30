@@ -110,7 +110,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [jumpInputVal, setJumpInputVal] = useState("");
   const [pendingInteraction, setPendingInteraction] = useState<ReaderInteraction | null>(null);
   const [interactionBusy, setInteractionBusy] = useState(false);
-  const interactionSubmitInFlightRef = useRef(false);
+  const interactionSubmissionsInFlightRef = useRef(new Set<string>());
   const [interactionError, setInteractionError] = useState<string | null>(null);
   const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null);
   const [recordsVersion, setRecordsVersion] = useState(0);
@@ -773,8 +773,13 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
   const handleInteractionSubmit = async (interaction: ReaderInteraction, response: InteractionResponse) => {
     const current = interaction;
-    if (response.interactionId !== current.id || interactionSubmitInFlightRef.current) return;
-    interactionSubmitInFlightRef.current = true;
+    const editing = editingInteractionId === current.id;
+    if (
+      response.interactionId !== current.id
+      || interactionSubmissionsInFlightRef.current.has(current.id)
+      || (!editing && resolvedInteractionIdsRef.current.has(current.id))
+    ) return;
+    interactionSubmissionsInFlightRef.current.add(current.id);
     setInteractionBusy(true);
     setInteractionError(null);
     try {
@@ -794,7 +799,6 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       resolvedInteractionIdsRef.current.add(current.id);
       onInteractionResolvedRef.current?.(current.id);
       onInteractionCommittedRef.current?.(record);
-      const editing = editingInteractionId === current.id;
       if (editing) {
         setEditingInteractionId(null);
         setPendingInteraction(null);
@@ -823,7 +827,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     } catch (error) {
       setInteractionError(error instanceof Error ? error.message : String(error));
     } finally {
-      interactionSubmitInFlightRef.current = false;
+      interactionSubmissionsInFlightRef.current.delete(current.id);
       setInteractionBusy(false);
     }
   };

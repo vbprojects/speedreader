@@ -49,7 +49,7 @@ export function InlineInteraction({
         style={{ margin: "22px 0", padding: "14px 16px", borderLeft: `3px solid ${t.highlight}`, color: t.fg, background: t.panel, borderRadius: 8 }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ flex: 1, lineHeight: 1.5 }}>{formatResolvedInteraction(interaction, record)}</span>
+          <span style={{ flex: 1, minWidth: 0, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{formatResolvedInteraction(interaction, record)}</span>
           {mutable ? (
             <button type="button" onClick={(event) => { event.stopPropagation(); onEdit?.(); }} disabled={!onEdit} style={{ minHeight: 36, border: `1px solid ${t.border}`, background: t.bg, color: t.fg, borderRadius: 8, padding: "6px 10px", cursor: onEdit ? "pointer" : "default" }}>
               Edit
