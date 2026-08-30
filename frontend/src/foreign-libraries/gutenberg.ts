@@ -222,6 +222,7 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
         kind: "download",
         request: {
           url: acquisition.url,
+          gateway: "preferred",
           timeoutMs: 120_000,
           maxResponseBytes: INGESTION_LIMITS.maxFileBytes,
           headers: { Accept: "application/epub+zip" },

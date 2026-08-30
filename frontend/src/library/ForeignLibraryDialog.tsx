@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ForeignDownloadPlan,
   ForeignImportPlan,
   ForeignItem,
   ForeignLibraryRegistry,
   ForeignLibrarySession,
 } from "../foreign-libraries";
+import { manualForeignDownload, type ManualForeignDownload } from "../foreign-libraries";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 
@@ -13,12 +15,14 @@ export function ForeignLibraryDialog({
   theme,
   registry,
   onImport,
+  onImportManual,
   onClose,
 }: {
   open: boolean;
   theme: Theme;
   registry: ForeignLibraryRegistry;
   onImport: (plan: ForeignImportPlan) => Promise<void>;
+  onImportManual?: (plan: ForeignDownloadPlan) => Promise<boolean>;
   onClose: () => void;
 }) {
   const manifests = useMemo(() => registry.manifests, [registry]);
@@ -29,6 +33,7 @@ export function ForeignLibraryDialog({
   const [selected, setSelected] = useState<ForeignItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualDownload, setManualDownload] = useState<ManualForeignDownload | null>(null);
   const t = themeTokens(theme);
 
   useEffect(() => {
@@ -39,6 +44,7 @@ export function ForeignLibraryDialog({
     setItems([]);
     setSelected(null);
     setError(null);
+    setManualDownload(null);
     void registry.open(libraryId).then((value) => {
       opened = value;
       if (active) setSession(value);
@@ -78,6 +84,7 @@ export function ForeignLibraryDialog({
     setBusy(true);
     setError(null);
     setSelected(null);
+    setManualDownload(null);
     try {
       const page = await session.search({ query, pageSize: 25 });
       setItems(page.items);
@@ -93,6 +100,7 @@ export function ForeignLibraryDialog({
     if (!session || busy) return;
     setBusy(true);
     setError(null);
+    setManualDownload(null);
     try {
       setSelected(await session.resolve(item.ref));
     } catch (resolveError) {
@@ -106,10 +114,29 @@ export function ForeignLibraryDialog({
     if (!session || !selected || busy) return;
     setBusy(true);
     setError(null);
+    setManualDownload(null);
     try {
       const plan = await session.planImport(selected.ref, offerId);
-      await onImport(plan);
-      onClose();
+      try {
+        await onImport(plan);
+        onClose();
+      } catch (importError) {
+        setManualDownload(manualForeignDownload(plan, registry, importError));
+        throw importError;
+      }
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : String(importError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importManualDownload = async () => {
+    if (!manualDownload || !onImportManual || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (await onImportManual(manualDownload.plan)) onClose();
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
     } finally {
@@ -156,6 +183,17 @@ export function ForeignLibraryDialog({
         </form>
 
         {error && <p role="alert" style={{ margin: "14px 0 0", padding: "10px 12px", borderRadius: 8, color: t.danger, background: t.dangerBg, fontSize: 14 }}>{error}</p>}
+
+        {manualDownload && (
+          <div role="note" style={{ marginTop: 12, padding: 12, border: `1px solid ${t.border}`, borderRadius: 8, background: t.bg }}>
+            <strong style={{ display: "block", marginBottom: 5 }}>Direct import is unavailable in this browser.</strong>
+            <span style={{ display: "block", color: t.muted, fontSize: 13, lineHeight: 1.45 }}>Download the EPUB in Safari, then choose that file here. Speedreader will retain the catalog provenance.</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              <a href={manualDownload.url} target="_blank" rel="external noopener noreferrer" download={manualDownload.fileName} style={{ ...control, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Download EPUB</a>
+              {onImportManual && <button type="button" disabled={busy} onClick={() => { void importManualDownload(); }} style={{ ...control, border: 0, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>Choose downloaded EPUB</button>}
+            </div>
+          </div>
+        )}
 
         {selected ? (
           <div style={{ marginTop: 20, paddingTop: 18, borderTop: `1px solid ${t.border}` }}>

@@ -4,6 +4,14 @@ import { SelfCorrectingClock } from "./clock";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+async function waitFor(predicate: () => boolean, timeoutMs = 250): Promise<void> {
+  const deadline = performance.now() + timeoutMs;
+  while (!predicate()) {
+    if (performance.now() >= deadline) throw new Error("Timed out waiting for clock state");
+    await wait(2);
+  }
+}
+
 test("clock blocks at boundary zero until the interaction is resolved", async () => {
   let allowed = false;
   const blocked: number[] = [];
@@ -19,7 +27,7 @@ test("clock blocks at boundary zero until the interaction is resolved", async ()
   deepStrictEqual(blocked, [0]);
   allowed = true;
   clock.resume();
-  await wait(8);
+  await waitFor(() => ticks.length === 1);
   deepStrictEqual(ticks, [1]);
   clock.destroy();
 });
@@ -35,12 +43,12 @@ test("clock pauses at the next boundary without replaying the current word", asy
     onBlocked: (boundary) => blocked.push(boundary),
   });
   clock.start(0);
-  await wait(8);
+  await waitFor(() => blocked.length === 1);
   equal(clock.index, 0);
   deepStrictEqual(blocked, [1]);
   allowNext = true;
   clock.resume();
-  await wait(8);
+  await waitFor(() => clock.index === 2);
   equal(clock.index, 2);
   deepStrictEqual(ticks, [0, 1]);
   clock.destroy();

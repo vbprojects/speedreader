@@ -14,6 +14,8 @@ export type ForeignCredentialResolver = (
   slot: ForeignCredentialSlot,
 ) => Promise<string | null>;
 
+const GATEWAY_SOURCE_HEADER = "x-speedreader-source-url";
+
 const FORBIDDEN_HEADERS = new Set([
   "authorization",
   "cookie",
@@ -37,6 +39,21 @@ function assertAllowedUrl(raw: string, manifest: ForeignLibraryManifest): URL {
   }
   if (url.protocol !== "https:" || url.username || url.password || !manifest.permissions.networkOrigins.includes(url.origin)) {
     throw new ForeignLibraryError("permission-denied", `${manifest.name} is not permitted to contact ${url.origin}.`);
+  }
+  return url;
+}
+
+function gatewayEndpoint(raw: string | undefined): URL | undefined {
+  if (!raw?.trim()) return undefined;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  const loopbackHttp = url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+  if ((!loopbackHttp && url.protocol !== "https:") || url.username || url.password || url.search || url.hash) {
+    return undefined;
   }
   return url;
 }
@@ -103,16 +120,19 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
   private queue = Promise.resolve();
   private nextRequestAt = 0;
   private readonly fetchImpl: ForeignFetch;
+  private readonly gateway?: URL;
 
   constructor(
     private readonly manifest: ForeignLibraryManifest,
     fetchImpl: ForeignFetch = globalThis.fetch,
     private readonly resolveCredential?: ForeignCredentialResolver,
+    gatewayUrl?: string,
   ) {
     // Window.fetch performs a Web IDL receiver check in browsers. Storing the
     // bare function and later calling it as `this.fetchImpl()` otherwise makes
     // this host object the receiver and fails before any request is sent.
     this.fetchImpl = fetchImpl.bind(globalThis);
+    this.gateway = gatewayEndpoint(gatewayUrl);
   }
 
   request(request: ForeignRequest): Promise<ForeignResponse> {
@@ -123,6 +143,12 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
 
   private async perform(request: ForeignRequest): Promise<ForeignResponse> {
     const url = assertAllowedUrl(request.url, this.manifest);
+    if (request.gateway && (request.credential || (request.method ?? "GET") !== "GET" || request.body !== undefined)) {
+      throw new ForeignLibraryError("permission-denied", "Gateway requests must be unauthenticated GET downloads.");
+    }
+    const routedThroughGateway = request.gateway === "preferred" && this.gateway !== undefined;
+    const fetchUrl = routedThroughGateway ? new URL(this.gateway!) : url;
+    if (routedThroughGateway) fetchUrl.searchParams.set("url", url.toString());
     const controller = new AbortController();
     const timeoutMs = Math.max(1, Math.min(request.timeoutMs ?? 30_000, 120_000));
     let timedOut = false;
@@ -157,7 +183,7 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
       }
       let response: Response;
       try {
-        response = await this.fetchImpl(url, {
+        response = await this.fetchImpl(fetchUrl, {
           method: request.method ?? "GET",
           headers,
           body: request.body,
@@ -165,7 +191,7 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
           credentials: "omit",
           // Credentialed requests cannot redirect, preventing a provider from
           // forwarding a custom credential header to another origin.
-          redirect: request.credential ? "error" : "follow",
+          redirect: request.credential || routedThroughGateway ? "error" : "follow",
         });
       } catch (error) {
         if (controller.signal.aborted) {
@@ -175,14 +201,17 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
         const detail = error instanceof Error ? error.message : String(error);
         throw new ForeignLibraryError("network-unavailable", `Could not reach ${url.origin}. (${detail})`, true);
       }
-      assertAllowedUrl(response.url || url.toString(), this.manifest);
+      const sourceUrl = routedThroughGateway
+        ? response.headers.get(GATEWAY_SOURCE_HEADER) ?? url.toString()
+        : response.url || url.toString();
+      assertAllowedUrl(sourceUrl, this.manifest);
       const configuredLimit = this.manifest.permissions.maxResponseBytes ?? INGESTION_LIMITS.maxFileBytes;
       const limit = Math.min(request.maxResponseBytes ?? configuredLimit, configuredLimit, INGESTION_LIMITS.maxFileBytes);
       const body = await readLimited(response, limit);
       return {
         status: response.status,
         statusText: response.statusText,
-        url: response.url || url.toString(),
+        url: sourceUrl,
         headers: responseHeaders(response.headers),
         body,
       };

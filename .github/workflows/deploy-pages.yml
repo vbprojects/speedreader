@@ -36,6 +36,7 @@ jobs:
         working-directory: frontend
         env:
           SPEEDREADER_BASE_PATH: /speedreader/
+          VITE_FOREIGN_LIBRARY_GATEWAY_URL: ${{ vars.FOREIGN_LIBRARY_GATEWAY_URL }}
         run: npm run build
 
       - name: Upload Pages artifact

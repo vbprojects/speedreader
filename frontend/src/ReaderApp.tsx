@@ -23,6 +23,7 @@ import {
   ForeignLibraryError,
   ForeignLibraryRegistry,
   GutenbergForeignLibrary,
+  type ForeignDownloadPlan,
   type ForeignImportPlan,
 } from "./foreign-libraries";
 import { ForeignLibraryDialog } from "./library/ForeignLibraryDialog";
@@ -32,8 +33,9 @@ export default function ReaderApp() {
   const [settingsStore] = useState(() => new SettingsStore());
   const [credentialVault] = useState(() => new EncryptedCredentialVault());
   const [foreignRegistry] = useState(() => {
+    const gatewayUrl = import.meta.env.VITE_FOREIGN_LIBRARY_GATEWAY_URL?.trim() || undefined;
     const registry = new ForeignLibraryRegistry(
-      (manifest) => new ConstrainedForeignLibraryHost(manifest),
+      (manifest) => new ConstrainedForeignLibraryHost(manifest, globalThis.fetch, undefined, gatewayUrl),
     );
     registry.register(new GutenbergForeignLibrary());
     return registry;
@@ -190,6 +192,38 @@ export default function ReaderApp() {
       setImporting(false);
     }
   }, [foreignCoordinator, library, refreshBooks]);
+
+  const handleForeignManualImport = useCallback(async (plan: ForeignDownloadPlan): Promise<boolean> => {
+    foreignRegistry.validatePlan(plan);
+    setImporting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const file = await pickFileBrowser(`.${plan.file.extension}`);
+      if (!file) return false;
+      if (file.extension.toLowerCase() !== plan.file.extension.toLowerCase()) {
+        throw new ForeignLibraryError("invalid-request", `Choose the downloaded .${plan.file.extension} file.`);
+      }
+      const result = await library.importForeignFile(file, {
+        ...plan.provenance,
+        acquiredAt: new Date().toISOString(),
+      });
+      await refreshBooks();
+      if (!result.existed && result.book.ingestionWarnings?.length) {
+        setNotice(result.book.ingestionWarnings.join(" "));
+      } else if (!result.existed) {
+        await openBook(result.book.id);
+      } else {
+        setNotice(`“${result.book.title}” is already in your library.`);
+      }
+      return true;
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : String(importError));
+      throw importError;
+    } finally {
+      setImporting(false);
+    }
+  }, [foreignRegistry, library, refreshBooks]);
 
   // ---- Open a book (cached rehydrate) ----
   const openBook = useCallback(
@@ -500,6 +534,7 @@ export default function ReaderApp() {
         theme={global.theme}
         registry={foreignRegistry}
         onImport={handleForeignImport}
+        onImportManual={handleForeignManualImport}
         onClose={() => setForeignLibraryOpen(false)}
       />
     </>

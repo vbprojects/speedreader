@@ -4,3 +4,4 @@ export * from "./transport";
 export * from "./registry";
 export * from "./coordinator";
 export * from "./gutenberg";
+export * from "./manual-download";

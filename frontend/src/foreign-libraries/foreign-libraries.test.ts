@@ -5,8 +5,10 @@ import { ForeignImportCoordinator } from "./coordinator";
 import { GUTENBERG_LIBRARY_ID, GutenbergForeignLibrary } from "./gutenberg";
 import { ForeignLibraryRegistry } from "./registry";
 import { ConstrainedForeignLibraryHost } from "./transport";
+import { manualForeignDownload } from "./manual-download";
 import {
   FOREIGN_LIBRARY_API,
+  ForeignLibraryError,
   type ForeignLibraryHost,
   type ForeignLibraryManifest,
   type ForeignLibraryPlugin,
@@ -57,6 +59,40 @@ test("default transport fetch keeps the browser global as its receiver", async (
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("preferred downloads use the configured gateway while retaining the validated source URL", async () => {
+  let requestedUrl = "";
+  const fetchImpl: typeof fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response("epub", {
+      status: 200,
+      headers: {
+        "Content-Length": "4",
+        "Content-Type": "application/epub+zip",
+        "X-Speedreader-Source-Url": "https://catalog.example/cache/book.epub",
+      },
+    });
+  };
+  const host = new ConstrainedForeignLibraryHost(
+    TEST_MANIFEST,
+    fetchImpl,
+    undefined,
+    "https://gateway.example/v1/gutenberg",
+  );
+  const response = await host.request({ url: "https://catalog.example/book.epub", gateway: "preferred" });
+  equal(requestedUrl, "https://gateway.example/v1/gutenberg?url=https%3A%2F%2Fcatalog.example%2Fbook.epub");
+  equal(response.url, "https://catalog.example/cache/book.epub");
+});
+
+test("an invalid gateway setting degrades to direct fetch for the manual fallback path", async () => {
+  let requestedUrl = "";
+  const host = new ConstrainedForeignLibraryHost(TEST_MANIFEST, async (input) => {
+    requestedUrl = String(input);
+    return new Response("epub", { headers: { "Content-Length": "4" } });
+  }, undefined, "javascript:alert(1)");
+  await host.request({ url: "https://catalog.example/book.epub", gateway: "preferred" });
+  equal(requestedUrl, "https://catalog.example/book.epub");
 });
 
 const SEARCH_XML = `<?xml version="1.0" encoding="utf-8"?>
@@ -114,9 +150,28 @@ test("Gutenberg plugin searches OPDS, resolves editions, and plans the preferred
   const plan = await session.planImport(item.ref, "epub-preferred");
   equal(plan.kind, "download");
   equal(plan.request.url, "https://www.gutenberg.org/ebooks/1342.epub3.images");
+  equal(plan.request.gateway, "preferred");
   equal(plan.file.extension, "epub");
   equal(plan.provenance.libraryId, GUTENBERG_LIBRARY_ID);
   equal(requests.length, 2, "resolved catalog details should be cached for acquisition");
+});
+
+test("manual download fallback is limited to safe gateway acquisition failures", () => {
+  const registry = new ForeignLibraryRegistry(() => ({ request: async () => { throw new Error("unused"); } }));
+  registry.register({
+    manifest: TEST_MANIFEST,
+    async open() { throw new Error("unused"); },
+  });
+  const plan = {
+    kind: "download" as const,
+    request: { url: "https://catalog.example/book.epub", gateway: "preferred" as const },
+    file: { name: "book.epub", extension: "epub" },
+    provenance: { libraryId: TEST_MANIFEST.id, itemId: "book-1" },
+  };
+  const fallback = manualForeignDownload(plan, registry, new ForeignLibraryError("network-unavailable", "offline"));
+  equal(fallback?.url, "https://catalog.example/book.epub");
+  equal(manualForeignDownload(plan, registry, new Error("parser failed")), null);
+  equal(manualForeignDownload({ ...plan, request: { ...plan.request, url: "https://attacker.example/book.epub" } }, registry, new ForeignLibraryError("network-unavailable", "offline")), null);
 });
 
 test("registry validates plugin capabilities and coordinator returns parser-ready bytes", async () => {
