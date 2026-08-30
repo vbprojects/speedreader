@@ -1,6 +1,12 @@
 import { equal, match } from "node:assert/strict";
 import { test } from "node:test";
-import { CATALOG_GATEWAY_MAX_BYTES, GUTENBERG_GATEWAY_MAX_BYTES, handleCatalogGateway, handleGutenbergGateway } from "./gutenberg-worker";
+import {
+  CATALOG_GATEWAY_MAX_BYTES,
+  GUTENBERG_GATEWAY_MAX_BYTES,
+  handleCatalogGateway,
+  handleGutenbergGateway,
+  handleTwineGateway,
+} from "./gutenberg-worker";
 
 const APP_ORIGIN = "https://vbprojects.github.io";
 const TARGET = "https://www.gutenberg.org/ebooks/1342.epub3.images";
@@ -90,7 +96,7 @@ test("catalog gateway permits only bounded Twine IFDB and arXiv metadata queries
   equal(rejectedHost.status, 400);
   const rejectedIfdb = await handleCatalogGateway(catalogRequest("https://ifdb.org/search?json=&game=&searchfor=adventure"));
   equal(rejectedIfdb.status, 400);
-  const rejectedIfdbDetail = await handleCatalogGateway(catalogRequest("https://ifdb.org/viewgame?json=&id=ltwvgb2lubkx82yi"));
+  const rejectedIfdbDetail = await handleCatalogGateway(catalogRequest("https://ifdb.org/viewgame?json=&id=bad"));
   equal(rejectedIfdbDetail.status, 400);
   const rejectedArxiv = await handleCatalogGateway(catalogRequest("https://export.arxiv.org/api/query?search_query=all%3Aai&max_results=26"));
   equal(rejectedArxiv.status, 400);
@@ -126,4 +132,104 @@ test("catalog gateway rejects unexpected content and oversized metadata", async 
     fetchImpl: async () => new Response("x", { headers: { "Content-Type": "application/atom+xml", "Content-Length": String(CATALOG_GATEWAY_MAX_BYTES + 1) } }),
   });
   equal(oversized.status, 413);
+});
+
+function twineRequest(mode: "download" | "play" | "archive", offer?: number, tuid = "ltwvgb2lubkx82yi"): Request {
+  const target = new URL("https://ifdb.org/viewgame");
+  target.searchParams.set("speedreader", mode);
+  target.searchParams.set("id", tuid);
+  if (offer !== undefined) target.searchParams.set("offer", String(offer));
+  return new Request(`https://gateway.example/v1/twine?url=${encodeURIComponent(target.toString())}`, {
+    headers: { Origin: APP_ORIGIN },
+  });
+}
+
+function ifdbDetail(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    ifdb: {
+      tuid: "ltwvgb2lubkx82yi",
+      downloads: {
+        links: [{
+          url: "https://ifarchive.org/if-archive/games/twine/Bogeyman.zip",
+          isGame: true,
+          format: "html",
+        }],
+      },
+      ...overrides,
+    },
+  });
+}
+
+test("Twine gateway resolves an IFDB offer and streams a bounded IF Archive release", async () => {
+  const requests: string[] = [];
+  const response = await handleTwineGateway(twineRequest("download", 0), {
+    fetchImpl: async (input, init) => {
+      const url = String(input);
+      requests.push(url);
+      equal(new Headers(init?.headers).get("user-agent"), "Speedreader Foreign Library/1.0");
+      if (url.startsWith("https://ifdb.org/viewgame?")) {
+        return new Response(ifdbDetail(), { headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(new Uint8Array([80, 75, 3, 4]), {
+        headers: { "Content-Length": "4", "Content-Type": "application/zip" },
+      });
+    },
+  });
+  equal(response.status, 200);
+  equal(response.headers.get("content-type"), "application/zip");
+  equal(response.headers.get("access-control-allow-origin"), APP_ORIGIN);
+  match(response.headers.get("x-speedreader-source-url") ?? "", /speedreader=download/u);
+  equal((await response.arrayBuffer()).byteLength, 4);
+  equal(requests.length, 2);
+});
+
+test("Twine gateway captures a supported IF Archive playable page", async () => {
+  const html = "<!doctype html><tw-storydata></tw-storydata>";
+  const response = await handleTwineGateway(twineRequest("play"), {
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.startsWith("https://ifdb.org/viewgame?")) {
+        return new Response(ifdbDetail({ primaryPlayOnlineUrl: "https://unbox.ifarchive.org/?url=/if-archive/games/twine/Bogeyman.zip&open=index.html" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(html, { headers: { "Content-Length": String(html.length), "Content-Type": "text/html" } });
+    },
+  });
+  equal(response.status, 200);
+  equal(response.headers.get("content-type"), "text/html");
+  equal(await response.text(), html);
+});
+
+test("Twine gateway searches IF Archive by TUID when IFDB has no release", async () => {
+  const archiveSearch = `<dl><dt><a href="https://ifarchive.org/indexes/if-archive/games/twine/#fixture"><b>Bogeyman.zip</b></a></dt></dl>`;
+  const requests: string[] = [];
+  const response = await handleTwineGateway(twineRequest("archive"), {
+    fetchImpl: async (input, init) => {
+      const url = String(input);
+      requests.push(url);
+      if (url.startsWith("https://ifdb.org/viewgame?")) {
+        return new Response(ifdbDetail({ downloads: { links: [] } }), { headers: { "Content-Type": "application/json" } });
+      }
+      if (url === "https://search.ifarchive.org/search") {
+        equal(init?.method, "POST");
+        match(String(init?.body), /tuid%3Altwvgb2lubkx82yi/u);
+        return new Response(archiveSearch, { headers: { "Content-Type": "text/html" } });
+      }
+      equal(url, "https://ifarchive.org/if-archive/games/twine/Bogeyman.zip");
+      return new Response(new Uint8Array([80, 75, 3, 4]), { headers: { "Content-Length": "4", "Content-Type": "application/zip" } });
+    },
+  });
+  equal(response.status, 200);
+  equal(requests.length, 3);
+});
+
+test("Twine gateway rejects external IFDB links instead of becoming an open proxy", async () => {
+  const response = await handleTwineGateway(twineRequest("download", 0), {
+    fetchImpl: async () => new Response(ifdbDetail({
+      downloads: { links: [{ url: "https://attacker.example/story.html", isGame: true, format: "html" }] },
+    }), { headers: { "Content-Type": "application/json" } }),
+  });
+  equal(response.status, 422);
+  match(await response.text(), /outside the supported IF Archive sources/u);
 });

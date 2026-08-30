@@ -177,7 +177,7 @@ export function validateForeignImportPlan(plan: ForeignImportPlan, manifest: For
     if (plan.manualAction !== undefined && plan.manualAction !== "download" && plan.manualAction !== "source-page") invalid("Manual action is invalid");
     if (plan.manualAction !== undefined && plan.acquisition !== "manual") invalid("Manual actions require manual acquisition");
     if (plan.request.gateway !== undefined
-      && (typeof plan.request.gateway !== "object" || !(["gutenberg", "catalog"] as const).includes(plan.request.gateway.route))) {
+      && (typeof plan.request.gateway !== "object" || !(["gutenberg", "catalog", "twine"] as const).includes(plan.request.gateway.route))) {
       invalid("Download gateway preference is invalid");
     }
     nonEmpty(plan.file?.name, "Download filename", 512);

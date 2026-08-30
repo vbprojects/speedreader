@@ -23,6 +23,14 @@ export interface StoredSugarCubeSource {
   /** SHA-256 of the original imported bytes. */
   sourceHash: string;
   story: SugarCubeStoryMetadata;
+  /** Additional files from a ZIP package, retained for a future virtual origin. */
+  assets?: StoredSugarCubeAsset[];
+}
+
+export interface StoredSugarCubeAsset {
+  path: string;
+  mimeType: string;
+  data: ArrayBuffer;
 }
 
 /** Format-owned state stored in ReaderState.formatState, never on Book. */

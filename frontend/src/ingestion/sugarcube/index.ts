@@ -12,4 +12,5 @@ export type {
   SugarCubeReaderState,
   SugarCubeSourceInput,
   SugarCubeStoryMetadata,
+  StoredSugarCubeAsset,
 } from "./types";

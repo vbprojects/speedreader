@@ -136,7 +136,7 @@ export interface ForeignRequest {
   maxResponseBytes?: number;
   signal?: AbortSignal;
   /** Ask the host to use a specific route on its configured CORS gateway. */
-  gateway?: { route: "gutenberg" | "catalog" };
+  gateway?: { route: "gutenberg" | "catalog" | "twine" };
   credential?: {
     slotId: string;
     placement:

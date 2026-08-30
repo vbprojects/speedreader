@@ -13,6 +13,7 @@ import { LibraryStore } from "./store";
 import { BLUESKY_JETSTREAM_BOOK_ID } from "./default-books/bluesky-jetstream";
 import { LLM_CHAT_BOOK_ID } from "./default-books/llm-chat";
 import { JSDOM } from "jsdom";
+import JSZip from "jszip";
 
 class MemoryDb implements Db {
   books = new Map<string, Book>();
@@ -244,6 +245,28 @@ test("the file import selector path persists published SugarCube source and dedu
   const duplicate = await library.importFile(file, parseHtml);
   equal(duplicate.existed, true);
   equal((await library.getBooks()).filter((book) => book.id === imported.book.id).length, 1);
+});
+
+test("the file import path extracts a published SugarCube story from ZIP", async () => {
+  const db = new MemoryDb();
+  const library = store(db);
+  const html = `<!doctype html><html><head><script id="script-sugarcube"></script></head><body>
+    <tw-storydata name="Archived Story" ifid="IFID-ZIP" startnode="1" format="SugarCube"></tw-storydata>
+  </body></html>`;
+  const archive = new JSZip();
+  archive.file("release/index.html", html);
+  archive.file("release/images/cover.png", new Uint8Array([1, 2, 3]));
+  const data = await archive.generateAsync({ type: "arraybuffer" });
+  const imported = await library.importFile(
+    { name: "archived-story.zip", extension: "zip", mimeType: "application/zip", data },
+    (source) => new JSDOM(source).window.document,
+  );
+  equal(imported.book.title, "Archived Story");
+  equal(imported.book.format, "sugarcube-2-runtime");
+  const source = await library.getSugarCubeSource(imported.book.id);
+  equal(source?.html, html);
+  equal(source?.assets?.[0].path, "release/images/cover.png");
+  equal(source?.assets?.[0].mimeType, "image/png");
 });
 
 test("clearing LLM Chat removes conversation state and restores its initial prompt", async () => {
