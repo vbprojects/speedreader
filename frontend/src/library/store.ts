@@ -9,10 +9,18 @@ import { sha256 } from "./hash";
 import type { ImportResult, OpenableBook } from "./types";
 import { ACTIONS_BOOK_ID, ACTIONS_BOOK_REVISION, createActionsFixture } from "./default-books/actions";
 import { BLUESKY_JETSTREAM_BOOK_ID, BLUESKY_JETSTREAM_BOOK_REVISION, createBlueskyJetstreamFixture } from "./default-books/bluesky-jetstream";
-import { LLM_CHAT_BOOK_ID, LLM_CHAT_BOOK_REVISION, createLlmChatFixture } from "./default-books/llm-chat";
+import {
+  LLM_CHAT_BOOK_ID,
+  LLM_CHAT_BOOK_REVISION,
+  createLlmChatFixture,
+  createLlmChatState,
+  createLlmChatStream,
+} from "./default-books/llm-chat";
 import type { InteractiveFormat } from "../ingestion/interactive";
 import type { ReaderEngineEvent } from "../engine-events/types";
-import type { ForeignProvenance } from "../foreign-libraries";
+import type { ForeignInteractivePlan, ForeignProvenance } from "../foreign-libraries";
+import { ForeignLibraryError } from "../foreign-libraries";
+import { normalizeOpenAIBaseUrl, OPENAI_COMPATIBLE_FORMAT } from "../ingestion/openai-compatible";
 import { assertFileSize } from "../ingestion/limits";
 import {
   detectSugarCubeSource,
@@ -196,6 +204,51 @@ export class LibraryStore {
     const book = { ...result.book, foreignSource };
     await this.db.updateBook(book.id, { foreignSource });
     return { ...result, book };
+  }
+
+  /** Persist a non-secret interactive catalog item as a reusable library tile. */
+  async importForeignInteractive(plan: ForeignInteractivePlan): Promise<ImportResult> {
+    if (plan.format !== OPENAI_COMPATIBLE_FORMAT) {
+      throw new ForeignLibraryError("unsupported", `Interactive format ${plan.format} is not supported.`);
+    }
+    if (!plan.publicConfig || typeof plan.publicConfig !== "object" || Array.isArray(plan.publicConfig)) {
+      throw new ForeignLibraryError("invalid-request", "The interactive model configuration is invalid.");
+    }
+    const config = plan.publicConfig as Record<string, unknown>;
+    if (Object.keys(config).some((key) => key !== "baseUrl" && key !== "model")
+      || typeof config.baseUrl !== "string" || typeof config.model !== "string"
+      || !config.model.trim() || config.model.length > 512) {
+      throw new ForeignLibraryError("invalid-request", "The interactive model configuration is invalid.");
+    }
+    const publicConfig = {
+      baseUrl: normalizeOpenAIBaseUrl(config.baseUrl),
+      model: config.model.trim(),
+    };
+    const id = `foreign:${plan.provenance.libraryId}:${plan.provenance.itemId}`;
+    const existing = await this.db.getBook(id);
+    const existingStream = await this.db.getStream(id);
+    if (existing && existingStream) return { book: existing, stream: existingStream, existed: true };
+
+    const stream = createLlmChatStream();
+    const book: Book = {
+      id,
+      title: plan.suggestedTitle,
+      author: plan.suggestedAuthor ?? "OpenRouter",
+      format: OPENAI_COMPATIBLE_FORMAT,
+      addedAt: existing?.addedAt ?? Date.now(),
+      wordCount: stream.meta.totalWords,
+      chapterCount: stream.chapterIndex.length,
+      parserVersion: PARSER_VERSION,
+      formatState: createLlmChatState(),
+      interactiveConfig: publicConfig,
+      foreignSource: {
+        ...plan.provenance,
+        acquiredAt: plan.provenance.acquiredAt ?? new Date().toISOString(),
+      },
+    };
+    await this.db.addBook(book);
+    await this.db.saveStream(id, stream);
+    return { book, stream, existed: false };
   }
 
   /**

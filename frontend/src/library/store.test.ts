@@ -189,6 +189,37 @@ test("foreign downloads use the ordinary parser, preserve content dedupe, and at
   deepStrictEqual((await db.getBook(imported.book.id))?.foreignSource, source);
 });
 
+test("foreign interactive models become removable LLM Chat tiles without persisting credentials", async () => {
+  const db = new MemoryDb();
+  const library = store(db);
+  const plan = {
+    kind: "interactive" as const,
+    format: "openai-compatible-llm",
+    publicConfig: { baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-test" },
+    credentialBindings: { apiKey: "openrouter-api-key" },
+    suggestedTitle: "OpenAI: GPT Test",
+    suggestedAuthor: "OpenAI via OpenRouter",
+    provenance: { libraryId: "ai.openrouter.models", itemId: "openai/gpt-test", canonicalUrl: "https://openrouter.ai/openai/gpt-test" },
+  };
+  const imported = await library.importForeignInteractive(plan);
+  const duplicate = await library.importForeignInteractive(plan);
+
+  equal(imported.existed, false);
+  equal(duplicate.existed, true);
+  equal(imported.book.builtIn, undefined);
+  equal(imported.book.format, "openai-compatible-llm");
+  deepStrictEqual(imported.book.interactiveConfig, { baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-test" });
+  equal(JSON.stringify(imported.book).includes("openrouter-api-key"), false);
+  equal(imported.stream.interactions?.[0].id, "llm:input:0");
+  await library.removeBook(imported.book.id);
+  equal(await db.getBook(imported.book.id), null);
+
+  await rejects(() => library.importForeignInteractive({
+    ...plan,
+    publicConfig: { ...plan.publicConfig, apiKey: "must-not-persist" },
+  }), /configuration is invalid/);
+});
+
 test("the file import selector path persists published SugarCube source and dedupes by bytes", async () => {
   const db = new MemoryDb();
   const library = store(db);

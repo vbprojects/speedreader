@@ -3,6 +3,7 @@ import {
   FOREIGN_LIBRARY_API,
   ForeignLibraryError,
   type ForeignDownloadPlan,
+  type ForeignBrowseRequest,
   type ForeignItem,
   type ForeignItemRef,
   type ForeignLibraryHost,
@@ -94,7 +95,7 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
     name: "Project Gutenberg",
     description: "Search and import public-domain EPUB books through Project Gutenberg's OPDS catalog.",
     homepage: GUTENBERG_ORIGIN,
-    capabilities: ["catalog.search", "item.resolve", "item.acquire"],
+    capabilities: ["catalog.search", "catalog.browse", "item.resolve", "item.acquire"],
     outputs: [{
       type: "epub",
       label: "EPUB",
@@ -192,14 +193,8 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
       return item;
     };
 
-    const search = async (request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> => {
-      const query = request.query.trim();
-      if (!query) throw new ForeignLibraryError("invalid-request", "Enter a title or author to search Project Gutenberg.");
-      const url = request.cursor
-        ? request.cursor
-        : `${GUTENBERG_ORIGIN}/ebooks/search.opds/?query=${encodeURIComponent(query)}`;
-      const document = await fetchDocument(url, request.signal);
-      const items = [...document.getElementsByTagNameNS(ATOM_NS, "entry")].slice(0, Math.min(request.pageSize ?? 25, 25)).map((entry) => {
+    const pageFromDocument = (document: Document, pageSize: number): ForeignPage<ForeignItem> => {
+      const items = [...document.getElementsByTagNameNS(ATOM_NS, "entry")].slice(0, pageSize).map((entry) => {
         const subsection = links(entry).find((link) => link.getAttribute("rel") === "subsection");
         const itemId = itemIdFromUrl(subsection?.getAttribute("href") ?? childText(entry, ATOM_NS, "id") ?? "");
         const author = childText(entry, ATOM_NS, "content");
@@ -219,6 +214,22 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
         .find((link) => link.parentElement?.localName === "feed" && link.getAttribute("rel") === "next")
         ?.getAttribute("href");
       return { items, ...(next ? { nextCursor: absoluteUrl(next) } : {}) };
+    };
+
+    const search = async (request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> => {
+      const query = request.query.trim();
+      if (!query) throw new ForeignLibraryError("invalid-request", "Enter a title or author to search Project Gutenberg.");
+      const url = request.cursor
+        ? request.cursor
+        : `${GUTENBERG_ORIGIN}/ebooks/search.opds/?query=${encodeURIComponent(query)}`;
+      return pageFromDocument(await fetchDocument(url, request.signal), Math.min(request.pageSize ?? 25, 25));
+    };
+
+    const browse = async (request: ForeignBrowseRequest): Promise<ForeignPage<ForeignItem>> => {
+      const url = request.cursor
+        ? request.cursor
+        : `${GUTENBERG_ORIGIN}/ebooks/search.opds/?sort_order=downloads`;
+      return pageFromDocument(await fetchDocument(url, request.signal), Math.min(request.pageSize ?? 24, 25));
     };
 
     const planImport = async (ref: ForeignItemRef, offerId: string): Promise<ForeignDownloadPlan> => {
@@ -250,7 +261,7 @@ export class GutenbergForeignLibrary implements ForeignLibraryPlugin {
       };
     };
 
-    return { search, resolve, planImport, dispose: () => { cachedItems.clear(); acquisitions.clear(); } };
+    return { search, browse, resolve, planImport, dispose: () => { cachedItems.clear(); acquisitions.clear(); } };
   }
 }
 

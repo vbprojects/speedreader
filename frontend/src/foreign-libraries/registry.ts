@@ -68,7 +68,7 @@ export class ForeignLibraryRegistry {
         return { ...page, items: page.items.map((item) => validateForeignItem(item, plugin.manifest)) };
       } : undefined,
       resolve: async (ref) => validateForeignItem(await session.resolve(ref), plugin.manifest),
-      planImport: async (ref, offerId) => validateForeignImportPlan(await session.planImport(ref, offerId), plugin.manifest),
+      planImport: async (ref, offerId) => this.validatePlan(await session.planImport(ref, offerId)),
       dispose: () => session.dispose(),
     };
   }

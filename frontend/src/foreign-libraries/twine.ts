@@ -3,6 +3,7 @@ import {
   FOREIGN_LIBRARY_API,
   ForeignLibraryError,
   type ForeignDownloadPlan,
+  type ForeignBrowseRequest,
   type ForeignItem,
   type ForeignItemRef,
   type ForeignLibraryHost,
@@ -109,7 +110,7 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
     name: "Twine on IFDB",
     description: "Search Twine stories cataloged by the Interactive Fiction Database and import direct HTML releases from IFDB or IF Archive.",
     homepage: IFDB_ORIGIN,
-    capabilities: ["catalog.search", "item.resolve", "item.acquire"],
+    capabilities: ["catalog.search", "catalog.browse", "item.resolve", "item.acquire"],
     outputs: [
       { type: "html", label: "HTML", delivery: ["download"], mediaTypes: ["text/html"], extensions: ["html", "htm"] },
       { type: "sugarcube", label: "SugarCube", delivery: ["download"], mediaTypes: ["text/html"], extensions: ["html", "htm"] },
@@ -198,13 +199,10 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
       return item;
     };
 
-    const search = async (request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> => {
-      const query = request.query.trim();
-      if (!query) throw new ForeignLibraryError("invalid-request", "Enter a Twine title or author to search IFDB.");
-      const searchFor = `${query} system:Twine`;
-      const response = await fetchJson(`${IFDB_ORIGIN}/search?json=&game=&searchfor=${encodeURIComponent(searchFor)}`, request.signal) as { games?: unknown };
+    const pageForSearch = async (searchFor: string, pageSize: number, signal?: AbortSignal): Promise<ForeignPage<ForeignItem>> => {
+      const response = await fetchJson(`${IFDB_ORIGIN}/search?json=&game=&searchfor=${encodeURIComponent(searchFor)}`, signal) as { games?: unknown };
       const games = Array.isArray(response.games) ? response.games as IfdbSearchGame[] : [];
-      const items = games.slice(0, Math.min(request.pageSize ?? 25, 25)).flatMap((game) => {
+      const items = games.slice(0, Math.min(pageSize, 25)).flatMap((game) => {
         const itemId = string(game.tuid);
         const title = string(game.title);
         if (!itemId || !/^[a-z0-9]{8,32}$/u.test(itemId) || !title || string(game.devsys)?.toLowerCase() !== "twine") return [];
@@ -224,8 +222,18 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
       return { items };
     };
 
+    const search = async (request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> => {
+      const query = request.query.trim();
+      if (!query) throw new ForeignLibraryError("invalid-request", "Enter a Twine title or author to search IFDB.");
+      return pageForSearch(`${query} system:Twine`, request.pageSize ?? 25, request.signal);
+    };
+
+    const browse = (request: ForeignBrowseRequest): Promise<ForeignPage<ForeignItem>> =>
+      pageForSearch("system:Twine", request.pageSize ?? 24, request.signal);
+
     return {
       search,
+      browse,
       resolve,
       async planImport(ref, selectedOfferId): Promise<ForeignDownloadPlan> {
         const item = await resolve(ref);
