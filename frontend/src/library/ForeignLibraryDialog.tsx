@@ -140,6 +140,12 @@ export function ForeignLibraryDialog({
     setManualDownload(null);
     try {
       const plan = await session.planImport(selected.ref, offerId);
+      if (plan.kind === "download" && plan.acquisition === "manual") {
+        const fallback = manualForeignDownload(plan, registry);
+        if (!fallback) throw new Error("The library returned an invalid manual download.");
+        setManualDownload(fallback);
+        return;
+      }
       try {
         await onImport(plan);
         onClose();
@@ -292,11 +298,11 @@ export function ForeignLibraryDialog({
 
         {activeManifest && manualDownload && (
           <div role="note" style={{ marginTop: 12, padding: 12, border: `1px solid ${t.border}`, borderRadius: 8, background: t.bg }}>
-            <strong style={{ display: "block", marginBottom: 5 }}>Direct import is unavailable in this browser.</strong>
-            <span style={{ display: "block", color: t.muted, fontSize: 13, lineHeight: 1.45 }}>Download the EPUB in Safari, then choose that file here. Speedreader will retain the catalog provenance.</span>
+            <strong style={{ display: "block", marginBottom: 5 }}>{manualDownload.plan.acquisition === "manual" ? "Download from the source." : "Direct import is unavailable in this browser."}</strong>
+            <span style={{ display: "block", color: t.muted, fontSize: 13, lineHeight: 1.45 }}>Download the {manualDownload.plan.file.extension.toUpperCase()} in your browser, then choose that file here. Speedreader will retain the catalog provenance.</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-              <a href={manualDownload.url} target="_blank" rel="external noopener noreferrer" download={manualDownload.fileName} style={{ ...control, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Download EPUB</a>
-              {onImportManual && <button type="button" disabled={busy} onClick={() => { void importManualDownload(); }} style={{ ...control, border: 0, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>Choose downloaded EPUB</button>}
+              <a href={manualDownload.url} target="_blank" rel="external noopener noreferrer" download={manualDownload.fileName} style={{ ...control, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Download {manualDownload.plan.file.extension.toUpperCase()}</a>
+              {onImportManual && <button type="button" disabled={busy} onClick={() => { void importManualDownload(); }} style={{ ...control, border: 0, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>Choose downloaded {manualDownload.plan.file.extension.toUpperCase()}</button>}
             </div>
           </div>
         )}

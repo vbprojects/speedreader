@@ -113,6 +113,10 @@ export function validateForeignManifest(manifest: ForeignLibraryManifest): Forei
   if (!Array.isArray(origins) || origins.length === 0 || origins.length > 32) invalid("Plugin must declare network origins");
   const normalizedOrigins = origins.map(httpsOrigin);
   if (new Set(normalizedOrigins).size !== normalizedOrigins.length) invalid("Network origins must be unique");
+  const manualOrigins = manifest.permissions.manualDownloadOrigins ?? [];
+  if (!Array.isArray(manualOrigins) || manualOrigins.length > 32) invalid("Manual download origins are invalid");
+  const normalizedManualOrigins = manualOrigins.map(httpsOrigin);
+  if (new Set(normalizedManualOrigins).size !== normalizedManualOrigins.length) invalid("Manual download origins must be unique");
   const maxBytes = manifest.permissions.maxResponseBytes;
   if (maxBytes !== undefined && (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)) invalid("Maximum response bytes is invalid");
   const rate = manifest.permissions.rateLimit;
@@ -164,16 +168,35 @@ export function validateForeignItem(item: ForeignItem, manifest: ForeignLibraryM
   return item;
 }
 
-export function validateForeignImportPlan(plan: ForeignImportPlan, libraryId: string): ForeignImportPlan {
-  if (!plan || plan.provenance?.libraryId !== libraryId) invalid("Import plan belongs to the wrong plugin");
+export function validateForeignImportPlan(plan: ForeignImportPlan, manifest: ForeignLibraryManifest): ForeignImportPlan {
+  if (!plan || plan.provenance?.libraryId !== manifest.id) invalid("Import plan belongs to the wrong plugin");
   nonEmpty(plan.provenance.itemId, "Provenance item ID", 512);
   if (plan.kind === "download") {
     nonEmpty(plan.request?.url, "Download URL", 4096);
-    if (plan.request.gateway !== undefined && plan.request.gateway !== "preferred") invalid("Download gateway preference is invalid");
+    if (plan.acquisition !== undefined && plan.acquisition !== "host" && plan.acquisition !== "manual") invalid("Download acquisition mode is invalid");
+    if (plan.request.gateway !== undefined
+      && (typeof plan.request.gateway !== "object" || !(["gutenberg", "catalog"] as const).includes(plan.request.gateway.route))) {
+      invalid("Download gateway preference is invalid");
+    }
     nonEmpty(plan.file?.name, "Download filename", 512);
     nonEmpty(plan.file?.extension, "Download extension", 32);
     if (!/^[a-z0-9]+$/iu.test(plan.file.extension) || /[\\/\0]/u.test(plan.file.name)) invalid("Download filename is invalid");
     if (plan.file.expectedSha256 && !/^[a-f0-9]{64}$/iu.test(plan.file.expectedSha256)) invalid("Expected file hash is invalid");
+    if (plan.acquisition === "manual") {
+      let source: URL;
+      try {
+        source = new URL(plan.request.url);
+      } catch {
+        invalid("Manual download URL is invalid");
+      }
+      if ((plan.request.method && plan.request.method !== "GET") || plan.request.body || plan.request.credential || plan.request.gateway) {
+        invalid("Manual downloads must be unauthenticated direct GET requests");
+      }
+      if (source.protocol !== "https:" || source.username || source.password
+        || !(manifest.permissions.manualDownloadOrigins ?? []).includes(source.origin)) {
+        invalid("Manual download uses an undeclared origin");
+      }
+    }
   } else if (plan.kind === "interactive") {
     nonEmpty(plan.format, "Interactive format", 128);
     nonEmpty(plan.suggestedTitle, "Interactive title", 512);

@@ -51,6 +51,8 @@ export interface ForeignLibraryManifest {
   outputs: ForeignLibraryOutput[];
   permissions: {
     networkOrigins: string[];
+    /** Origins opened by the browser for user-directed downloads; the host never fetches them. */
+    manualDownloadOrigins?: string[];
     credentials?: ForeignCredentialSlot[];
     rateLimit?: {
       maxConcurrent: number;
@@ -133,8 +135,8 @@ export interface ForeignRequest {
   timeoutMs?: number;
   maxResponseBytes?: number;
   signal?: AbortSignal;
-  /** Ask the host to use its configured CORS gateway, falling back to direct fetch when absent. */
-  gateway?: "preferred";
+  /** Ask the host to use a specific route on its configured CORS gateway. */
+  gateway?: { route: "gutenberg" | "catalog" };
   credential?: {
     slotId: string;
     placement:
@@ -166,6 +168,8 @@ export interface ForeignProvenance {
 
 export interface ForeignDownloadPlan {
   kind: "download";
+  /** `manual` opens the source in the browser and imports the file the user selects. */
+  acquisition?: "host" | "manual";
   request: ForeignRequest;
   file: {
     name: string;

@@ -28,6 +28,7 @@ Each plugin exposes one immutable `ForeignLibraryManifest` and an asynchronous `
 | `capabilities` | Operations the opened session actually implements |
 | `outputs` | Stable output types, labels, delivery modes, MIME types, and extensions |
 | `permissions.networkOrigins` | Exact HTTPS origins the host may contact |
+| `permissions.manualDownloadOrigins` | Exact HTTPS origins the UI may open for user-directed downloads |
 | `permissions.credentials` | Named credential slots; never credential values |
 | `permissions.rateLimit` | Host-enforced concurrency/spacing ceiling |
 | `permissions.maxResponseBytes` | Per-response ceiling, also capped by ingestion limits |
@@ -66,7 +67,7 @@ All returned item metadata must be JSON-safe and bounded. The registry rejects d
 
 ### Download
 
-A `ForeignDownloadPlan` contains a host request, parser-facing filename information, optional SHA-256 integrity value, and provenance. The host downloads the bytes under the plugin's permissions; the coordinator verifies any supplied checksum and produces an ordinary `FileInfo`. From that point the existing `IngestionEngine` owns format detection, limits, sanitization, and parsing.
+A `ForeignDownloadPlan` contains an acquisition mode, request, parser-facing filename information, optional SHA-256 integrity value, and provenance. `host` acquisition (the default) downloads bytes under network permissions. `manual` acquisition never sends the request through the host: the UI opens an exact `manualDownloadOrigins` URL and imports only the file the user subsequently selects. The coordinator verifies any supplied checksum and produces an ordinary `FileInfo`. From that point the existing `IngestionEngine` owns format detection, limits, sanitization, and parsing.
 
 Downloaded content keeps Speedreader's content-addressed SHA-256 book identity, so the same bytes deduplicate with a local file import. `Book.foreignSource` records catalog provenance separately from content identity.
 
@@ -86,12 +87,19 @@ Interactive plan execution is specified by v2 but is not enabled by the first im
 - Credential values are injected by the host into a declared bearer or custom-header placement. Credentialed requests cannot redirect.
 - Timeouts, cancellation, rate spacing, declared content lengths, streamed byte counts, and the application's global file-size ceiling are enforced outside plugin code.
 - Final redirect origins are revalidated before response bytes are returned.
-- A deployment must provide a first-party gateway when a catalog does not permit browser CORS. Gateways remain subject to the same origin, credential, size, and provenance rules. A plugin marks eligible unauthenticated downloads with `gateway: "preferred"`; the host, not the plugin, owns the configured gateway URL.
+- A deployment must provide a first-party gateway when a catalog does not permit browser CORS. Gateways remain subject to the same origin, credential, size, and provenance rules. A plugin selects the allowlisted `gutenberg` or `catalog` route; the host owns the configured gateway base URL and the Worker independently validates every target.
+- Manual acquisitions must be unauthenticated HTTPS GETs to a manifest-declared origin. They are never fetched by the Worker and never gain access to ambient browser credentials.
 
 Plugins must treat remote responses as untrusted. The registry validates plugin output again before any result reaches storage or reader code.
 
 ## Bundled adapters
 
-The first adapter, `org.gutenberg.catalog`, searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. Its final EPUB acquisition may use the allowlisted Cloudflare Worker in `gateway/`; search and resolution remain direct. If the gateway is absent or unavailable, the selector offers a manual browser download followed by a constrained file picker while retaining provenance. The generic selector presents registered sources as a list and filters them from manifest output declarations; additional adapters register with the same registry rather than adding source-specific UI.
+The bundled adapters are:
 
-An arXiv adapter is intentionally deferred until a first-party web gateway exists for its API and PDF downloads. Model-provider adapters will use interactive plans and the host credential-slot mechanism rather than embedding endpoint logic or keys in books.
+- `org.gutenberg.catalog` searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. Its final EPUB acquisition may use the allowlisted Worker; search and resolution remain direct. If the gateway is absent or unavailable, the selector offers a manual browser download followed by a constrained file picker.
+- `org.ifdb.twine` uses [IFDB's official JSON APIs](https://ifdb.org/api/) with its required Twine system constraint. It exposes only direct `.html`/`.htm` game files on IFDB or IF Archive origins; third-party mirrors and archives are omitted. Downloads are manual, retain IFDB provenance, and pass through SugarCube detection without executing story scripts.
+- `org.arxiv.catalog` uses the [arXiv Atom API](https://info.arxiv.org/help/api/) with a single connection and a three-second request interval. PDF acquisition is manual from `arxiv.org`; the Worker handles metadata only and never stores or serves papers, following the [arXiv API terms](https://info.arxiv.org/help/api/tou.html).
+
+The generic selector presents registered sources as a list and filters them from manifest output declarations; additional adapters register with the same registry rather than adding source-specific UI.
+
+Model-provider adapters will use interactive plans and the host credential-slot mechanism rather than embedding endpoint logic or keys in books.

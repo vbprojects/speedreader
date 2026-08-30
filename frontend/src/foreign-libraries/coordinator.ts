@@ -13,6 +13,9 @@ export class ForeignImportCoordinator {
 
   async acquire(plan: ForeignDownloadPlan): Promise<AcquiredForeignFile> {
     this.registry.validatePlan(plan);
+    if (plan.acquisition === "manual") {
+      throw new ForeignLibraryError("invalid-request", "Manual downloads must be selected through the browser file picker.");
+    }
     const response = await this.registry.request(plan.provenance.libraryId, plan.request);
     if (response.status < 200 || response.status >= 300) {
       if (response.status === 401 || response.status === 403) {

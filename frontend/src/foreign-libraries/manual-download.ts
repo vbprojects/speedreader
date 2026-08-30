@@ -17,14 +17,17 @@ export interface ManualForeignDownload {
 export function manualForeignDownload(
   plan: ForeignImportPlan,
   registry: ForeignLibraryRegistry,
-  error: unknown,
+  error?: unknown,
 ): ManualForeignDownload | null {
-  if (plan.kind !== "download" || plan.request.gateway !== "preferred" || plan.request.credential
-    || (plan.request.method ?? "GET") !== "GET" || plan.request.body !== undefined
-    || !(error instanceof ForeignLibraryError) || !FALLBACK_ERROR_CODES.has(error.code)) {
+  if (plan.kind !== "download" || plan.request.credential
+    || (plan.request.method ?? "GET") !== "GET" || plan.request.body !== undefined) {
     return null;
   }
-  registry.validatePlan(plan);
+  const validated = registry.validatePlan(plan);
+  if (validated.kind !== "download") return null;
+  const manual = validated.acquisition === "manual";
+  if (!manual && (!validated.request.gateway
+    || !(error instanceof ForeignLibraryError) || !FALLBACK_ERROR_CODES.has(error.code))) return null;
   const manifest = registry.manifest(plan.provenance.libraryId);
   let url: URL;
   try {
@@ -32,7 +35,8 @@ export function manualForeignDownload(
   } catch {
     return null;
   }
-  if (url.protocol !== "https:" || url.username || url.password || !manifest.permissions.networkOrigins.includes(url.origin)) {
+  const allowedOrigins = manual ? manifest.permissions.manualDownloadOrigins ?? [] : manifest.permissions.networkOrigins;
+  if (url.protocol !== "https:" || url.username || url.password || !allowedOrigins.includes(url.origin)) {
     return null;
   }
   return { plan, url: url.toString(), fileName: plan.file.name };
