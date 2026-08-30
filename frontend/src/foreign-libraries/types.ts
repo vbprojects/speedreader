@@ -1,4 +1,4 @@
-export const FOREIGN_LIBRARY_API = "speedreader.foreign-library/v1" as const;
+export const FOREIGN_LIBRARY_API = "speedreader.foreign-library/v2" as const;
 
 export type Json =
   | null
@@ -13,6 +13,24 @@ export type ForeignCapability =
   | "catalog.browse"
   | "item.resolve"
   | "item.acquire";
+
+export type ForeignOutputType =
+  | "epub"
+  | "html"
+  | "pdf"
+  | "json"
+  | "sugarcube"
+  | `x-${string}`;
+
+export interface ForeignLibraryOutput {
+  /** Stable machine-readable type used by the library browser's filters. */
+  type: ForeignOutputType;
+  /** Short user-facing name, such as “JSON response”. */
+  label: string;
+  delivery: Array<"download" | "interactive">;
+  mediaTypes?: string[];
+  extensions?: string[];
+}
 
 export interface ForeignCredentialSlot {
   id: string;
@@ -30,8 +48,11 @@ export interface ForeignLibraryManifest {
   description: string;
   homepage?: string;
   capabilities: ForeignCapability[];
+  outputs: ForeignLibraryOutput[];
   permissions: {
     networkOrigins: string[];
+    /** Origins opened by the browser for user-directed downloads; the host never fetches them. */
+    manualDownloadOrigins?: string[];
     credentials?: ForeignCredentialSlot[];
     rateLimit?: {
       maxConcurrent: number;
@@ -58,6 +79,7 @@ export interface ForeignLicense {
 export interface ForeignOffer {
   id: string;
   label: string;
+  outputType: ForeignOutputType;
   importKind: "download" | "interactive";
   mediaType?: string;
   extension?: string;
@@ -113,8 +135,8 @@ export interface ForeignRequest {
   timeoutMs?: number;
   maxResponseBytes?: number;
   signal?: AbortSignal;
-  /** Ask the host to use its configured CORS gateway, falling back to direct fetch when absent. */
-  gateway?: "preferred";
+  /** Ask the host to use a specific route on its configured CORS gateway. */
+  gateway?: { route: "gutenberg" | "catalog" };
   credential?: {
     slotId: string;
     placement:
@@ -146,6 +168,8 @@ export interface ForeignProvenance {
 
 export interface ForeignDownloadPlan {
   kind: "download";
+  /** `manual` opens the source in the browser and imports the file the user selects. */
+  acquisition?: "host" | "manual";
   request: ForeignRequest;
   file: {
     name: string;

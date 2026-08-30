@@ -60,15 +60,15 @@ export class ForeignLibraryRegistry {
       search: session.search ? async (request) => {
         const page = await session.search!(request);
         if (!page || !Array.isArray(page.items)) throw new ForeignLibraryError("invalid-response", "Plugin returned an invalid search page.");
-        return { ...page, items: page.items.map((item) => validateForeignItem(item, libraryId)) };
+        return { ...page, items: page.items.map((item) => validateForeignItem(item, plugin.manifest)) };
       } : undefined,
       browse: session.browse ? async (request) => {
         const page = await session.browse!(request);
         if (!page || !Array.isArray(page.items)) throw new ForeignLibraryError("invalid-response", "Plugin returned an invalid browse page.");
-        return { ...page, items: page.items.map((item) => validateForeignItem(item, libraryId)) };
+        return { ...page, items: page.items.map((item) => validateForeignItem(item, plugin.manifest)) };
       } : undefined,
-      resolve: async (ref) => validateForeignItem(await session.resolve(ref), libraryId),
-      planImport: async (ref, offerId) => validateForeignImportPlan(await session.planImport(ref, offerId), libraryId),
+      resolve: async (ref) => validateForeignItem(await session.resolve(ref), plugin.manifest),
+      planImport: async (ref, offerId) => validateForeignImportPlan(await session.planImport(ref, offerId), plugin.manifest),
       dispose: () => session.dispose(),
     };
   }
@@ -79,7 +79,7 @@ export class ForeignLibraryRegistry {
 
   validatePlan(plan: ForeignImportPlan): ForeignImportPlan {
     const manifest = this.manifest(plan.provenance.libraryId);
-    const validated = validateForeignImportPlan(plan, plan.provenance.libraryId);
+    const validated = validateForeignImportPlan(plan, manifest);
     const declaredSlots = new Set(manifest.permissions.credentials?.map((slot) => slot.id) ?? []);
     if (validated.kind === "interactive" && Object.values(validated.credentialBindings ?? {}).some((slot) => !declaredSlots.has(slot))) {
       throw new ForeignLibraryError("permission-denied", "The import plan references an undeclared credential slot.");

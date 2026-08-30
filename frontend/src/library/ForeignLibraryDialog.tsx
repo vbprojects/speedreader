@@ -3,12 +3,18 @@ import type {
   ForeignDownloadPlan,
   ForeignImportPlan,
   ForeignItem,
+  ForeignLibraryManifest,
   ForeignLibraryRegistry,
   ForeignLibrarySession,
+  ForeignOutputType,
 } from "../foreign-libraries";
-import { manualForeignDownload, type ManualForeignDownload } from "../foreign-libraries";
+import { filterForeignLibraries, foreignOutputFilters, manualForeignDownload, type ManualForeignDownload } from "../foreign-libraries";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
+
+function libraryOutputLabel(manifest: ForeignLibraryManifest, type: ForeignOutputType): string {
+  return manifest.outputs.find((output) => output.type === type)?.label ?? type;
+}
 
 export function ForeignLibraryDialog({
   open,
@@ -26,7 +32,13 @@ export function ForeignLibraryDialog({
   onClose: () => void;
 }) {
   const manifests = useMemo(() => registry.manifests, [registry]);
-  const [libraryId, setLibraryId] = useState(manifests[0]?.id ?? "");
+  const outputFilters = useMemo(() => foreignOutputFilters(manifests), [manifests]);
+  const [outputFilter, setOutputFilter] = useState<ForeignOutputType | "all">("all");
+  const filteredManifests = useMemo(
+    () => filterForeignLibraries(manifests, outputFilter),
+    [manifests, outputFilter],
+  );
+  const [libraryId, setLibraryId] = useState("");
   const [session, setSession] = useState<ForeignLibrarySession | null>(null);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<ForeignItem[]>([]);
@@ -35,6 +47,17 @@ export function ForeignLibraryDialog({
   const [error, setError] = useState<string | null>(null);
   const [manualDownload, setManualDownload] = useState<ManualForeignDownload | null>(null);
   const t = themeTokens(theme);
+  const activeManifest = libraryId ? registry.manifest(libraryId) : null;
+
+  useEffect(() => {
+    if (open) return;
+    setLibraryId("");
+    setSession(null);
+    setItems([]);
+    setSelected(null);
+    setError(null);
+    setManualDownload(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !libraryId) return;
@@ -117,6 +140,12 @@ export function ForeignLibraryDialog({
     setManualDownload(null);
     try {
       const plan = await session.planImport(selected.ref, offerId);
+      if (plan.kind === "download" && plan.acquisition === "manual") {
+        const fallback = manualForeignDownload(plan, registry);
+        if (!fallback) throw new Error("The library returned an invalid manual download.");
+        setManualDownload(fallback);
+        return;
+      }
       try {
         await onImport(plan);
         onClose();
@@ -144,6 +173,24 @@ export function ForeignLibraryDialog({
     }
   };
 
+  const chooseLibrary = (manifest: ForeignLibraryManifest) => {
+    setQuery("");
+    setItems([]);
+    setSelected(null);
+    setError(null);
+    setManualDownload(null);
+    setLibraryId(manifest.id);
+  };
+
+  const showLibraries = () => {
+    setLibraryId("");
+    setQuery("");
+    setItems([]);
+    setSelected(null);
+    setError(null);
+    setManualDownload(null);
+  };
+
   return (
     <div
       role="presentation"
@@ -165,37 +212,102 @@ export function ForeignLibraryDialog({
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close" style={{ ...control, width: 44, padding: 0 }}>×</button>
         </div>
 
-        {manifests.length > 1 && (
-          <label style={{ display: "grid", gap: 6, marginBottom: 14, fontSize: 13 }}>
-            Source
-            <select value={libraryId} disabled={busy} onChange={(event) => setLibraryId(event.target.value)} style={control}>
-              {manifests.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}
-            </select>
-          </label>
-        )}
+        {!activeManifest ? (
+          <>
+            <div role="toolbar" aria-label="Filter libraries by output type" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                type="button"
+                autoFocus
+                aria-pressed={outputFilter === "all"}
+                onClick={() => setOutputFilter("all")}
+                style={{ ...control, minHeight: 36, padding: "7px 12px", background: outputFilter === "all" ? t.highlight : t.bg, color: outputFilter === "all" ? t.highlightFg : t.fg }}
+              >
+                All
+              </button>
+              {outputFilters.map(({ type, label }) => (
+                <button
+                  key={type}
+                  type="button"
+                  aria-pressed={outputFilter === type}
+                  onClick={() => setOutputFilter(type)}
+                  style={{ ...control, minHeight: 36, padding: "7px 12px", background: outputFilter === type ? t.highlight : t.bg, color: outputFilter === type ? t.highlightFg : t.fg }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        <form onSubmit={(event) => { event.preventDefault(); void search(); }} style={{ display: "flex", gap: 10, alignItems: "end" }}>
-          <label style={{ display: "grid", gap: 6, flex: 1, fontSize: 13 }}>
-            Search {registry.manifest(libraryId).name}
-            <input autoFocus value={query} disabled={busy || !session} onChange={(event) => setQuery(event.target.value)} placeholder="Title or author" style={{ ...control, width: "100%" }} />
-          </label>
-          <button type="submit" disabled={busy || !session || !query.trim()} style={{ ...control, border: 0, minWidth: 96, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>{busy ? "Working…" : "Search"}</button>
-        </form>
+            <p aria-live="polite" style={{ margin: "16px 0 9px", color: t.muted, fontSize: 13 }}>
+              {filteredManifests.length} {filteredManifests.length === 1 ? "library" : "libraries"}
+            </p>
+            {filteredManifests.length > 0 ? (
+              <div role="list" aria-label="Foreign libraries" style={{ display: "grid", gap: 10 }}>
+                {filteredManifests.map((manifest) => (
+                  <div key={manifest.id} role="listitem">
+                    <button
+                      type="button"
+                      onClick={() => chooseLibrary(manifest)}
+                      style={{ ...control, width: "100%", height: "auto", display: "grid", gap: 8, padding: 14, textAlign: "left", cursor: "pointer" }}
+                    >
+                      <span style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+                        <strong style={{ fontSize: 16 }}>{manifest.name}</strong>
+                        <span style={{ color: t.muted, fontSize: 12 }}>Open →</span>
+                      </span>
+                      <span style={{ color: t.muted, fontSize: 13, lineHeight: 1.45 }}>{manifest.description}</span>
+                      <span style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {manifest.outputs.map((output) => (
+                          <span key={output.type} style={{ padding: "3px 7px", border: `1px solid ${t.border}`, borderRadius: 999, color: t.muted, fontSize: 11, fontWeight: 650 }}>
+                            {output.label}
+                          </span>
+                        ))}
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p role="status" style={{ padding: 16, border: `1px solid ${t.border}`, borderRadius: 8, color: t.muted }}>No libraries provide this output type.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <button type="button" disabled={busy} onClick={showLibraries} style={{ border: 0, margin: "0 0 12px", padding: 0, background: "transparent", color: t.highlight, font: "inherit", cursor: "pointer" }}>← All libraries</button>
+            <div style={{ marginBottom: 14 }}>
+              <h3 style={{ margin: "0 0 4px", fontSize: 17 }}>{activeManifest.name}</h3>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {activeManifest.outputs.map((output) => (
+                  <span key={output.type} style={{ color: t.muted, fontSize: 12 }}>{output.label}</span>
+                ))}
+              </div>
+            </div>
+            {activeManifest.capabilities.includes("catalog.search") ? (
+              <form onSubmit={(event) => { event.preventDefault(); void search(); }} style={{ display: "flex", gap: 10, alignItems: "end" }}>
+                <label style={{ display: "grid", gap: 6, flex: 1, fontSize: 13 }}>
+                  Search {activeManifest.name}
+                  <input autoFocus value={query} disabled={busy || !session} onChange={(event) => setQuery(event.target.value)} placeholder="Title or author" style={{ ...control, width: "100%" }} />
+                </label>
+                <button type="submit" disabled={busy || !session || !query.trim()} style={{ ...control, border: 0, minWidth: 96, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>{busy ? "Working…" : "Search"}</button>
+              </form>
+            ) : (
+              <p style={{ color: t.muted }}>This library does not provide catalog search.</p>
+            )}
+          </>
+        )}
 
         {error && <p role="alert" style={{ margin: "14px 0 0", padding: "10px 12px", borderRadius: 8, color: t.danger, background: t.dangerBg, fontSize: 14 }}>{error}</p>}
 
-        {manualDownload && (
+        {activeManifest && manualDownload && (
           <div role="note" style={{ marginTop: 12, padding: 12, border: `1px solid ${t.border}`, borderRadius: 8, background: t.bg }}>
-            <strong style={{ display: "block", marginBottom: 5 }}>Direct import is unavailable in this browser.</strong>
-            <span style={{ display: "block", color: t.muted, fontSize: 13, lineHeight: 1.45 }}>Download the EPUB in Safari, then choose that file here. Speedreader will retain the catalog provenance.</span>
+            <strong style={{ display: "block", marginBottom: 5 }}>{manualDownload.plan.acquisition === "manual" ? "Download from the source." : "Direct import is unavailable in this browser."}</strong>
+            <span style={{ display: "block", color: t.muted, fontSize: 13, lineHeight: 1.45 }}>Download the {manualDownload.plan.file.extension.toUpperCase()} in your browser, then choose that file here. Speedreader will retain the catalog provenance.</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-              <a href={manualDownload.url} target="_blank" rel="external noopener noreferrer" download={manualDownload.fileName} style={{ ...control, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Download EPUB</a>
-              {onImportManual && <button type="button" disabled={busy} onClick={() => { void importManualDownload(); }} style={{ ...control, border: 0, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>Choose downloaded EPUB</button>}
+              <a href={manualDownload.url} target="_blank" rel="external noopener noreferrer" download={manualDownload.fileName} style={{ ...control, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Download {manualDownload.plan.file.extension.toUpperCase()}</a>
+              {onImportManual && <button type="button" disabled={busy} onClick={() => { void importManualDownload(); }} style={{ ...control, border: 0, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>Choose downloaded {manualDownload.plan.file.extension.toUpperCase()}</button>}
             </div>
           </div>
         )}
 
-        {selected ? (
+        {activeManifest && selected ? (
           <div style={{ marginTop: 20, paddingTop: 18, borderTop: `1px solid ${t.border}` }}>
             <button type="button" disabled={busy} onClick={() => setSelected(null)} style={{ border: 0, padding: 0, background: "transparent", color: t.highlight, font: "inherit", cursor: "pointer" }}>← Results</button>
             <h3 style={{ margin: "14px 0 5px", fontSize: 19 }}>{selected.title}</h3>
@@ -206,12 +318,15 @@ export function ForeignLibraryDialog({
               {selected.offers.map((offer) => (
                 <button key={offer.id} type="button" disabled={busy} onClick={() => { void importOffer(offer.id); }} style={{ ...control, display: "flex", justifyContent: "space-between", textAlign: "left", cursor: busy ? "wait" : "pointer" }}>
                   <span>{offer.label}</span>
-                  <span style={{ color: t.muted }}>{offer.byteLength ? `${(offer.byteLength / 1024 / 1024).toFixed(1)} MB` : offer.extension?.toUpperCase()}</span>
+                  <span style={{ color: t.muted }}>
+                    {libraryOutputLabel(activeManifest, offer.outputType)}
+                    {offer.byteLength ? ` · ${(offer.byteLength / 1024 / 1024).toFixed(1)} MB` : ""}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
-        ) : items.length > 0 ? (
+        ) : activeManifest && items.length > 0 ? (
           <div role="list" style={{ display: "grid", gap: 8, marginTop: 20 }}>
             {items.map((item) => (
               <button key={`${item.ref.libraryId}:${item.ref.itemId}`} role="listitem" type="button" disabled={busy} onClick={() => { void inspect(item); }} style={{ ...control, height: "auto", display: "grid", gap: 3, textAlign: "left", cursor: busy ? "wait" : "pointer" }}>

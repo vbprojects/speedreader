@@ -1,11 +1,14 @@
-import { deepStrictEqual, equal, rejects } from "node:assert/strict";
+import { deepStrictEqual, equal, rejects, throws } from "node:assert/strict";
 import { test } from "node:test";
 import { JSDOM } from "jsdom";
 import { ForeignImportCoordinator } from "./coordinator";
 import { GUTENBERG_LIBRARY_ID, GutenbergForeignLibrary } from "./gutenberg";
+import { ARXIV_LIBRARY_ID, ArxivForeignLibrary } from "./arxiv";
 import { ForeignLibraryRegistry } from "./registry";
+import { filterForeignLibraries, foreignOutputFilters } from "./browser";
 import { ConstrainedForeignLibraryHost } from "./transport";
 import { manualForeignDownload } from "./manual-download";
+import { TWINE_LIBRARY_ID, TwineForeignLibrary } from "./twine";
 import {
   FOREIGN_LIBRARY_API,
   ForeignLibraryError,
@@ -23,6 +26,13 @@ const TEST_MANIFEST: ForeignLibraryManifest = {
   name: "Test Library",
   description: "A test Foreign Library.",
   capabilities: ["catalog.search", "item.resolve", "item.acquire"],
+  outputs: [{
+    type: "epub",
+    label: "EPUB",
+    delivery: ["download"],
+    mediaTypes: ["application/epub+zip"],
+    extensions: ["epub"],
+  }],
   permissions: { networkOrigins: ["https://catalog.example"], maxResponseBytes: 32 },
 };
 
@@ -36,6 +46,41 @@ test("manifest validation requires namespaced IDs, exact HTTPS origins, and matc
   rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, id: "invalid" }), /namespaced/);
   rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, permissions: { networkOrigins: ["https://catalog.example/path"] } }), /exact HTTPS origins/);
   rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, apiVersion: "future" as typeof FOREIGN_LIBRARY_API }), /Unsupported/);
+});
+
+test("manifest validation requires unique, usable output declarations", () => {
+  equal(validateForeignManifest(TEST_MANIFEST).outputs[0].type, "epub");
+  rejects(async () => validateForeignManifest({ ...TEST_MANIFEST, outputs: [] }), /output declarations/);
+  rejects(async () => validateForeignManifest({
+    ...TEST_MANIFEST,
+    outputs: [...TEST_MANIFEST.outputs, { ...TEST_MANIFEST.outputs[0] }],
+  }), /output types must be unique/);
+  rejects(async () => validateForeignManifest({
+    ...TEST_MANIFEST,
+    outputs: [{ type: "x-unsafe/type", label: "Unsafe", delivery: ["download"] }],
+  }), /output type is invalid/);
+});
+
+test("library browser exposes built-in output filters and filters manifest lists", () => {
+  const htmlManifest: ForeignLibraryManifest = {
+    ...TEST_MANIFEST,
+    id: "test.example.html",
+    name: "HTML Library",
+    outputs: [{ type: "html", label: "HTML", delivery: ["download"], mediaTypes: ["text/html"], extensions: ["html"] }],
+  };
+  const customManifest: ForeignLibraryManifest = {
+    ...TEST_MANIFEST,
+    id: "test.example.custom",
+    name: "Markdown Library",
+    outputs: [{ type: "x-markdown", label: "Markdown", delivery: ["download"], mediaTypes: ["text/markdown"], extensions: ["md"] }],
+  };
+  const manifests = [TEST_MANIFEST, htmlManifest, customManifest];
+  deepStrictEqual(foreignOutputFilters(manifests).map((filter) => filter.label), [
+    "EPUB", "HTML", "PDF", "JSON response", "SugarCube", "Markdown",
+  ]);
+  deepStrictEqual(filterForeignLibraries(manifests, "html").map((manifest) => manifest.id), [htmlManifest.id]);
+  deepStrictEqual(filterForeignLibraries(manifests, "pdf"), []);
+  equal(filterForeignLibraries(manifests, "all").length, 3);
 });
 
 test("constrained transport denies undeclared origins, forbidden headers, and oversized bodies", async () => {
@@ -80,9 +125,11 @@ test("preferred downloads use the configured gateway while retaining the validat
     undefined,
     "https://gateway.example/v1/gutenberg",
   );
-  const response = await host.request({ url: "https://catalog.example/book.epub", gateway: "preferred" });
+  const response = await host.request({ url: "https://catalog.example/book.epub", gateway: { route: "gutenberg" } });
   equal(requestedUrl, "https://gateway.example/v1/gutenberg?url=https%3A%2F%2Fcatalog.example%2Fbook.epub");
   equal(response.url, "https://catalog.example/cache/book.epub");
+  await host.request({ url: "https://catalog.example/data", gateway: { route: "catalog" } });
+  equal(requestedUrl, "https://gateway.example/v1/catalog?url=https%3A%2F%2Fcatalog.example%2Fdata");
 });
 
 test("an invalid gateway setting degrades to direct fetch for the manual fallback path", async () => {
@@ -91,7 +138,7 @@ test("an invalid gateway setting degrades to direct fetch for the manual fallbac
     requestedUrl = String(input);
     return new Response("epub", { headers: { "Content-Length": "4" } });
   }, undefined, "javascript:alert(1)");
-  await host.request({ url: "https://catalog.example/book.epub", gateway: "preferred" });
+  await host.request({ url: "https://catalog.example/book.epub", gateway: { route: "gutenberg" } });
   equal(requestedUrl, "https://catalog.example/book.epub");
 });
 
@@ -147,13 +194,114 @@ test("Gutenberg plugin searches OPDS, resolves editions, and plans the preferred
   equal(item.language, "en");
   deepStrictEqual(item.subjects, ["Love stories"]);
   equal(item.offers[0].label, "EPUB3 with images");
+  equal(item.offers[0].outputType, "epub");
   const plan = await session.planImport(item.ref, "epub-preferred");
   equal(plan.kind, "download");
   equal(plan.request.url, "https://www.gutenberg.org/ebooks/1342.epub3.images");
-  equal(plan.request.gateway, "preferred");
+  deepStrictEqual(plan.request.gateway, { route: "gutenberg" });
   equal(plan.file.extension, "epub");
   equal(plan.provenance.libraryId, GUTENBERG_LIBRARY_ID);
   equal(requests.length, 2, "resolved catalog details should be cached for acquisition");
+});
+
+const IFDB_SEARCH_JSON = JSON.stringify({
+  games: [
+    { tuid: "ltwvgb2lubkx82yi", title: "Bogeyman", author: "Elizabeth Smyth", devsys: "Twine", link: "https://ifdb.org/viewgame?id=ltwvgb2lubkx82yi", published: { machine: "2018" } },
+    { tuid: "parsergame1", title: "Parser Game", author: "Elsewhere", devsys: "Inform 7" },
+  ],
+});
+
+const IFDB_DETAIL_JSON = JSON.stringify({
+  bibliographic: { title: "Bogeyman", author: "Elizabeth Smyth", language: "en", firstpublished: "2018", description: "<p>A Twine story.</p>" },
+  ifdb: {
+    tuid: "ltwvgb2lubkx82yi",
+    pageversion: 4,
+    link: "https://ifdb.org/viewgame?id=ltwvgb2lubkx82yi",
+    tags: [{ name: "twine" }],
+    downloads: { links: [
+      { url: "https://ifarchive.org/if-archive/games/twine/bogeyman.html", title: "HTML release", isGame: true, format: "html" },
+      { url: "https://attacker.example/bogeyman.html", title: "Untrusted mirror", isGame: true, format: "html" },
+      { url: "https://ifarchive.org/if-archive/games/twine/bogeyman.zip", title: "ZIP release", isGame: true, format: "zip" },
+    ] },
+  },
+});
+
+test("Twine adapter searches IFDB and exposes only allowlisted direct HTML as a manual import", async () => {
+  const requests: Array<{ url: string; gateway: unknown }> = [];
+  const host: ForeignLibraryHost = {
+    async request(request) {
+      requests.push({ url: request.url, gateway: request.gateway });
+      return foreignResponse(request.url.includes("/search?") ? IFDB_SEARCH_JSON : IFDB_DETAIL_JSON, request.url);
+    },
+  };
+  const parseHtml = (source: string) => new JSDOM(source).window.document as unknown as Document;
+  const registry = new ForeignLibraryRegistry(() => host);
+  registry.register(new TwineForeignLibrary(parseHtml));
+  const session = await registry.open(TWINE_LIBRARY_ID);
+  const page = await session.search!({ query: "Bogeyman" });
+  equal(page.items.length, 1);
+  matchUrl(requests[0].url, "Bogeyman system:Twine");
+  deepStrictEqual(requests[0].gateway, { route: "catalog" });
+  const item = await session.resolve(page.items[0].ref);
+  equal(item.summary, "A Twine story.");
+  equal(item.offers.length, 1);
+  equal(item.offers[0].outputType, "html");
+  const plan = await session.planImport(item.ref, item.offers[0].id);
+  equal(plan.kind, "download");
+  equal(plan.acquisition, "manual");
+  equal(plan.request.url, "https://ifarchive.org/if-archive/games/twine/bogeyman.html");
+  equal(manualForeignDownload(plan, registry)?.fileName.endsWith(".html"), true);
+  throws(() => registry.validatePlan({ ...plan, request: { url: "https://attacker.example/bogeyman.html" } }), /undeclared origin/);
+  equal(requests.length, 2, "resolved IFDB details should be cached for acquisition");
+});
+
+function matchUrl(raw: string, searchFor: string): void {
+  equal(new URL(raw).searchParams.get("searchfor"), searchFor);
+}
+
+const ARXIV_XML = `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <entry>
+    <id>http://arxiv.org/abs/2304.14163v2</id>
+    <updated>2024-01-02T00:00:00Z</updated>
+    <published>2023-04-27T00:00:00Z</published>
+    <title>Answering Uncertain API Queries</title>
+    <summary>A research paper about API queries.</summary>
+    <author><name>Qing Huang</name></author>
+    <category term="cs.SE" />
+    <arxiv:license>https://creativecommons.org/licenses/by/4.0/</arxiv:license>
+  </entry>
+</feed>`;
+
+test("arXiv adapter searches Atom metadata and leaves PDF acquisition to the browser", async () => {
+  const requests: Array<{ url: string; gateway: unknown }> = [];
+  const host: ForeignLibraryHost = {
+    async request(request) {
+      requests.push({ url: request.url, gateway: request.gateway });
+      return foreignResponse(ARXIV_XML, request.url);
+    },
+  };
+  const parseXml = (source: string) => new JSDOM(source, { contentType: "application/xml" }).window.document as unknown as Document;
+  const registry = new ForeignLibraryRegistry(() => host);
+  registry.register(new ArxivForeignLibrary(parseXml));
+  const session = await registry.open(ARXIV_LIBRARY_ID);
+  const page = await session.search!({ query: "API queries", pageSize: 10 });
+  equal(page.items.length, 1);
+  equal(page.items[0].ref.itemId, "2304.14163v2");
+  equal(page.items[0].offers[0].outputType, "pdf");
+  deepStrictEqual(requests[0].gateway, { route: "catalog" });
+  const requested = new URL(requests[0].url);
+  equal(requested.searchParams.get("search_query"), 'all:"API queries"');
+  equal(requested.searchParams.get("max_results"), "10");
+  const plan = await session.planImport(page.items[0].ref, "pdf");
+  equal(plan.kind, "download");
+  equal(plan.acquisition, "manual");
+  equal(plan.request.url, "https://arxiv.org/pdf/2304.14163v2");
+  equal(plan.file.extension, "pdf");
+  equal(manualForeignDownload(plan, registry)?.url, "https://arxiv.org/pdf/2304.14163v2");
+  await rejects(() => new ForeignImportCoordinator(registry).acquire(plan), /browser file picker/);
+  equal(requests.length, 1, "search metadata should be reused for acquisition");
 });
 
 test("manual download fallback is limited to safe gateway acquisition failures", () => {
@@ -164,7 +312,7 @@ test("manual download fallback is limited to safe gateway acquisition failures",
   });
   const plan = {
     kind: "download" as const,
-    request: { url: "https://catalog.example/book.epub", gateway: "preferred" as const },
+    request: { url: "https://catalog.example/book.epub", gateway: { route: "gutenberg" as const } },
     file: { name: "book.epub", extension: "epub" },
     provenance: { libraryId: TEST_MANIFEST.id, itemId: "book-1" },
   };
@@ -201,6 +349,28 @@ test("registry validates plugin capabilities and coordinator returns parser-read
   equal(acquired.file.name, "fixture.epub");
   equal(acquired.provenance.itemId, "book-1");
   equal(typeof acquired.provenance.acquiredAt, "string");
+});
+
+test("registry rejects offers outside a plugin's declared outputs", async () => {
+  const registry = new ForeignLibraryRegistry(() => ({ request: async (request) => foreignResponse("unused", request.url) }));
+  registry.register({
+    manifest: TEST_MANIFEST,
+    async open() {
+      return {
+        search: async () => ({ items: [] }),
+        resolve: async (ref) => ({
+          ref,
+          kind: "book",
+          title: "Undeclared PDF",
+          offers: [{ id: "pdf", label: "PDF", outputType: "pdf", importKind: "download" }],
+        }),
+        planImport: async () => { throw new Error("unused"); },
+        dispose: () => undefined,
+      };
+    },
+  });
+  const session = await registry.open(TEST_MANIFEST.id);
+  await rejects(() => session.resolve({ libraryId: TEST_MANIFEST.id, itemId: "fixture" }), /undeclared output type/);
 });
 
 test("coordinator rejects a download that does not match the plugin checksum", async () => {

@@ -19,10 +19,12 @@ import type { InteractionRecord } from "./interactions/types";
 import type { ReaderEngineEvent } from "./engine-events/types";
 import {
   ConstrainedForeignLibraryHost,
+  ArxivForeignLibrary,
   ForeignImportCoordinator,
   ForeignLibraryError,
   ForeignLibraryRegistry,
   GutenbergForeignLibrary,
+  TwineForeignLibrary,
   type ForeignDownloadPlan,
   type ForeignImportPlan,
 } from "./foreign-libraries";
@@ -38,6 +40,8 @@ export default function ReaderApp() {
       (manifest) => new ConstrainedForeignLibraryHost(manifest, globalThis.fetch, undefined, gatewayUrl),
     );
     registry.register(new GutenbergForeignLibrary());
+    registry.register(new TwineForeignLibrary());
+    registry.register(new ArxivForeignLibrary());
     return registry;
   });
   const [foreignCoordinator] = useState(() => new ForeignImportCoordinator(foreignRegistry));

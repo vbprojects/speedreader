@@ -58,6 +58,19 @@ function gatewayEndpoint(raw: string | undefined): URL | undefined {
   return url;
 }
 
+function gatewayRoute(endpoint: URL, route: NonNullable<ForeignRequest["gateway"]>["route"]): URL {
+  const url = new URL(endpoint);
+  const trimmed = url.pathname.replace(/\/+$/u, "");
+  if (/\/v1\/(?:gutenberg|catalog)$/u.test(trimmed)) {
+    url.pathname = trimmed.replace(/(?:gutenberg|catalog)$/u, route);
+  } else if (trimmed.endsWith("/v1")) {
+    url.pathname = `${trimmed}/${route}`;
+  } else {
+    url.pathname = `${trimmed}/v1/${route}`;
+  }
+  return url;
+}
+
 function responseHeaders(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {};
   headers.forEach((value, key) => { result[key.toLowerCase()] = value; });
@@ -144,10 +157,10 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
   private async perform(request: ForeignRequest): Promise<ForeignResponse> {
     const url = assertAllowedUrl(request.url, this.manifest);
     if (request.gateway && (request.credential || (request.method ?? "GET") !== "GET" || request.body !== undefined)) {
-      throw new ForeignLibraryError("permission-denied", "Gateway requests must be unauthenticated GET downloads.");
+      throw new ForeignLibraryError("permission-denied", "Gateway requests must be unauthenticated GET requests.");
     }
-    const routedThroughGateway = request.gateway === "preferred" && this.gateway !== undefined;
-    const fetchUrl = routedThroughGateway ? new URL(this.gateway!) : url;
+    const routedThroughGateway = request.gateway !== undefined && this.gateway !== undefined;
+    const fetchUrl = routedThroughGateway ? gatewayRoute(this.gateway!, request.gateway!.route) : url;
     if (routedThroughGateway) fetchUrl.searchParams.set("url", url.toString());
     const controller = new AbortController();
     const timeoutMs = Math.max(1, Math.min(request.timeoutMs ?? 30_000, 120_000));
