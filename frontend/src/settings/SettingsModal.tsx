@@ -55,8 +55,8 @@ export function SettingsModal({ open, onClose, settings, isReader, onChange, onR
         className="glass-scroll"
         style={{
           width: "100%",
-          maxWidth: "min(92vw, 420px)",
-          maxHeight: "85vh",
+          maxWidth: "min(94vw, 520px)",
+          maxHeight: "88vh",
           overflowY: "auto",
           overflowX: "hidden",
           borderRadius: 20,

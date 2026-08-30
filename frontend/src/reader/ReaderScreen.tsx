@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import type { WordStream } from "../epub/types";
 import type { InteractionRecord, InteractionResponse } from "../interactions/types";
 import type { ReaderEngineEvent } from "../engine-events/types";
-import { PacingEngine, selectBackend } from "../pacing";
+import { createPacingEngine } from "../pacing";
 import { SpeedReader } from "../display";
 import { SettingsModal, themeTokens } from "../settings";
 import type { GlobalSettings, ReaderSettings } from "../settings";
@@ -47,29 +47,7 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
 
   // Pacing engine recreated when effective WPM/pauses/model/gamma change.
   const pacing = useMemo(
-    () =>
-      new PacingEngine({
-        backend: selectBackend(
-          settings.pacingModel ?? "naive",
-          settings.pacingModel === "bayesian"
-            ? { gamma: settings.bayesianGamma ?? 0.98 }
-            : settings.pacingModel.startsWith("surprisal-")
-              ? {
-                  n: settings.surprisalNGramSize ?? 3,
-                  sensitivity: settings.surprisalSensitivity ?? 0.25,
-                  ...(settings.pacingModel === "surprisal-lognormal-nig"
-                    ? { scoreHalfLifeWords: -1 / Math.log2(settings.bayesianGamma ?? 0.98) }
-                    : {}),
-                }
-              : undefined,
-        ),
-        profile: {
-          wpm: settings.wpm,
-          sentencePauseMs: settings.sentencePauseMs,
-          paragraphPauseMs: settings.paragraphPauseMs,
-          gamma: settings.bayesianGamma ?? 0.98,
-        },
-      }),
+    () => createPacingEngine(settings),
     [
       settings.pacingModel,
       settings.bayesianGamma,
