@@ -22,6 +22,7 @@ import type { ForeignInteractivePlan, ForeignProvenance } from "../foreign-libra
 import { ForeignLibraryError } from "../foreign-libraries";
 import { normalizeOpenAIBaseUrl, OPENAI_COMPATIBLE_FORMAT } from "../ingestion/openai-compatible";
 import { assertFileSize } from "../ingestion/limits";
+import { extractTwinePackage, type TwineArchiveAsset } from "../ingestion/twine-archive";
 import {
   detectSugarCubeSource,
   InvalidSugarCubeStoryError,
@@ -145,6 +146,15 @@ export class LibraryStore {
   /** Import a file: hash → ingest → metadata → persist. Dedupes by hash. */
   async importFile(file: FileInfo, parseHtml?: HtmlDocumentParser): Promise<ImportResult> {
     assertFileSize(file.data.byteLength);
+    const extractedTwine = await extractTwinePackage(file);
+    if (extractedTwine) {
+      return this.importSugarCubeSource(
+        extractedTwine.file,
+        parseHtml,
+        await sha256(file.data),
+        extractedTwine.assets,
+      );
+    }
     if (
       file.extension.toLowerCase() === "html"
       || file.extension.toLowerCase() === "htm"
@@ -255,9 +265,14 @@ export class LibraryStore {
    * Validate and persist a trusted published SugarCube application without
    * executing it. Runtime startup is deliberately a separate operation.
    */
-  async importSugarCubeSource(file: FileInfo, parseHtml?: HtmlDocumentParser): Promise<ImportResult> {
+  async importSugarCubeSource(
+    file: FileInfo,
+    parseHtml?: HtmlDocumentParser,
+    sourceHash?: string,
+    assets?: TwineArchiveAsset[],
+  ): Promise<ImportResult> {
     assertFileSize(file.data.byteLength);
-    const id = await sha256(file.data);
+    const id = sourceHash ?? await sha256(file.data);
     const existing = await this.db.getBook(id);
     const existingSource = await this.db.getInteractiveSource(id);
     const existingStream = await this.db.getStream(id);
@@ -267,6 +282,7 @@ export class LibraryStore {
 
     const detected = detectSugarCubeSource({ file, sourceHash: id, parseHtml });
     if (!detected) throw new InvalidSugarCubeStoryError("File is not published SugarCube HTML");
+    const source = assets?.length ? { ...detected.source, assets } : detected.source;
 
     const stream: import("../epub/types").WordStream = {
       words: [],
@@ -293,7 +309,7 @@ export class LibraryStore {
 
     await this.db.addBook(book);
     await this.db.saveStream(id, stream);
-    await this.db.saveInteractiveSource(detected.source);
+    await this.db.saveInteractiveSource(source);
     return { book, stream, existed: false };
   }
 

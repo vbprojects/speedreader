@@ -16,8 +16,10 @@ import {
 } from "./types";
 
 const IFDB_ORIGIN = "https://ifdb.org";
+const IFARCHIVE_HOSTS = new Set(["ifarchive.org", "www.ifarchive.org"]);
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
 const SEARCH_CACHE_LIMIT = 24;
+const DETAIL_CACHE_LIMIT = 64;
 const IFDB_AVAILABILITY_ERRORS = new Set([
   "network-unavailable",
   "cors-blocked",
@@ -34,6 +36,30 @@ interface IfdbSearchGame {
   devsys?: unknown;
   published?: { machine?: unknown };
   coverArtLink?: unknown;
+}
+
+interface IfdbDownloadLink {
+  url?: unknown;
+  playOnlineUrl?: unknown;
+  title?: unknown;
+  desc?: unknown;
+  isGame?: unknown;
+  format?: unknown;
+}
+
+interface IfdbGameDetail {
+  identification?: { format?: unknown };
+  bibliographic?: {
+    title?: unknown;
+    author?: unknown;
+    firstpublished?: unknown;
+  };
+  ifdb?: {
+    tuid?: unknown;
+    pageversion?: unknown;
+    primaryPlayOnlineUrl?: unknown;
+    downloads?: { links?: unknown };
+  };
 }
 
 interface FeaturedTwineGame {
@@ -72,6 +98,18 @@ function listingUrl(itemId: string): string {
   return `${IFDB_ORIGIN}/viewgame?id=${encodeURIComponent(itemId)}`;
 }
 
+function detailUrl(itemId: string): string {
+  return `${IFDB_ORIGIN}/viewgame?json=&id=${encodeURIComponent(itemId)}`;
+}
+
+function acquisitionUrl(itemId: string, mode: "download" | "play" | "archive", offer?: number): string {
+  const url = new URL("/viewgame", IFDB_ORIGIN);
+  url.searchParams.set("speedreader", mode);
+  url.searchParams.set("id", itemId);
+  if (offer !== undefined) url.searchParams.set("offer", String(offer));
+  return url.toString();
+}
+
 function ifdbCoverUrl(value: unknown): string | undefined {
   const raw = string(value);
   if (!raw) return undefined;
@@ -84,10 +122,10 @@ function ifdbCoverUrl(value: unknown): string | undefined {
   }
 }
 
-function itemOffer(): ForeignItem["offers"] {
+function sourceOffer(): ForeignItem["offers"] {
   return [{
     id: "ifdb-source-page",
-    label: "Get HTML from IFDB",
+    label: "Choose a release on IFDB",
     outputType: "html",
     importKind: "download",
     mediaType: "text/html",
@@ -95,6 +133,81 @@ function itemOffer(): ForeignItem["offers"] {
     priority: 0,
     risk: "executable-content",
   }];
+}
+
+function supportedAutomaticSource(value: unknown): boolean {
+  const raw = string(value);
+  if (!raw) return false;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+    if (IFARCHIVE_HOSTS.has(url.hostname)) {
+      return /^\/if-archive\/games\/(?:twine|html)(?:\/|$)/u.test(url.pathname)
+        && /\.(?:html?|zip)$/iu.test(url.pathname);
+    }
+    return url.hostname === "unbox.ifarchive.org" || url.hostname.endsWith(".unbox.ifarchive.org");
+  } catch {
+    return false;
+  }
+}
+
+function downloadableFile(link: IfdbDownloadLink): { extension: "html" | "zip"; mediaType: string } | null {
+  const raw = string(link.url);
+  if (!raw || !supportedAutomaticSource(raw) || link.isGame !== true) return null;
+  const title = string(link.title) ?? "";
+  const pathname = new URL(raw).pathname;
+  if (/\.zip$/iu.test(pathname) || /\.zip$/iu.test(title)) return { extension: "zip", mediaType: "application/zip" };
+  if (/\.html?$/iu.test(pathname) || /\.html?$/iu.test(title)
+    || /(?:html|twine)/iu.test(string(link.format) ?? "")) return { extension: "html", mediaType: "text/html" };
+  return null;
+}
+
+function detailOffers(detail: IfdbGameDetail): ForeignItem["offers"] {
+  const links = Array.isArray(detail.ifdb?.downloads?.links)
+    ? detail.ifdb!.downloads!.links as IfdbDownloadLink[]
+    : [];
+  const offers: ForeignItem["offers"] = [];
+  links.slice(0, 32).forEach((link, index) => {
+    const file = downloadableFile(link);
+    if (!file) return;
+    const title = string(link.title);
+    offers.push({
+      id: `ifdb-download-${index}`,
+      label: title ? `Import ${title.slice(0, 160)}` : `Import ${file.extension.toUpperCase()} release`,
+      outputType: "sugarcube",
+      importKind: "download",
+      mediaType: file.mediaType,
+      extension: file.extension,
+      priority: 30 - index,
+      risk: "executable-content",
+    });
+  });
+  const playUrl = string(detail.ifdb?.primaryPlayOnlineUrl);
+  const represented = links.some((link) => string(link.url) === playUrl || string(link.playOnlineUrl) === playUrl);
+  if (playUrl && supportedAutomaticSource(playUrl) && !represented) {
+    offers.push({
+      id: "ifdb-play-online",
+      label: "Import playable HTML",
+      outputType: "sugarcube",
+      importKind: "download",
+      mediaType: "text/html",
+      extension: "html",
+      priority: 20,
+      risk: "executable-content",
+    });
+  }
+  if (offers.length === 0) {
+    offers.push({
+      id: "ifarchive-fallback",
+      label: "Find a preserved copy on IF Archive",
+      outputType: "sugarcube",
+      importKind: "download",
+      extension: "zip",
+      priority: 10,
+      risk: "executable-content",
+    });
+  }
+  return [...offers, ...sourceOffer()];
 }
 
 function featuredItem(game: FeaturedTwineGame): ForeignItem {
@@ -105,7 +218,7 @@ function featuredItem(game: FeaturedTwineGame): ForeignItem {
     ...(game.authors ? { authors: game.authors } : {}),
     ...(game.publishedAt ? { publishedAt: game.publishedAt } : {}),
     canonicalUrl: listingUrl(game.itemId),
-    offers: itemOffer(),
+    offers: sourceOffer(),
   };
 }
 
@@ -113,14 +226,20 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
   readonly manifest: ForeignLibraryManifest = {
     apiVersion: FOREIGN_LIBRARY_API,
     id: TWINE_LIBRARY_ID,
-    version: "1.1.0",
+    version: "1.2.0",
     name: "Twine on IFDB",
-    description: "Search IFDB's official Twine catalog, then visit the original listing to choose and download an HTML release.",
+    description: "Search IFDB, import supported IF Archive HTML or ZIP releases, or visit the original listing.",
     homepage: IFDB_ORIGIN,
     capabilities: ["catalog.search", "catalog.browse", "item.resolve", "item.acquire"],
     outputs: [
       { type: "html", label: "HTML", delivery: ["download"], mediaTypes: ["text/html"], extensions: ["html", "htm"] },
-      { type: "sugarcube", label: "SugarCube", delivery: ["download"], mediaTypes: ["text/html"], extensions: ["html", "htm"] },
+      {
+        type: "sugarcube",
+        label: "SugarCube",
+        delivery: ["download"],
+        mediaTypes: ["text/html", "application/zip", "application/x-zip-compressed"],
+        extensions: ["html", "htm", "zip"],
+      },
     ],
     permissions: {
       networkOrigins: [IFDB_ORIGIN],
@@ -133,6 +252,7 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
   async open(host: ForeignLibraryHost): Promise<ForeignLibrarySession> {
     const cachedItems = new Map<string, ForeignItem>();
     const searchCache = new Map<string, ForeignItem[]>();
+    const detailCache = new Map<string, Promise<ForeignItem>>();
     for (const game of FEATURED_TWINE_GAMES) cachedItems.set(game.itemId, featuredItem(game));
 
     const fetchJson = async (url: string, signal?: AbortSignal): Promise<Json> => {
@@ -156,17 +276,48 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
       if (ref.libraryId !== TWINE_LIBRARY_ID || !/^[a-z0-9]{8,32}$/u.test(ref.itemId)) {
         throw new ForeignLibraryError("invalid-request", "The story has an invalid IFDB identifier.");
       }
-      const existing = cachedItems.get(ref.itemId);
-      if (existing) return existing;
-      const item: ForeignItem = {
+      const base = cachedItems.get(ref.itemId) ?? {
         ref: { libraryId: TWINE_LIBRARY_ID, itemId: ref.itemId },
         kind: "application",
         title: `IFDB story ${ref.itemId}`,
         canonicalUrl: listingUrl(ref.itemId),
-        offers: itemOffer(),
+        offers: sourceOffer(),
       };
-      cachedItems.set(ref.itemId, item);
-      return item;
+      cachedItems.set(ref.itemId, base);
+      const cached = detailCache.get(ref.itemId);
+      if (cached) return cached;
+      const pending = (async (): Promise<ForeignItem> => {
+        try {
+          const detail = await fetchJson(detailUrl(ref.itemId)) as IfdbGameDetail;
+          if (!detail.ifdb || string(detail.ifdb.tuid) !== ref.itemId) {
+            throw new ForeignLibraryError("invalid-response", "IFDB returned details for a different story.");
+          }
+          const pageVersion = detail.ifdb.pageversion;
+          const revision = typeof pageVersion === "number" && Number.isSafeInteger(pageVersion)
+            ? String(pageVersion)
+            : string(pageVersion);
+          const resolved: ForeignItem = {
+            ...base,
+            ref: { ...base.ref, ...(revision ? { revision } : {}) },
+            title: string(detail.bibliographic?.title) ?? base.title,
+            ...(authors(detail.bibliographic?.author) ? { authors: authors(detail.bibliographic?.author) } : {}),
+            ...(string(detail.bibliographic?.firstpublished) ? { publishedAt: string(detail.bibliographic?.firstpublished) } : {}),
+            offers: detailOffers(detail),
+          };
+          cachedItems.set(ref.itemId, resolved);
+          return resolved;
+        } catch (error) {
+          if (error instanceof ForeignLibraryError && IFDB_AVAILABILITY_ERRORS.has(error.code)) {
+            detailCache.delete(ref.itemId);
+            return base;
+          }
+          detailCache.delete(ref.itemId);
+          throw error;
+        }
+      })();
+      if (detailCache.size >= DETAIL_CACHE_LIMIT) detailCache.delete(detailCache.keys().next().value ?? "");
+      detailCache.set(ref.itemId, pending);
+      return pending;
     };
 
     const pageForSearch = async (searchFor: string, pageSize: number, signal?: AbortSignal): Promise<ForeignPage<ForeignItem>> => {
@@ -189,7 +340,7 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
           ...(string(game.published?.machine) ? { publishedAt: string(game.published?.machine) } : {}),
           canonicalUrl: listingUrl(itemId),
           ...(coverUrl ? { coverUrl } : {}),
-          offers: itemOffer(),
+          offers: sourceOffer(),
         };
         cachedItems.set(itemId, item);
         return [item];
@@ -222,18 +373,58 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
       },
       resolve,
       async planImport(ref, selectedOfferId): Promise<ForeignDownloadPlan> {
-        if (selectedOfferId !== "ifdb-source-page") throw new ForeignLibraryError("not-found", "This IFDB acquisition option is unavailable.");
         const item = await resolve(ref);
+        const offer = item.offers.find((candidate) => candidate.id === selectedOfferId);
+        if (!offer) throw new ForeignLibraryError("not-found", "This IFDB acquisition option is unavailable.");
+        const provenance = {
+          libraryId: TWINE_LIBRARY_ID,
+          itemId: ref.itemId,
+          revision: item.ref.revision,
+          canonicalUrl: item.canonicalUrl,
+        };
+        if (selectedOfferId === "ifdb-source-page") {
+          return {
+            kind: "download",
+            acquisition: "manual",
+            manualAction: "source-page",
+            request: { url: listingUrl(ref.itemId) },
+            file: { name: `${slug(item.title)}-${ref.itemId}.html`, extension: "html", mimeType: "text/html" },
+            provenance,
+          };
+        }
+        let mode: "download" | "play" | "archive";
+        let offerIndex: number | undefined;
+        const match = selectedOfferId.match(/^ifdb-download-(\d+)$/u);
+        if (match) {
+          mode = "download";
+          offerIndex = Number(match[1]);
+        } else if (selectedOfferId === "ifdb-play-online") {
+          mode = "play";
+        } else if (selectedOfferId === "ifarchive-fallback") {
+          mode = "archive";
+        } else {
+          throw new ForeignLibraryError("not-found", "This IFDB acquisition option is unavailable.");
+        }
+        const extension = offer.extension === "zip" ? "zip" : "html";
         return {
           kind: "download",
-          acquisition: "manual",
-          manualAction: "source-page",
-          request: { url: listingUrl(ref.itemId) },
-          file: { name: `${slug(item.title)}-${ref.itemId}.html`, extension: "html", mimeType: "text/html" },
-          provenance: { libraryId: TWINE_LIBRARY_ID, itemId: ref.itemId, revision: item.ref.revision, canonicalUrl: item.canonicalUrl },
+          acquisition: "host",
+          request: {
+            url: acquisitionUrl(ref.itemId, mode, offerIndex),
+            gateway: { route: "twine" },
+            timeoutMs: 120_000,
+            maxResponseBytes: INGESTION_LIMITS.maxFileBytes,
+            headers: { Accept: "text/html, application/zip" },
+          },
+          file: {
+            name: `${slug(item.title)}-${ref.itemId}.${extension}`,
+            extension,
+            ...(offer.mediaType ? { mimeType: offer.mediaType } : {}),
+          },
+          provenance,
         };
       },
-      dispose: () => { cachedItems.clear(); searchCache.clear(); },
+      dispose: () => { cachedItems.clear(); searchCache.clear(); detailCache.clear(); },
     };
   }
 }

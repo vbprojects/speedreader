@@ -61,8 +61,8 @@ function gatewayEndpoint(raw: string | undefined): URL | undefined {
 function gatewayRoute(endpoint: URL, route: NonNullable<ForeignRequest["gateway"]>["route"]): URL {
   const url = new URL(endpoint);
   const trimmed = url.pathname.replace(/\/+$/u, "");
-  if (/\/v1\/(?:gutenberg|catalog)$/u.test(trimmed)) {
-    url.pathname = trimmed.replace(/(?:gutenberg|catalog)$/u, route);
+  if (/\/v1\/(?:gutenberg|catalog|twine)$/u.test(trimmed)) {
+    url.pathname = trimmed.replace(/(?:gutenberg|catalog|twine)$/u, route);
   } else if (trimmed.endsWith("/v1")) {
     url.pathname = `${trimmed}/${route}`;
   } else {
@@ -160,6 +160,13 @@ export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
       throw new ForeignLibraryError("permission-denied", "Gateway requests must be unauthenticated GET requests.");
     }
     const routedThroughGateway = request.gateway !== undefined && this.gateway !== undefined;
+    if (request.gateway?.route === "twine" && !this.gateway) {
+      throw new ForeignLibraryError(
+        "network-unavailable",
+        "Automatic Twine import requires the Foreign Library gateway. Choose the release on IFDB instead.",
+        true,
+      );
+    }
     const fetchUrl = routedThroughGateway ? gatewayRoute(this.gateway!, request.gateway!.route) : url;
     if (routedThroughGateway) fetchUrl.searchParams.set("url", url.toString());
     const controller = new AbortController();

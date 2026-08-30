@@ -1,13 +1,14 @@
 # Foreign Library gateway
 
-The PWA uses this Cloudflare Worker for final Project Gutenberg EPUB downloads and for bounded catalog metadata requests that browser CORS would otherwise block. Project Gutenberg catalog requests remain direct. IFDB and arXiv content downloads are deliberately not proxied: the user's browser downloads those files from their original source.
+The PWA uses this Cloudflare Worker for final Project Gutenberg EPUB downloads, bounded catalog metadata requests that browser CORS would otherwise block, and supported IF Archive Twine releases. Project Gutenberg catalog requests remain direct. arXiv PDFs and Twine releases hosted outside IF Archive remain user-directed downloads from their source pages.
 
-The Worker is not a general proxy. It accepts only unauthenticated `GET` requests from configured Speedreader origins and exposes two routes:
+The Worker is not a general proxy. It accepts only unauthenticated `GET` requests from configured Speedreader origins and exposes three routes:
 
 - `/v1/gutenberg` accepts exact `https://www.gutenberg.org/ebooks/{id}.epub...` acquisition URLs, validates the same-book redirect, requires EPUB content and a declared size, rejects files above 128 MiB, and streams the response.
-- `/v1/catalog` accepts only documented IFDB Twine search queries and arXiv Atom queries capped at 25 results. IFDB search responses carry a short client/edge cache lifetime; item inspection and acquisition never call the API. The route rejects redirects, unexpected content types, and metadata above 2 MiB before returning buffered JSON or XML.
+- `/v1/catalog` accepts only documented IFDB Twine search/detail queries and arXiv Atom queries capped at 25 results. IFDB responses carry a short client/edge cache lifetime. The route rejects redirects, unexpected content types, and metadata above 2 MiB before returning buffered JSON or XML.
+- `/v1/twine` accepts an opaque IFDB resolver request containing a validated TUID and offer index/mode. It re-resolves the offer from IFDB, permits only IF Archive game paths and its unboxing service, can search the Archive by exact TUID, follows at most four revalidated redirects, requires HTML/ZIP content with a declared size, and streams at most 128 MiB. External IFDB links are rejected rather than proxied.
 
-Both routes strip upstream headers, disable storage, and disclose only the validated source URL. The IFDB request uses a fixed non-browser user agent as requested by IFDB's API documentation.
+All routes strip upstream headers and disable storage. Twine acquisition does not reflect the resolved external URL to the caller. IFDB and IF Archive requests use a fixed non-browser user agent.
 
 ## Deploy
 

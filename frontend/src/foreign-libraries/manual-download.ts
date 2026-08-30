@@ -27,6 +27,9 @@ export function manualForeignDownload(
   const validated = registry.validatePlan(plan);
   if (validated.kind !== "download") return null;
   const manual = validated.acquisition === "manual";
+  // Twine gateway URLs are opaque IFDB resolver requests, not downloadable
+  // source files. The Twine item always exposes a separate source-page offer.
+  if (!manual && validated.request.gateway?.route === "twine") return null;
   if (!manual && (!validated.request.gateway
     || !(error instanceof ForeignLibraryError) || !FALLBACK_ERROR_CODES.has(error.code))) return null;
   const manifest = registry.manifest(plan.provenance.libraryId);

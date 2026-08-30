@@ -143,6 +143,19 @@ test("an invalid gateway setting degrades to direct fetch for the manual fallbac
   equal(requestedUrl, "https://catalog.example/book.epub");
 });
 
+test("Twine acquisition never sends an opaque resolver URL directly", async () => {
+  let called = false;
+  const host = new ConstrainedForeignLibraryHost(TEST_MANIFEST, async () => {
+    called = true;
+    return new Response("unexpected");
+  });
+  await rejects(
+    host.request({ url: "https://catalog.example/viewgame?speedreader=archive&id=abcdefgh", gateway: { route: "twine" } }),
+    /requires the Foreign Library gateway/u,
+  );
+  equal(called, false);
+});
+
 const SEARCH_XML = `<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>
@@ -215,12 +228,31 @@ const IFDB_SEARCH_JSON = JSON.stringify({
   ],
 });
 
-test("Twine adapter makes one cached IFDB search and routes acquisition through the listing page", async () => {
+const IFDB_DETAIL_JSON = JSON.stringify({
+  identification: { format: "html" },
+  bibliographic: { title: "Bogeyman", author: "Elizabeth Smyth", firstpublished: "2018-01-01" },
+  ifdb: {
+    tuid: "ltwvgb2lubkx82yi",
+    pageversion: 7,
+    primaryPlayOnlineUrl: "https://unbox.ifarchive.org/?url=/if-archive/games/twine/Bogeyman.zip&open=index.html",
+    downloads: {
+      links: [{
+        url: "https://ifarchive.org/if-archive/games/twine/Bogeyman.zip",
+        playOnlineUrl: "https://unbox.ifarchive.org/?url=/if-archive/games/twine/Bogeyman.zip&open=index.html",
+        title: "Bogeyman.zip",
+        isGame: true,
+        format: "html",
+      }],
+    },
+  },
+});
+
+test("Twine adapter lazily resolves one cached IFDB detail and offers automatic archive import", async () => {
   const requests: Array<{ url: string; gateway: unknown }> = [];
   const host: ForeignLibraryHost = {
     async request(request) {
       requests.push({ url: request.url, gateway: request.gateway });
-      return foreignResponse(IFDB_SEARCH_JSON, request.url);
+      return foreignResponse(request.url.includes("/viewgame?") ? IFDB_DETAIL_JSON : IFDB_SEARCH_JSON, request.url);
     },
   };
   const registry = new ForeignLibraryRegistry(() => host);
@@ -234,18 +266,47 @@ test("Twine adapter makes one cached IFDB search and routes acquisition through 
   matchUrl(requests[0].url, "Bogeyman system:Twine");
   deepStrictEqual(requests[0].gateway, { route: "catalog" });
   const item = await session.resolve(page.items[0].ref);
-  equal(item.offers.length, 1);
-  equal(item.offers[0].outputType, "html");
+  equal(requests.length, 2);
+  deepStrictEqual(requests[1].gateway, { route: "catalog" });
+  equal(new URL(requests[1].url).pathname, "/viewgame");
+  equal(item.ref.revision, "7");
+  equal(item.offers.length, 2);
+  equal(item.offers[0].outputType, "sugarcube");
+  equal(item.offers[0].extension, "zip");
   const plan = await session.planImport(item.ref, item.offers[0].id);
   equal(plan.kind, "download");
-  equal(plan.acquisition, "manual");
-  equal(plan.manualAction, "source-page");
-  equal(plan.request.url, "https://ifdb.org/viewgame?id=ltwvgb2lubkx82yi");
-  equal(manualForeignDownload(plan, registry)?.action, "source-page");
-  equal(manualForeignDownload(plan, registry)?.fileName.endsWith(".html"), true);
-  throws(() => registry.validatePlan({ ...plan, request: { url: "https://attacker.example/bogeyman.html" } }), /undeclared origin/);
+  equal(plan.acquisition, "host");
+  deepStrictEqual(plan.request.gateway, { route: "twine" });
+  equal(new URL(plan.request.url).searchParams.get("speedreader"), "download");
+  equal(new URL(plan.request.url).searchParams.get("offer"), "0");
+  equal(plan.file.extension, "zip");
+  equal(manualForeignDownload(plan, registry, new ForeignLibraryError("network-unavailable", "offline")), null);
+  const manualPlan = await session.planImport(item.ref, "ifdb-source-page");
+  if (manualPlan.kind !== "download") throw new Error("Expected a manual download plan");
+  equal(manualPlan.acquisition, "manual");
+  equal(manualPlan.manualAction, "source-page");
+  equal(manualPlan.request.url, "https://ifdb.org/viewgame?id=ltwvgb2lubkx82yi");
+  equal(manualForeignDownload(manualPlan, registry)?.action, "source-page");
+  throws(() => registry.validatePlan({ ...manualPlan, request: { url: "https://attacker.example/bogeyman.html" } }), /undeclared origin/);
   await session.search!({ query: "bogeyman", pageSize: 10 });
-  equal(requests.length, 1, "search, inspection, acquisition, and normalized repeated search should share one request");
+  await session.resolve(item.ref);
+  equal(requests.length, 2, "search and detail resolution should each be cached for the session");
+});
+
+test("Twine adapter offers IF Archive lookup when IFDB has no supported release", async () => {
+  const detail = JSON.stringify({ bibliographic: { title: "Hosted Story" }, ifdb: { tuid: "abcdefgh12345678", pageversion: 1, downloads: { links: [] } } });
+  const registry = new ForeignLibraryRegistry(() => ({
+    async request(request) { return foreignResponse(detail, request.url); },
+  }));
+  registry.register(new TwineForeignLibrary());
+  const session = await registry.open(TWINE_LIBRARY_ID);
+  const item = await session.resolve({ libraryId: TWINE_LIBRARY_ID, itemId: "abcdefgh12345678" });
+  deepStrictEqual(item.offers.map((offer) => offer.id), ["ifarchive-fallback", "ifdb-source-page"]);
+  const plan = await session.planImport(item.ref, "ifarchive-fallback");
+  equal(plan.kind, "download");
+  equal(plan.acquisition, "host");
+  equal(new URL(plan.request.url).searchParams.get("speedreader"), "archive");
+  equal(plan.file.extension, "zip");
 });
 
 test("Twine search replaces transport failures with a page-first recovery message", async () => {
