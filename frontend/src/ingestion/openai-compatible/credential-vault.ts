@@ -43,13 +43,13 @@ export interface CredentialVault {
   delete(id: string): Promise<void>;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
+function bytesToBase64(bytes: Uint8Array<ArrayBufferLike>): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
-function base64ToBytes(value: string, maxBytes: number): Uint8Array {
+function base64ToBytes(value: string, maxBytes: number): Uint8Array<ArrayBuffer> {
   if (value.length > Math.ceil(maxBytes / 3) * 4 + 4) throw new Error("Encrypted credential record is too large.");
   let binary: string;
   try {
@@ -58,22 +58,30 @@ function base64ToBytes(value: string, maxBytes: number): Uint8Array {
     throw new Error("Encrypted credential record is malformed.");
   }
   if (binary.length > maxBytes) throw new Error("Encrypted credential record is too large.");
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
-function additionalData(record: Pick<EncryptedCredentialRecord, "id" | "schemaVersion" | "baseUrl" | "model">): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify({
+function ownedBytes(bytes: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBuffer> {
+  const owned = new Uint8Array(bytes.byteLength);
+  owned.set(bytes);
+  return owned;
+}
+
+function additionalData(record: Pick<EncryptedCredentialRecord, "id" | "schemaVersion" | "baseUrl" | "model">): Uint8Array<ArrayBuffer> {
+  return ownedBytes(new TextEncoder().encode(JSON.stringify({
     id: record.id,
     schemaVersion: record.schemaVersion,
     baseUrl: record.baseUrl,
     model: record.model ?? "",
-  }));
+  })));
 }
 
 async function deriveKey(
   subtle: SubtleCrypto,
   passphrase: string,
-  salt: Uint8Array,
+  salt: Uint8Array<ArrayBuffer>,
   iterations: number,
 ): Promise<CryptoKey> {
   const material = await subtle.importKey(
@@ -198,8 +206,8 @@ export class EncryptedCredentialVault implements CredentialVault {
     if (connection.model && connection.model.length > 512) throw new Error("The model identifier is too large.");
     const existing = await this.store.get(id);
     if (existing) validateRecord(existing);
-    const salt = this.cryptoImpl.getRandomValues(new Uint8Array(16));
-    const iv = this.cryptoImpl.getRandomValues(new Uint8Array(12));
+    const salt = ownedBytes(this.cryptoImpl.getRandomValues(new Uint8Array(16)));
+    const iv = ownedBytes(this.cryptoImpl.getRandomValues(new Uint8Array(12)));
     const timestamp = this.now();
     const recordBase = {
       id,
@@ -208,7 +216,7 @@ export class EncryptedCredentialVault implements CredentialVault {
       model: connection.model,
     };
     const key = await deriveKey(this.cryptoImpl.subtle, passphrase, salt, this.iterations);
-    const plaintext = new TextEncoder().encode(JSON.stringify({ apiKey: connection.apiKey }));
+    const plaintext = ownedBytes(new TextEncoder().encode(JSON.stringify({ apiKey: connection.apiKey })));
     const ciphertext = await this.cryptoImpl.subtle.encrypt(
       { name: "AES-GCM", iv, additionalData: additionalData(recordBase), tagLength: 128 },
       key,

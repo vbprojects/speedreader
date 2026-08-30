@@ -38,7 +38,6 @@ async function loadPdf(data: ArrayBuffer): Promise<LoadedPdf> {
   const bytes = new Uint8Array(data.slice(0));
   const loadingTask = pdfjs.getDocument({
     data: bytes,
-    isEvalSupported: false,
     maxImageSize: INGESTION_LIMITS.maxPdfImagePixels,
     stopAtErrors: true,
   });

@@ -76,6 +76,20 @@ test("client sends the user-provided key without putting it in the request body"
   equal(String(request?.body).includes("user-key"), false);
 });
 
+test("client keeps the browser global as the fetch receiver", async () => {
+  const receiverCheckingFetch = function (this: unknown) {
+    equal(this, globalThis);
+    return Promise.resolve(json({ choices: [{ message: { content: "Receiver preserved" } }] }));
+  } as typeof fetch;
+  const result = await new OpenAICompatibleClient({
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKey: "user-key",
+    model: "openai/gpt-test",
+  }, receiverCheckingFetch).complete([{ role: "user", content: "Hello" }]);
+
+  equal(result.content, "Receiver preserved");
+});
+
 test("OpenRouter uses its configured default without catalog discovery", async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const fetchImpl: typeof fetch = async (input, init) => {
