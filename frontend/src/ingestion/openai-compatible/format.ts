@@ -15,7 +15,7 @@ const MAX_PROCESSED_INTERACTIONS = 256;
 
 interface SessionCrypto {
   randomUUID?: () => string;
-  getRandomValues<T extends ArrayBufferView | null>(array: T): T;
+  getRandomValues(array: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>;
 }
 
 /** Generate a checkpoint/thread identifier using cryptographic randomness. */

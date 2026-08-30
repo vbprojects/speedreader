@@ -146,7 +146,7 @@ function catalogTarget(url: URL): { accept: string; label: string } {
   throw new GatewayError(400, "Unsupported catalog URL.");
 }
 
-async function boundedCatalogBody(response: Response): Promise<Uint8Array> {
+async function boundedCatalogBody(response: Response): Promise<Uint8Array<ArrayBuffer>> {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > CATALOG_GATEWAY_MAX_BYTES) throw new GatewayError(413, "The catalog response is too large.");
   const reader = response.body?.getReader();
@@ -167,7 +167,7 @@ async function boundedCatalogBody(response: Response): Promise<Uint8Array> {
   } finally {
     reader.releaseLock();
   }
-  const body = new Uint8Array(total);
+  const body: Uint8Array<ArrayBuffer> = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) {
     body.set(chunk, offset);

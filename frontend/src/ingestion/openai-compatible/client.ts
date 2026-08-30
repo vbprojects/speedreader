@@ -63,11 +63,17 @@ async function errorMessage(response: Response): Promise<string> {
 
 export class OpenAICompatibleClient {
   private resolvedModel: string | null = null;
+  private readonly fetchImpl: FetchLike;
 
   constructor(
     private readonly connection: OpenAICompatibleConnection,
-    private readonly fetchImpl: FetchLike = fetch,
-  ) {}
+    fetchImpl: FetchLike = globalThis.fetch,
+  ) {
+    // WebKit enforces the Web IDL receiver for Window.fetch. Calling a stored
+    // bare function as `this.fetchImpl()` otherwise supplies this client as
+    // the receiver and fails before the request reaches the provider.
+    this.fetchImpl = fetchImpl.bind(globalThis);
+  }
 
   private headers(): HeadersInit {
     return {
