@@ -44,6 +44,21 @@ test("constrained transport denies undeclared origins, forbidden headers, and ov
   await rejects(() => host.request({ url: "https://catalog.example/data", maxResponseBytes: 4 }), /exceeds/);
 });
 
+test("default transport fetch keeps the browser global as its receiver", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = function (this: typeof globalThis) {
+    equal(this, globalThis);
+    return Promise.resolve(new Response("ok", { status: 200 }));
+  } as typeof fetch;
+  try {
+    const host = new ConstrainedForeignLibraryHost(TEST_MANIFEST);
+    const response = await host.request({ url: "https://catalog.example/data" });
+    equal(new TextDecoder().decode(response.body), "ok");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 const SEARCH_XML = `<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>

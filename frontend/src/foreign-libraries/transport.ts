@@ -102,12 +102,18 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
 export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
   private queue = Promise.resolve();
   private nextRequestAt = 0;
+  private readonly fetchImpl: ForeignFetch;
 
   constructor(
     private readonly manifest: ForeignLibraryManifest,
-    private readonly fetchImpl: ForeignFetch = fetch,
+    fetchImpl: ForeignFetch = globalThis.fetch,
     private readonly resolveCredential?: ForeignCredentialResolver,
-  ) {}
+  ) {
+    // Window.fetch performs a Web IDL receiver check in browsers. Storing the
+    // bare function and later calling it as `this.fetchImpl()` otherwise makes
+    // this host object the receiver and fails before any request is sent.
+    this.fetchImpl = fetchImpl.bind(globalThis);
+  }
 
   request(request: ForeignRequest): Promise<ForeignResponse> {
     const run = this.queue.catch(() => undefined).then(() => this.perform(request));
