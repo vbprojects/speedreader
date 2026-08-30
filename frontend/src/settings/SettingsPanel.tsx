@@ -39,7 +39,7 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
     backgroundColor: t.panel,
     color: t.fg,
     fontFamily: "inherit",
-    fontSize: 14,
+    fontSize: 16,
     cursor: "pointer",
     outline: "none",
     backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(

@@ -94,6 +94,29 @@ button {
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 }
 
+/*
+ * Mobile Safari zooms the visual viewport when a focused text control has a
+ * computed font size below 16px. Keep touch form controls at that threshold
+ * without disabling the user's normal pinch-to-zoom accessibility gesture.
+ * `!important` is intentional because many controls use component-local
+ * inline styles and this rule is the final mobile safety boundary.
+ */
+@media (any-pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  button,
+  input,
+  textarea,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
 button {
   cursor: pointer;
 }

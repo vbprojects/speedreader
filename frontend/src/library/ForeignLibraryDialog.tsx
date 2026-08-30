@@ -387,7 +387,7 @@ export function ForeignLibraryDialog({
                 <label style={{ position: "relative", display: "flex", alignItems: "center", flex: 1 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 13, color: t.muted }}>⌕</span>
                   <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clipPath: "inset(50%)" }}>Search {activeManifest.name}</span>
-                  <input autoFocus value={query} disabled={busy || !session} onChange={(event) => setQuery(event.target.value)} placeholder="Search titles, authors, models, or providers…" style={{ ...control, width: "100%", paddingLeft: 38 }} />
+                  <input autoFocus value={query} disabled={busy || !session} onChange={(event) => setQuery(event.target.value)} placeholder="Search titles, authors, models, or providers…" style={{ ...control, width: "100%", paddingLeft: 38, fontSize: 16 }} />
                 </label>
                 {catalogMode === "search" && session?.browse && (
                   <button type="button" disabled={busy} onClick={() => { void showFeatured(); }} style={control}>Featured</button>

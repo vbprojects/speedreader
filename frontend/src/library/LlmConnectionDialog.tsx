@@ -82,7 +82,8 @@ export function LlmConnectionDialog({
     border: `1px solid ${t.border}`,
     background: t.bg,
     color: t.fg,
-    font: "inherit",
+    fontFamily: "inherit",
+    fontSize: 16,
   };
 
   const submit = async () => {
