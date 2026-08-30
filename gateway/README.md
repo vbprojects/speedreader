@@ -5,7 +5,7 @@ The PWA uses this Cloudflare Worker for final Project Gutenberg EPUB downloads a
 The Worker is not a general proxy. It accepts only unauthenticated `GET` requests from configured Speedreader origins and exposes two routes:
 
 - `/v1/gutenberg` accepts exact `https://www.gutenberg.org/ebooks/{id}.epub...` acquisition URLs, validates the same-book redirect, requires EPUB content and a declared size, rejects files above 128 MiB, and streams the response.
-- `/v1/catalog` accepts only documented IFDB Twine search/detail queries and arXiv Atom queries capped at 25 results. It rejects redirects, unexpected content types, and metadata above 2 MiB before returning buffered JSON or XML.
+- `/v1/catalog` accepts only documented IFDB Twine search queries and arXiv Atom queries capped at 25 results. IFDB search responses carry a short client/edge cache lifetime; item inspection and acquisition never call the API. The route rejects redirects, unexpected content types, and metadata above 2 MiB before returning buffered JSON or XML.
 
 Both routes strip upstream headers, disable storage, and disclose only the validated source URL. The IFDB request uses a fixed non-browser user agent as requested by IFDB's API documentation.
 

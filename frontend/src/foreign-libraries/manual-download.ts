@@ -12,6 +12,7 @@ export interface ManualForeignDownload {
   plan: ForeignDownloadPlan;
   url: string;
   fileName: string;
+  action: "download" | "source-page";
 }
 
 export function manualForeignDownload(
@@ -39,5 +40,5 @@ export function manualForeignDownload(
   if (url.protocol !== "https:" || url.username || url.password || !allowedOrigins.includes(url.origin)) {
     return null;
   }
-  return { plan, url: url.toString(), fileName: plan.file.name };
+  return { plan, url: url.toString(), fileName: plan.file.name, action: plan.manualAction ?? "download" };
 }

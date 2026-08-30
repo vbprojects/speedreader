@@ -2,8 +2,8 @@ import { INGESTION_LIMITS } from "../ingestion/limits";
 import {
   FOREIGN_LIBRARY_API,
   ForeignLibraryError,
-  type ForeignDownloadPlan,
   type ForeignBrowseRequest,
+  type ForeignDownloadPlan,
   type ForeignItem,
   type ForeignItemRef,
   type ForeignLibraryHost,
@@ -16,54 +16,43 @@ import {
 } from "./types";
 
 const IFDB_ORIGIN = "https://ifdb.org";
-const MANUAL_ORIGINS = [IFDB_ORIGIN, "https://ifarchive.org", "https://www.ifarchive.org"];
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
+const SEARCH_CACHE_LIMIT = 24;
+const IFDB_AVAILABILITY_ERRORS = new Set([
+  "network-unavailable",
+  "cors-blocked",
+  "rate-limited",
+  "acquisition-failed",
+]);
 
 export const TWINE_LIBRARY_ID = "org.ifdb.twine";
-
-type HtmlParser = (source: string) => Document;
 
 interface IfdbSearchGame {
   tuid?: unknown;
   title?: unknown;
   author?: unknown;
   devsys?: unknown;
-  link?: unknown;
   published?: { machine?: unknown };
   coverArtLink?: unknown;
 }
 
-interface IfdbDownloadLink {
-  url?: unknown;
-  playOnlineUrl?: unknown;
-  title?: unknown;
-  desc?: unknown;
-  isGame?: unknown;
-  format?: unknown;
+interface FeaturedTwineGame {
+  itemId: string;
+  title: string;
+  authors?: string[];
+  publishedAt?: string;
 }
 
-interface IfdbGameDetail {
-  bibliographic?: {
-    title?: unknown;
-    author?: unknown;
-    language?: unknown;
-    firstpublished?: unknown;
-    description?: unknown;
-  };
-  ifdb?: {
-    tuid?: unknown;
-    link?: unknown;
-    pageversion?: unknown;
-    coverart?: { url?: unknown };
-    downloads?: { links?: unknown };
-    tags?: unknown;
-  };
-}
-
-interface TwineAcquisition {
-  offerId: string;
-  url: string;
-}
+// A small stable shelf makes opening the library useful without crawling IFDB.
+// Search remains live and user-driven through IFDB's documented JSON API.
+const FEATURED_TWINE_GAMES: FeaturedTwineGame[] = [
+  { itemId: "hslgyznv9n2hou7k", title: "Open Sorcery", authors: ["Abigail Corfman"], publishedAt: "2016" },
+  { itemId: "4iny0hu41p1wmpkf", title: "The Good Ghost", publishedAt: "2022" },
+  { itemId: "qle7qs6w25vqb5dg", title: "The Writer Will Do Something", authors: ["Tom Bissell", "Matthew S. Burns"], publishedAt: "2015" },
+  { itemId: "ny55g5epm7eldub5", title: "Contrition", authors: ["Porpentine"], publishedAt: "2014" },
+  { itemId: "h4razidaaqzttraz", title: "Ruiness", authors: ["Porpentine Charity Heartscape"], publishedAt: "2015" },
+  { itemId: "ny6bsy6olm5b9y3i", title: "The Fairy Woods", publishedAt: "2016" },
+];
 
 function string(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -73,42 +62,60 @@ function slug(value: string): string {
   return value.normalize("NFKD").replace(/[^a-z0-9]+/giu, "-").replace(/^-|-$/gu, "").slice(0, 96) || "twine-story";
 }
 
-function plainText(value: string | undefined, parseHtml: HtmlParser): string | undefined {
-  if (!value) return undefined;
-  const text = parseHtml(value).body?.textContent?.replace(/\s+/gu, " ").trim();
-  return text || undefined;
-}
-
 function authors(value: unknown): string[] | undefined {
   const author = string(value);
   if (!author) return undefined;
   return [author];
 }
 
-function directHtmlUrl(value: unknown): string | null {
-  const raw = string(value);
-  if (!raw) return null;
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (!MANUAL_ORIGINS.includes(url.origin) || url.username || url.password || !/\.html?$/iu.test(url.pathname)) return null;
-  return url.toString();
+function listingUrl(itemId: string): string {
+  return `${IFDB_ORIGIN}/viewgame?id=${encodeURIComponent(itemId)}`;
 }
 
-function offerId(index: number): string {
-  return `twine-html-${index + 1}`;
+function ifdbCoverUrl(value: unknown): string | undefined {
+  const raw = string(value);
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.origin !== IFDB_ORIGIN || url.username || url.password || url.pathname !== "/coverart") return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function itemOffer(): ForeignItem["offers"] {
+  return [{
+    id: "ifdb-source-page",
+    label: "Get HTML from IFDB",
+    outputType: "html",
+    importKind: "download",
+    mediaType: "text/html",
+    extension: "html",
+    priority: 0,
+    risk: "executable-content",
+  }];
+}
+
+function featuredItem(game: FeaturedTwineGame): ForeignItem {
+  return {
+    ref: { libraryId: TWINE_LIBRARY_ID, itemId: game.itemId },
+    kind: "application",
+    title: game.title,
+    ...(game.authors ? { authors: game.authors } : {}),
+    ...(game.publishedAt ? { publishedAt: game.publishedAt } : {}),
+    canonicalUrl: listingUrl(game.itemId),
+    offers: itemOffer(),
+  };
 }
 
 export class TwineForeignLibrary implements ForeignLibraryPlugin {
   readonly manifest: ForeignLibraryManifest = {
     apiVersion: FOREIGN_LIBRARY_API,
     id: TWINE_LIBRARY_ID,
-    version: "1.0.0",
+    version: "1.1.0",
     name: "Twine on IFDB",
-    description: "Search Twine stories cataloged by the Interactive Fiction Database and import direct HTML releases from IFDB or IF Archive.",
+    description: "Search IFDB's official Twine catalog, then visit the original listing to choose and download an HTML release.",
     homepage: IFDB_ORIGIN,
     capabilities: ["catalog.search", "catalog.browse", "item.resolve", "item.acquire"],
     outputs: [
@@ -117,17 +124,16 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
     ],
     permissions: {
       networkOrigins: [IFDB_ORIGIN],
-      manualDownloadOrigins: MANUAL_ORIGINS,
-      rateLimit: { maxConcurrent: 1, minIntervalMs: 500 },
+      manualDownloadOrigins: [IFDB_ORIGIN],
+      rateLimit: { maxConcurrent: 1, minIntervalMs: 1_000 },
       maxResponseBytes: INGESTION_LIMITS.maxFileBytes,
     },
   };
 
-  constructor(private readonly parseHtml: HtmlParser = (source) => new DOMParser().parseFromString(source, "text/html")) {}
-
   async open(host: ForeignLibraryHost): Promise<ForeignLibrarySession> {
-    const cached = new Map<string, ForeignItem>();
-    const acquisitions = new Map<string, TwineAcquisition[]>();
+    const cachedItems = new Map<string, ForeignItem>();
+    const searchCache = new Map<string, ForeignItem[]>();
+    for (const game of FEATURED_TWINE_GAMES) cachedItems.set(game.itemId, featuredItem(game));
 
     const fetchJson = async (url: string, signal?: AbortSignal): Promise<Json> => {
       const response = await host.request({
@@ -150,104 +156,84 @@ export class TwineForeignLibrary implements ForeignLibraryPlugin {
       if (ref.libraryId !== TWINE_LIBRARY_ID || !/^[a-z0-9]{8,32}$/u.test(ref.itemId)) {
         throw new ForeignLibraryError("invalid-request", "The story has an invalid IFDB identifier.");
       }
-      const existing = cached.get(ref.itemId);
-      if (existing && acquisitions.has(ref.itemId)) return existing;
-      const detail = await fetchJson(`${IFDB_ORIGIN}/viewgame?json=&id=${encodeURIComponent(ref.itemId)}`) as IfdbGameDetail;
-      const bibliography = detail.bibliographic ?? {};
-      const ifdb = detail.ifdb ?? {};
-      const title = string(bibliography.title) ?? existing?.title ?? `IFDB story ${ref.itemId}`;
-      const links = Array.isArray(ifdb.downloads?.links) ? ifdb.downloads.links as IfdbDownloadLink[] : [];
-      const seen = new Set<string>();
-      const candidates: Array<{ url: string; label: string }> = [];
-      for (const link of links) {
-        if (link.isGame === false) continue;
-        for (const possible of [link.url, link.playOnlineUrl]) {
-          const url = directHtmlUrl(possible);
-          if (!url || seen.has(url)) continue;
-          seen.add(url);
-          candidates.push({ url, label: string(link.title) ?? "Twine HTML" });
-        }
-      }
-      const planned = candidates.map((candidate, index) => ({ offerId: offerId(index), url: candidate.url }));
-      acquisitions.set(ref.itemId, planned);
-      const tags = Array.isArray(ifdb.tags)
-        ? ifdb.tags.map((tag) => string((tag as { name?: unknown })?.name)).filter((tag): tag is string => Boolean(tag))
-        : undefined;
+      const existing = cachedItems.get(ref.itemId);
+      if (existing) return existing;
       const item: ForeignItem = {
-        ref: { libraryId: TWINE_LIBRARY_ID, itemId: ref.itemId, ...(ifdb.pageversion !== undefined ? { revision: String(ifdb.pageversion) } : {}) },
+        ref: { libraryId: TWINE_LIBRARY_ID, itemId: ref.itemId },
         kind: "application",
-        title,
-        ...(authors(bibliography.author) ? { authors: authors(bibliography.author) } : {}),
-        ...(plainText(string(bibliography.description), this.parseHtml) ? { summary: plainText(string(bibliography.description), this.parseHtml) } : {}),
-        ...(string(bibliography.language) ? { language: string(bibliography.language) } : {}),
-        ...(string(bibliography.firstpublished) ? { publishedAt: string(bibliography.firstpublished) } : {}),
-        canonicalUrl: string(ifdb.link) ?? `${IFDB_ORIGIN}/viewgame?id=${ref.itemId}`,
-        ...(string(ifdb.coverart?.url) ? { coverUrl: string(ifdb.coverart?.url) } : {}),
-        ...(tags?.length ? { subjects: tags } : {}),
-        offers: candidates.map((candidate, index) => ({
-          id: offerId(index),
-          label: candidate.label,
-          outputType: "html",
-          importKind: "download",
-          mediaType: "text/html",
-          extension: "html",
-          priority: index,
-          risk: "executable-content",
-        })),
+        title: `IFDB story ${ref.itemId}`,
+        canonicalUrl: listingUrl(ref.itemId),
+        offers: itemOffer(),
       };
-      cached.set(ref.itemId, item);
+      cachedItems.set(ref.itemId, item);
       return item;
     };
 
     const pageForSearch = async (searchFor: string, pageSize: number, signal?: AbortSignal): Promise<ForeignPage<ForeignItem>> => {
+      const limit = Math.min(pageSize, 25);
+      const cacheKey = searchFor.normalize("NFKC").toLocaleLowerCase().replace(/\s+/gu, " ").trim();
+      const cachedResults = searchCache.get(cacheKey);
+      if (cachedResults) return { items: cachedResults.slice(0, limit) };
       const response = await fetchJson(`${IFDB_ORIGIN}/search?json=&game=&searchfor=${encodeURIComponent(searchFor)}`, signal) as { games?: unknown };
       const games = Array.isArray(response.games) ? response.games as IfdbSearchGame[] : [];
-      const items = games.slice(0, Math.min(pageSize, 25)).flatMap((game) => {
+      const items = games.slice(0, 25).flatMap((game) => {
         const itemId = string(game.tuid);
         const title = string(game.title);
         if (!itemId || !/^[a-z0-9]{8,32}$/u.test(itemId) || !title || string(game.devsys)?.toLowerCase() !== "twine") return [];
+        const coverUrl = ifdbCoverUrl(game.coverArtLink);
         const item: ForeignItem = {
           ref: { libraryId: TWINE_LIBRARY_ID, itemId },
           kind: "application",
           title,
           ...(authors(game.author) ? { authors: authors(game.author) } : {}),
           ...(string(game.published?.machine) ? { publishedAt: string(game.published?.machine) } : {}),
-          canonicalUrl: string(game.link) ?? `${IFDB_ORIGIN}/viewgame?id=${itemId}`,
-          ...(string(game.coverArtLink) ? { coverUrl: string(game.coverArtLink) } : {}),
-          offers: [],
+          canonicalUrl: listingUrl(itemId),
+          ...(coverUrl ? { coverUrl } : {}),
+          offers: itemOffer(),
         };
-        cached.set(itemId, item);
+        cachedItems.set(itemId, item);
         return [item];
       });
-      return { items };
+      if (searchCache.size >= SEARCH_CACHE_LIMIT) searchCache.delete(searchCache.keys().next().value ?? "");
+      searchCache.set(cacheKey, items);
+      return { items: items.slice(0, limit) };
     };
-
-    const search = async (request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> => {
-      const query = request.query.trim();
-      if (!query) throw new ForeignLibraryError("invalid-request", "Enter a Twine title or author to search IFDB.");
-      return pageForSearch(`${query} system:Twine`, request.pageSize ?? 25, request.signal);
-    };
-
-    const browse = (request: ForeignBrowseRequest): Promise<ForeignPage<ForeignItem>> =>
-      pageForSearch("system:Twine", request.pageSize ?? 24, request.signal);
 
     return {
-      search,
-      browse,
+      async search(request: ForeignSearchRequest): Promise<ForeignPage<ForeignItem>> {
+        const query = request.query.trim();
+        if (!query) throw new ForeignLibraryError("invalid-request", "Enter a Twine title or author to search IFDB.");
+        try {
+          return await pageForSearch(`${query} system:Twine`, request.pageSize ?? 25, request.signal);
+        } catch (error) {
+          if (error instanceof ForeignLibraryError && IFDB_AVAILABILITY_ERRORS.has(error.code)) {
+            throw new ForeignLibraryError(
+              error.code,
+              "Live IFDB search is unavailable. Use Visit source to search IFDB directly.",
+              error.retryable,
+              error.retryAfterMs,
+            );
+          }
+          throw error;
+        }
+      },
+      async browse(request: ForeignBrowseRequest): Promise<ForeignPage<ForeignItem>> {
+        return { items: FEATURED_TWINE_GAMES.slice(0, Math.min(request.pageSize ?? 24, FEATURED_TWINE_GAMES.length)).map(featuredItem) };
+      },
       resolve,
       async planImport(ref, selectedOfferId): Promise<ForeignDownloadPlan> {
+        if (selectedOfferId !== "ifdb-source-page") throw new ForeignLibraryError("not-found", "This IFDB acquisition option is unavailable.");
         const item = await resolve(ref);
-        const acquisition = acquisitions.get(ref.itemId)?.find((candidate) => candidate.offerId === selectedOfferId);
-        if (!acquisition) throw new ForeignLibraryError("not-found", "This IFDB listing has no supported direct HTML release.");
         return {
           kind: "download",
           acquisition: "manual",
-          request: { url: acquisition.url },
+          manualAction: "source-page",
+          request: { url: listingUrl(ref.itemId) },
           file: { name: `${slug(item.title)}-${ref.itemId}.html`, extension: "html", mimeType: "text/html" },
           provenance: { libraryId: TWINE_LIBRARY_ID, itemId: ref.itemId, revision: item.ref.revision, canonicalUrl: item.canonicalUrl },
         };
       },
-      dispose: () => { cached.clear(); acquisitions.clear(); },
+      dispose: () => { cachedItems.clear(); searchCache.clear(); },
     };
   }
 }

@@ -90,6 +90,8 @@ test("catalog gateway permits only bounded Twine IFDB and arXiv metadata queries
   equal(rejectedHost.status, 400);
   const rejectedIfdb = await handleCatalogGateway(catalogRequest("https://ifdb.org/search?json=&game=&searchfor=adventure"));
   equal(rejectedIfdb.status, 400);
+  const rejectedIfdbDetail = await handleCatalogGateway(catalogRequest("https://ifdb.org/viewgame?json=&id=ltwvgb2lubkx82yi"));
+  equal(rejectedIfdbDetail.status, 400);
   const rejectedArxiv = await handleCatalogGateway(catalogRequest("https://export.arxiv.org/api/query?search_query=all%3Aai&max_results=26"));
   equal(rejectedArxiv.status, 400);
 });
@@ -107,6 +109,7 @@ test("catalog gateway returns safe IFDB JSON and arXiv Atom responses", async ()
   const ifdb = await handleCatalogGateway(catalogRequest("https://ifdb.org/search?json=&game=&searchfor=system%3ATwine+bird"), { fetchImpl });
   equal(ifdb.status, 200);
   equal(ifdb.headers.get("content-type"), "application/json");
+  match(ifdb.headers.get("cache-control") ?? "", /s-maxage=3600/u);
   const arxiv = await handleCatalogGateway(catalogRequest("https://export.arxiv.org/api/query?search_query=all%3Aai&start=0&max_results=10"), { fetchImpl });
   equal(arxiv.status, 200);
   equal(arxiv.headers.get("content-type"), "application/atom+xml");
@@ -115,7 +118,7 @@ test("catalog gateway returns safe IFDB JSON and arXiv Atom responses", async ()
 });
 
 test("catalog gateway rejects unexpected content and oversized metadata", async () => {
-  const wrongType = await handleCatalogGateway(catalogRequest("https://ifdb.org/viewgame?json=&id=ltwvgb2lubkx82yi"), {
+  const wrongType = await handleCatalogGateway(catalogRequest("https://ifdb.org/search?json=&game=&searchfor=system%3ATwine"), {
     fetchImpl: async () => new Response("<html></html>", { headers: { "Content-Type": "text/html" } }),
   });
   equal(wrongType.status, 502);
