@@ -75,6 +75,7 @@ export class OpenAICompatibleFormat implements InteractiveFormat<OpenAICompatibl
   private emit: ((chunk: StreamChunk<OpenAICompatibleState>) => void) | null = null;
   private disposed = false;
   private requestQueue = Promise.resolve();
+  private interactionRequests = new Map<string, Promise<void>>();
   private streamWordCount = 0;
   private graph: ReturnType<typeof createLlmGraph> | null = null;
 
@@ -110,6 +111,8 @@ export class OpenAICompatibleFormat implements InteractiveFormat<OpenAICompatibl
     if (event.kind !== "interaction-response" || event.response.kind !== "text-input") return;
     if (event.interactionId !== `llm:input:${this.state.turn}`) return;
     if (this.state.processedInteractionIds.includes(event.interactionId)) return;
+    const existingRequest = this.interactionRequests.get(event.interactionId);
+    if (existingRequest) return existingRequest;
 
     const userText = event.response.value;
     const run = async () => {
@@ -151,8 +154,14 @@ export class OpenAICompatibleFormat implements InteractiveFormat<OpenAICompatibl
     };
 
     const current = this.requestQueue.then(run);
-    this.requestQueue = current.catch(() => undefined);
-    await current;
+    const tracked = current.finally(() => {
+      if (this.interactionRequests.get(event.interactionId) === tracked) {
+        this.interactionRequests.delete(event.interactionId);
+      }
+    });
+    this.interactionRequests.set(event.interactionId, tracked);
+    this.requestQueue = tracked.catch(() => undefined);
+    await tracked;
   }
 
   getState(): OpenAICompatibleState {

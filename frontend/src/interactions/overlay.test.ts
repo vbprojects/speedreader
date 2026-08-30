@@ -48,6 +48,9 @@ test("inline text inputs do not steal focus and expose native constraints", () =
   match(html, /required=""/);
   match(html, /minLength="2"/);
   match(html, /maxLength="40"/);
+  match(html, /<textarea[^>]*rows="3"/);
+  match(html, /white-space:pre-wrap/);
+  match(html, /overflow-wrap:anywhere/);
 });
 
 test("single choices use radio semantics and focus the first available modal option", () => {

@@ -77,10 +77,11 @@ export function TextInputInteraction({
         >
           {interaction.label}
         </label>
-        <input
+        <textarea
           id={inputId}
           name={interaction.id}
           autoFocus={!inline}
+          rows={inline ? 3 : 4}
           value={value}
           onChange={(event) => {
             setValue(event.target.value);
@@ -96,6 +97,7 @@ export function TextInputInteraction({
             width: "100%",
             boxSizing: "border-box",
             minHeight: 44,
+            resize: "vertical",
             padding: "10px 12px",
             borderRadius: 8,
             border: "1px solid " + t.border,
@@ -103,6 +105,9 @@ export function TextInputInteraction({
             color: t.fg,
             font: "inherit",
             textAlign: "left",
+            lineHeight: 1.5,
+            whiteSpace: "pre-wrap",
+            overflowWrap: "anywhere",
             outlineColor: t.highlight,
           }}
         />
