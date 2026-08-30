@@ -53,8 +53,14 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           settings.pacingModel ?? "naive",
           settings.pacingModel === "bayesian"
             ? { gamma: settings.bayesianGamma ?? 0.98 }
-            : settings.pacingModel === "surprisal-lognormal-nig"
-              ? { scoreHalfLifeWords: -1 / Math.log2(settings.bayesianGamma ?? 0.98) }
+            : settings.pacingModel.startsWith("surprisal-")
+              ? {
+                  n: settings.surprisalNGramSize ?? 3,
+                  sensitivity: settings.surprisalSensitivity ?? 0.25,
+                  ...(settings.pacingModel === "surprisal-lognormal-nig"
+                    ? { scoreHalfLifeWords: -1 / Math.log2(settings.bayesianGamma ?? 0.98) }
+                    : {}),
+                }
               : undefined,
         ),
         profile: {
@@ -64,7 +70,15 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           gamma: settings.bayesianGamma ?? 0.98,
         },
       }),
-    [settings.pacingModel, settings.bayesianGamma, settings.wpm, settings.sentencePauseMs, settings.paragraphPauseMs]
+    [
+      settings.pacingModel,
+      settings.bayesianGamma,
+      settings.surprisalNGramSize,
+      settings.surprisalSensitivity,
+      settings.wpm,
+      settings.sentencePauseMs,
+      settings.paragraphPauseMs,
+    ]
   );
 
   return (

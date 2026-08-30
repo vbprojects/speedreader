@@ -19,6 +19,11 @@ test("extracts normalized overlapping boundary trigrams", () => {
   assert.deepEqual(characterNGrams("Quick!"), ["^qu", "qui", "uic", "ick", "ck$"]);
 });
 
+test("supports configurable character n-gram widths", () => {
+  assert.deepEqual(characterNGrams("read", 2), ["^r", "re", "ea", "ad", "d$"]);
+  assert.deepEqual(characterNGrams("read", 4), ["^rea", "read", "ead$"]);
+});
+
 test("summed surprisal preserves a word-length effect", () => {
   const shortFn = createSurprisalPacingFn();
   shortFn(word("red"), context);
@@ -37,6 +42,24 @@ test("repeated trigrams become less surprising", () => {
   const second = fn.getStats().lastRawSurprisal;
 
   assert.ok(second < first, `${second} should be less than ${first}`);
+});
+
+test("sensitivity widens duration variation around base WPM", () => {
+  const flat = createSurprisalPacingFn({ scoreModel: "normal", sensitivity: 0, warmupWords: 0 });
+  const varied = createSurprisalPacingFn({ scoreModel: "normal", sensitivity: 0.5, warmupWords: 0 });
+  flat(word("reader"), context);
+  varied(word("reader"), context);
+
+  const flatDuration = flat(word("reader"), context);
+  const variedDuration = varied(word("reader"), context);
+
+  assert.equal(flatDuration, 100);
+  assert.ok(Math.abs(variedDuration - 100) > Math.abs(flatDuration - 100));
+});
+
+test("rejects invalid n-gram size and sensitivity", () => {
+  assert.throws(() => createSurprisalPacingFn({ n: 0 }), /positive integer/u);
+  assert.throws(() => createSurprisalPacingFn({ sensitivity: -0.1 }), /non-negative/u);
 });
 
 test("reset clears learned state and diagnostics", () => {

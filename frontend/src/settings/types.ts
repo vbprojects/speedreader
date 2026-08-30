@@ -30,6 +30,10 @@ export interface GlobalSettings {
   pacingModel: PacingAlgorithm;
   /** Forgetting / discounting factor gamma for Bayesian model (e.g., 0.90 to 0.999). */
   bayesianGamma: number;
+  /** Character width used by the n-gram surprisal pacing models. */
+  surprisalNGramSize: number;
+  /** Exponential scale applied to standardized surprisal before duration bounds. */
+  surprisalSensitivity: number;
 }
 
 /** Per-reader settings — override global for one reader instance. */
@@ -50,6 +54,8 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   paragraphPauseMs: 200,
   pacingModel: "naive",
   bayesianGamma: 0.98,
+  surprisalNGramSize: 3,
+  surprisalSensitivity: 0.25,
 };
 
 /** Merge per-reader overrides onto global settings → effective settings. */

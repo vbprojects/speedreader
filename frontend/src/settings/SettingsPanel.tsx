@@ -25,6 +25,7 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
   const set = (patch: ReaderSettings) => onChange(patch);
   const t = themeTokens(settings.theme);
   const latestLog = getLatestChangeLog();
+  const usesSurprisal = settings.pacingModel.startsWith("surprisal-");
 
   // Blended native controls: soft, theme-aware, no stark white boxes.
   const selectStyle: React.CSSProperties = {
@@ -111,6 +112,37 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
             onChange={(e) => set({ bayesianGamma: Number(e.target.value) })}
           />
         </Field>
+      )}
+
+      {usesSurprisal && (
+        <>
+          <Field label={`Character n-gram size: ${settings.surprisalNGramSize ?? 3}`} color={t.muted}>
+            <input
+              type="range"
+              min={1}
+              max={8}
+              step={1}
+              style={controlAccent}
+              value={settings.surprisalNGramSize ?? 3}
+              onChange={(e) => set({ surprisalNGramSize: Number(e.target.value) })}
+            />
+          </Field>
+
+          <Field label={`Pacing variation: ${(settings.surprisalSensitivity ?? 0.25).toFixed(2)}`} color={t.muted}>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              style={controlAccent}
+              value={settings.surprisalSensitivity ?? 0.25}
+              onChange={(e) => set({ surprisalSensitivity: Number(e.target.value) })}
+            />
+            <div style={{ marginTop: 4, color: t.muted, fontSize: 11, lineHeight: 1.4 }}>
+              Higher values widen timing differences; 0 disables surprisal-based variation.
+            </div>
+          </Field>
+        </>
       )}
 
       <Field label={`Font size: ${settings.fontSize}px`} color={t.muted}>

@@ -145,6 +145,7 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
   const maxMultiplier = options.maxMultiplier ?? 3;
   const maxEntries = options.maxEntries ?? 10_000;
 
+  if (!Number.isInteger(n) || n < 1) throw new Error("n must be a positive integer");
   if (!(halfLifeWords > 0)) throw new Error("halfLifeWords must be positive");
   if (!(alpha0 > 0 && beta0 > 0)) throw new Error("Gamma prior parameters must be positive");
   if (!(scoreLearningRate > 0 && scoreLearningRate <= 1)) throw new Error("scoreLearningRate must be in (0, 1]");
@@ -152,6 +153,7 @@ export function createSurprisalPacingFn(options: SurprisalPacingOptions = {}): {
   if (!(scoreHalfLifeWords > 0)) throw new Error("scoreHalfLifeWords must be positive");
   if (!(scorePriorStrength > 0)) throw new Error("scorePriorStrength must be positive");
   if (!(scorePriorAlpha > 1)) throw new Error("scorePriorAlpha must exceed 1");
+  if (!Number.isFinite(sensitivity) || sensitivity < 0) throw new Error("sensitivity must be finite and non-negative");
   if (!(minMultiplier > 0 && maxMultiplier >= minMultiplier)) throw new Error("invalid multiplier bounds");
   if (!Number.isInteger(maxEntries) || maxEntries < 1) throw new Error("maxEntries must be a positive integer");
 
