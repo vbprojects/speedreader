@@ -11,3 +11,9 @@ test("touch text controls prevent focus zoom without disabling pinch zoom", () =
   match(css, /touch-action: manipulation;/u);
   doesNotMatch(html, /(?:user-scalable\s*=\s*no|maximum-scale\s*=\s*1)/iu);
 });
+
+test("settings slider gesture surface suppresses the iOS callout without blocking vertical scroll", () => {
+  const css = readFileSync(new URL("./App.css", import.meta.url), "utf8");
+  match(css, /\.settings-range-zone[\s\S]*?-webkit-touch-callout:\s*none;/u);
+  match(css, /\.settings-range-zone input\[type="range"\][\s\S]*?touch-action:\s*pan-y;/u);
+});

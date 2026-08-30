@@ -129,6 +129,377 @@ button:active {
   background-color: #e8e8e8;
 }
 
+/* Value-first settings controls. The slider is a secondary gesture surface;
+   its exact value remains visible and directly editable at all times. */
+.settings-panel {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 20px;
+  font-family: system-ui, sans-serif;
+}
+
+.settings-panel-title h3,
+.settings-panel-title p,
+.settings-section-heading h4,
+.settings-section-heading p,
+.pacing-preview h4,
+.pacing-preview p {
+  margin: 0;
+}
+
+.settings-panel-title h3 {
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.settings-panel-title p {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.settings-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid;
+}
+
+.settings-section-heading {
+  margin-bottom: 14px;
+}
+
+.settings-section-heading h4 {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.settings-section-heading p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.settings-field > span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-control {
+  box-sizing: border-box;
+  margin: 10px 0;
+  padding: 13px;
+  border: 1px solid;
+  border-radius: 16px;
+}
+
+.settings-control-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-control-label {
+  display: block;
+  padding-top: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.settings-control-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.settings-value-input {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid;
+  border-radius: 10px;
+}
+
+.settings-value-input input {
+  width: 70px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: right;
+  font: 700 16px/1 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-value-input span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-control-adjuster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settings-control-adjuster button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.settings-range-zone {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 2px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.settings-range-zone input[type="range"] {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+
+.settings-stepper-track {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 44px;
+  place-items: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-control-description {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pacing-preview {
+  box-sizing: border-box;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid;
+  border-radius: 18px;
+}
+
+.pacing-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pacing-preview-heading h4 {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.pacing-preview-heading div > div {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.pacing-pulse-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 70px;
+  margin-top: 12px;
+}
+
+.pacing-pulse {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid;
+  border-radius: 50%;
+}
+
+.pacing-pulse-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.pacing-pulse-copy strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pacing-pulse-copy span {
+  margin-top: 2px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pacing-histogram {
+  margin-top: 4px;
+}
+
+.pacing-histogram-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 96px;
+  padding-top: 4px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.45);
+}
+
+.pacing-histogram-bars > div {
+  flex: 1 1 0;
+  min-width: 3px;
+  border-radius: 4px 4px 1px 1px;
+}
+
+.pacing-histogram-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pacing-preview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.pacing-preview-stats > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 8px;
+  border: 1px solid;
+  border-radius: 10px;
+}
+
+.pacing-preview-stats span {
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.pacing-preview-stats strong {
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pacing-preview > p {
+  margin-top: 10px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.settings-changelog {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid;
+}
+
+.settings-changelog > button,
+.settings-reset {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.settings-changelog > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.settings-changelog-body {
+  max-height: 200px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.settings-reset {
+  margin-top: 12px;
+  padding: 0 14px;
+}
+
+@media (max-width: 480px) {
+  .settings-panel {
+    padding: 16px;
+  }
+
+  .settings-select-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .settings-control {
+    padding: 12px;
+  }
+
+  .settings-control-heading {
+    align-items: center;
+  }
+
+  .settings-value-input input {
+    width: 58px;
+  }
+}
+
 input,
 button {
   outline: none;

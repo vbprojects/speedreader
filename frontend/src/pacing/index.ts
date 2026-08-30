@@ -2,6 +2,7 @@
 // Public surface of the pacing module.
 
 export { PacingEngine } from "./engine";
+export { createPacingEngine } from "./from-settings";
 export { naiveBackend, baseDurationMs } from "./naive";
 export { bayesianBackend, createBayesianBackend, createBayesianPacingFn } from "./bayesian";
 export type { BayesianPacingOptions } from "./bayesian";
