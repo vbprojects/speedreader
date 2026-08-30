@@ -169,7 +169,7 @@ export function LibraryView({
     backdropFilter: "blur(12px)",
     WebkitBackdropFilter: "blur(12px)",
     color: t.fg,
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: "inherit",
     outline: "none",
     boxShadow: "inset 0 1px 3px rgba(0,0,0,0.06)",
