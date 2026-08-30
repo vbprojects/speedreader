@@ -10,6 +10,7 @@ import type { EngineTrigger } from "../engine-events/types";
 import type { ReaderEngineEvent } from "../engine-events/types";
 import type { ReaderSettings } from "../settings/types";
 import type { StoredSugarCubeSource } from "../ingestion/sugarcube/types";
+import type { ForeignProvenance } from "../foreign-libraries/types";
 
 /** A cover image stored with a book (browser-safe Blob). */
 export interface CoverImage {
@@ -35,6 +36,8 @@ export interface Book {
   cover?: CoverImage;
   /** Non-fatal caveats reported while importing this book. */
   ingestionWarnings?: string[];
+  /** External catalog provenance, stored separately from content identity. */
+  foreignSource?: ForeignProvenance;
   /** Format-specific state snapshot (e.g. { totalPages: 120, lastProcessedPage: 12 }). */
   formatState?: Record<string, unknown>;
   /** True for content bundled by the application rather than imported by the user. */

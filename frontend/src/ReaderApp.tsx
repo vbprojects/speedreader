@@ -17,11 +17,28 @@ import { SettingsStore, mergeSettings } from "./settings";
 import type { GlobalSettings, ReaderSettings } from "./settings";
 import type { InteractionRecord } from "./interactions/types";
 import type { ReaderEngineEvent } from "./engine-events/types";
+import {
+  ConstrainedForeignLibraryHost,
+  ForeignImportCoordinator,
+  ForeignLibraryError,
+  ForeignLibraryRegistry,
+  GutenbergForeignLibrary,
+  type ForeignImportPlan,
+} from "./foreign-libraries";
+import { ForeignLibraryDialog } from "./library/ForeignLibraryDialog";
 
 export default function ReaderApp() {
   // ---- Stores (created once) ----
   const [settingsStore] = useState(() => new SettingsStore());
   const [credentialVault] = useState(() => new EncryptedCredentialVault());
+  const [foreignRegistry] = useState(() => {
+    const registry = new ForeignLibraryRegistry(
+      (manifest) => new ConstrainedForeignLibraryHost(manifest),
+    );
+    registry.register(new GutenbergForeignLibrary());
+    return registry;
+  });
+  const [foreignCoordinator] = useState(() => new ForeignImportCoordinator(foreignRegistry));
   const [library] = useState(() => new LibraryStore(
     createDb("indexeddb"),
     new IngestionEngine(
@@ -45,6 +62,7 @@ export default function ReaderApp() {
   const [notice, setNotice] = useState<string | null>(null);
   const [positions, setPositions] = useState<Record<string, number>>({});
   const [pendingLlmBookId, setPendingLlmBookId] = useState<string | null>(null);
+  const [foreignLibraryOpen, setForeignLibraryOpen] = useState(false);
 
   // ---- Reader session ----
   const [openBookId, setOpenBookId] = useState<string | null>(null);
@@ -146,6 +164,32 @@ export default function ReaderApp() {
       setImporting(false);
     }
   }, [library, refreshBooks]);
+
+  const handleForeignImport = useCallback(async (plan: ForeignImportPlan) => {
+    if (plan.kind !== "download") {
+      throw new ForeignLibraryError("unsupported", "Interactive Foreign Library imports are not enabled in this implementation slice.");
+    }
+    setImporting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const acquired = await foreignCoordinator.acquire(plan);
+      const result = await library.importForeignFile(acquired.file, acquired.provenance);
+      await refreshBooks();
+      if (!result.existed && result.book.ingestionWarnings?.length) {
+        setNotice(result.book.ingestionWarnings.join(" "));
+      } else if (!result.existed) {
+        await openBook(result.book.id);
+      } else {
+        setNotice(`“${result.book.title}” is already in your library.`);
+      }
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : String(importError));
+      throw importError;
+    } finally {
+      setImporting(false);
+    }
+  }, [foreignCoordinator, library, refreshBooks]);
 
   // ---- Open a book (cached rehydrate) ----
   const openBook = useCallback(
@@ -438,6 +482,7 @@ export default function ReaderApp() {
       settings={global}
       onUpdateSettings={(patch) => settingsStore.updateGlobal(patch)}
       onImport={handleImport}
+      onBrowseForeign={() => setForeignLibraryOpen(true)}
       onOpen={handleLibraryOpen}
       onRemove={handleRemove}
       onRestart={handleRestart}
@@ -449,6 +494,13 @@ export default function ReaderApp() {
         vault={credentialVault}
         onConnect={handleLlmConnect}
         onCancel={() => setPendingLlmBookId(null)}
+      />
+      <ForeignLibraryDialog
+        open={foreignLibraryOpen}
+        theme={global.theme}
+        registry={foreignRegistry}
+        onImport={handleForeignImport}
+        onClose={() => setForeignLibraryOpen(false)}
       />
     </>
   );

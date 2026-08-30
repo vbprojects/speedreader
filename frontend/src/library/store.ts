@@ -12,6 +12,7 @@ import { BLUESKY_JETSTREAM_BOOK_ID, BLUESKY_JETSTREAM_BOOK_REVISION, createBlues
 import { LLM_CHAT_BOOK_ID, LLM_CHAT_BOOK_REVISION, createLlmChatFixture } from "./default-books/llm-chat";
 import type { InteractiveFormat } from "../ingestion/interactive";
 import type { ReaderEngineEvent } from "../engine-events/types";
+import type { ForeignProvenance } from "../foreign-libraries";
 import { assertFileSize } from "../ingestion/limits";
 import {
   detectSugarCubeSource,
@@ -187,6 +188,14 @@ export class LibraryStore {
     await this.db.addBook(book);
     await this.db.saveStream(id, stream);
     return { book, stream, existed: false };
+  }
+
+  /** Import host-acquired bytes through the ordinary parser path and attach catalog provenance. */
+  async importForeignFile(file: FileInfo, foreignSource: ForeignProvenance): Promise<ImportResult> {
+    const result = await this.importFile(file);
+    const book = { ...result.book, foreignSource };
+    await this.db.updateBook(book.id, { foreignSource });
+    return { ...result, book };
   }
 
   /**
