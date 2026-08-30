@@ -25,6 +25,7 @@ export interface LibraryViewProps {
   settings?: GlobalSettings;
   onUpdateSettings?: (patch: ReaderSettings) => void;
   onImport: () => void;
+  onBrowseForeign?: () => void;
   onOpen: (bookId: string) => void;
   onRemove: (bookId: string) => void;
   onRestart?: (bookId: string) => void;
@@ -45,6 +46,7 @@ export function LibraryView({
   settings,
   onUpdateSettings,
   onImport,
+  onBrowseForeign,
   onOpen,
   onRemove,
   onRestart,
@@ -291,11 +293,17 @@ export function LibraryView({
           <button
             onClick={onImport}
             disabled={importing}
-            style={primaryButtonStyle}
+            style={glassButtonStyle}
           >
             <span>➕</span>
-            <span>{importing ? "Importing…" : "Import book"}</span>
+            <span>{importing ? "Importing…" : "Import file"}</span>
           </button>
+          {onBrowseForeign && (
+            <button onClick={onBrowseForeign} disabled={importing} style={primaryButtonStyle}>
+              <span>⌕</span>
+              <span>Find books</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -370,6 +378,11 @@ export function LibraryView({
             >
               {importing ? "Importing…" : "Import your first book"}
             </button>
+            {onBrowseForeign && (
+              <button onClick={onBrowseForeign} disabled={importing} style={{ ...glassButtonStyle, marginLeft: 10 }}>
+                Find books online
+              </button>
+            )}
           </div>
         ) : filteredBooks.length === 0 ? (
           <div

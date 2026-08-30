@@ -160,6 +160,35 @@ test("regular imported books remain removable", async () => {
   equal(await db.getInteractiveSource(imported.id), null);
 });
 
+test("foreign downloads use the ordinary parser, preserve content dedupe, and attach provenance", async () => {
+  const db = new MemoryDb();
+  let parseCount = 0;
+  const parser = {
+    format: "fixture",
+    canParse: (file: { extension: string }) => file.extension === "fixture",
+    parse: async () => {
+      parseCount++;
+      return {
+        words: [{ text: "Remote", index: 0, metadata: [] }],
+        chapterIndex: [],
+        meta: { totalWords: 1, avgWordLength: 6, isComplete: true, isDeterministic: true, chapterAttribute: "chapterId" },
+      } satisfies WordStream;
+    },
+    getBookInfo: async () => ({ title: "Remote Fixture", author: "Catalog Author" }),
+  };
+  const library = new LibraryStore(db, new IngestionEngine([parser]));
+  const file = { name: "remote.fixture", extension: "fixture", data: new Uint8Array([1, 2, 3]).buffer };
+  const source = { libraryId: "test.example.library", itemId: "remote-1", canonicalUrl: "https://catalog.example/remote-1" };
+  const imported = await library.importForeignFile(file, source);
+  const duplicate = await library.importForeignFile(file, source);
+
+  equal(imported.existed, false);
+  equal(duplicate.existed, true);
+  equal(parseCount, 1);
+  equal(imported.book.title, "Remote Fixture");
+  deepStrictEqual((await db.getBook(imported.book.id))?.foreignSource, source);
+});
+
 test("the file import selector path persists published SugarCube source and dedupes by bytes", async () => {
   const db = new MemoryDb();
   const library = store(db);
