@@ -1,5 +1,13 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_FOREIGN_LIBRARY_GATEWAY_URL?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 // Type declarations for Vite virtual modules used by vite-plugin-pwa.
 // `virtual:pwa-register` is resolved by the plugin at build time; this
 // declaration lets TypeScript type-check the import in main.tsx.

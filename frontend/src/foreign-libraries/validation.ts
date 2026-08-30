@@ -122,6 +122,7 @@ export function validateForeignImportPlan(plan: ForeignImportPlan, libraryId: st
   nonEmpty(plan.provenance.itemId, "Provenance item ID", 512);
   if (plan.kind === "download") {
     nonEmpty(plan.request?.url, "Download URL", 4096);
+    if (plan.request.gateway !== undefined && plan.request.gateway !== "preferred") invalid("Download gateway preference is invalid");
     nonEmpty(plan.file?.name, "Download filename", 512);
     nonEmpty(plan.file?.extension, "Download extension", 32);
     if (!/^[a-z0-9]+$/iu.test(plan.file.extension) || /[\\/\0]/u.test(plan.file.name)) invalid("Download filename is invalid");

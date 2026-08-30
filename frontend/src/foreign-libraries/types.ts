@@ -113,6 +113,8 @@ export interface ForeignRequest {
   timeoutMs?: number;
   maxResponseBytes?: number;
   signal?: AbortSignal;
+  /** Ask the host to use its configured CORS gateway, falling back to direct fetch when absent. */
+  gateway?: "preferred";
   credential?: {
     slotId: string;
     placement:

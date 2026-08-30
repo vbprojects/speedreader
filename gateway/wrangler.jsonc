@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "speedreader-foreign-library-gateway",
+  "main": "../frontend/src/gateway/gutenberg-worker.ts",
+  "compatibility_date": "2026-08-30",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://vbprojects.github.io,http://localhost:1420,http://127.0.0.1:1420"
+  }
+}

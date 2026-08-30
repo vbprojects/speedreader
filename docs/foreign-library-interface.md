@@ -78,12 +78,12 @@ Interactive plan execution is specified by v1 but is not enabled by the first im
 - Credential values are injected by the host into a declared bearer or custom-header placement. Credentialed requests cannot redirect.
 - Timeouts, cancellation, rate spacing, declared content lengths, streamed byte counts, and the application's global file-size ceiling are enforced outside plugin code.
 - Final redirect origins are revalidated before response bytes are returned.
-- A deployment must provide a first-party gateway when a catalog does not permit browser CORS. Gateways remain subject to the same origin, credential, size, and provenance rules.
+- A deployment must provide a first-party gateway when a catalog does not permit browser CORS. Gateways remain subject to the same origin, credential, size, and provenance rules. A plugin marks eligible unauthenticated downloads with `gateway: "preferred"`; the host, not the plugin, owns the configured gateway URL.
 
 Plugins must treat remote responses as untrusted. The registry validates plugin output again before any result reaches storage or reader code.
 
 ## Bundled adapters
 
-The first adapter, `org.gutenberg.catalog`, searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. The generic selector is source-agnostic; additional adapters register with the same registry rather than adding source-specific UI.
+The first adapter, `org.gutenberg.catalog`, searches Project Gutenberg's OPDS feed, resolves EPUB editions, prefers EPUB3 with images, and preserves license and canonical-source metadata. Its final EPUB acquisition may use the allowlisted Cloudflare Worker in `gateway/`; search and resolution remain direct. If the gateway is absent or unavailable, the selector offers a manual browser download followed by a constrained file picker while retaining provenance. The generic selector is source-agnostic; additional adapters register with the same registry rather than adding source-specific UI.
 
 An arXiv adapter is intentionally deferred until a first-party web gateway exists for its API and PDF downloads. Model-provider adapters will use interactive plans and the host credential-slot mechanism rather than embedding endpoint logic or keys in books.
