@@ -6,6 +6,14 @@ An EPUB, a PDF, a bundled interactive story, and an open-ended live feed have ve
 
 The application is written in React and TypeScript, runs as a web/PWA application, and can be packaged with Tauri. Its interesting parts are the boundaries between subsystems rather than the platform wrapper.
 
+## Reading and recovery
+
+Use **Read a sample**, **Paste text**, **Import file**, or **Find books** to begin. File imports show an excerpt, approximate reading time at the current WPM, and parser warnings before opening. EPUB, PDF, TXT, and saved webpages produce cached text; published SugarCube HTML/ZIP is stored with its source, but this version does not include its interactive reader runtime. Cleanup saves a separate static text copy and does not rewrite interactive actions or the original book.
+
+**Continue reading** opens the last-read book at its saved word and reading mode. Previous/next sentence controls pause playback and respect unresolved actions. Playback also pauses when the app is hidden; progress is saved on pause, seek, return to the library, and backgrounding. Search is remembered on this device.
+
+Removed books remain in **Removed books** with their source and progress until restored or explicitly deleted permanently. Removal is reversible across reloads; clearing browser site data still removes locally stored books. Live sources require a connection for new content, while previously cached text remains readable offline. The PWA precaches the PDF worker as well as the application code.
+
 ## Architecture
 
 ```mermaid

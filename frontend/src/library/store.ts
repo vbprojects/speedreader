@@ -25,6 +25,7 @@ import { assertFileSize } from "../ingestion/limits";
 import { extractTwinePackage, type TwineArchiveAsset } from "../ingestion/twine-archive";
 import {
   detectSugarCubeSource,
+  detectSugarCubeDocument,
   InvalidSugarCubeStoryError,
   SUGARCUBE_RUNTIME_FORMAT,
   type HtmlDocumentParser,
@@ -45,7 +46,7 @@ export class LibraryStore {
   /** List all books (metadata only). */
   async getBooks(): Promise<Book[]> {
     const books = await this.db.getBooks();
-    return books.sort((a, b) => b.addedAt - a.addedAt);
+    return books.filter((book) => book.removedAt == null).sort((a, b) => b.addedAt - a.addedAt);
   }
 
   /** Ensure every bundled book exists and its cached stream is repairable. */
@@ -160,7 +161,9 @@ export class LibraryStore {
       || file.extension.toLowerCase() === "htm"
       || file.mimeType?.toLowerCase() === "text/html"
     ) {
-      return this.importSugarCubeSource(file, parseHtml);
+      if (detectSugarCubeDocument(new TextDecoder().decode(file.data), parseHtml)) {
+        return this.importSugarCubeSource(file, parseHtml);
+      }
     }
     const id = await sha256(file.data);
 
@@ -168,11 +171,17 @@ export class LibraryStore {
     const existing = await this.db.getBook(id);
     if (existing) {
       const stream = await this.db.getStream(id);
-      if (stream) return { book: existing, stream, existed: true };
+      if (stream) {
+        await this.restoreBook(id);
+        return { book: { ...existing, removedAt: undefined }, stream, existed: true };
+      }
       // Cached stream missing/stale — fall through and re-ingest.
     }
 
     const stream = await this.engine.ingest(file);
+    if (!stream.words.length && !stream.interactions?.length) {
+      throw new Error("No readable text found. Try a file with selectable text or paste text instead.");
+    }
 
     // Extract metadata (title/author/cover) via the parser, if available.
     const parser = this.engine.parserFor(file);
@@ -237,7 +246,10 @@ export class LibraryStore {
     const id = `foreign:${plan.provenance.libraryId}:${plan.provenance.itemId}`;
     const existing = await this.db.getBook(id);
     const existingStream = await this.db.getStream(id);
-    if (existing && existingStream) return { book: existing, stream: existingStream, existed: true };
+    if (existing && existingStream) {
+      await this.restoreBook(id);
+      return { book: { ...existing, removedAt: undefined }, stream: existingStream, existed: true };
+    }
 
     const stream = createLlmChatStream();
     const book: Book = {
@@ -277,7 +289,8 @@ export class LibraryStore {
     const existingSource = await this.db.getInteractiveSource(id);
     const existingStream = await this.db.getStream(id);
     if (existing && existingSource && existingStream) {
-      return { book: existing, stream: existingStream, existed: true };
+      await this.restoreBook(id);
+      return { book: { ...existing, removedAt: undefined }, stream: existingStream, existed: true };
     }
 
     const detected = detectSugarCubeSource({ file, sourceHash: id, parseHtml });
@@ -376,6 +389,23 @@ export class LibraryStore {
     const { bookId, ...patch } = state;
     const merged = await this.db.patchReaderState(bookId, patch);
     if (!merged) await this.db.saveReaderState(state);
+  }
+
+  /** Retain all owned records so removal can be undone even after a reload. */
+  async trashBook(bookId: string): Promise<void> {
+    const book = await this.db.getBook(bookId);
+    if (!book) throw new Error("Book not found");
+    if (book.builtIn) throw new Error("Built-in books cannot be removed");
+    await this.db.updateBook(bookId, { removedAt: Date.now() });
+  }
+
+  async getRemovedBooks(): Promise<Book[]> {
+    return (await this.db.getBooks()).filter((book) => book.removedAt != null)
+      .sort((a, b) => b.removedAt! - a.removedAt!);
+  }
+
+  async restoreBook(bookId: string): Promise<void> {
+    await this.db.updateBook(bookId, { removedAt: undefined });
   }
 
   /** Remove a book and all its owned data (stream + state). */

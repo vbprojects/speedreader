@@ -3,6 +3,7 @@
 // one active word, Context moves surrounding text while pinning the active
 // word to center, and Read along keeps text in a stable flowing layout.
 
+import { sentenceStarts, sentenceDestination } from "./sentence-navigation";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
 import { InlineInteraction, buildReaderFlowRange } from "../interactions";
@@ -63,6 +64,7 @@ export interface SpeedReaderProps {
   onPositionChange?: (index: number) => void;
   /** Called when the playback state changes (play/pause). */
   onRunningChange?: (running: boolean) => void;
+  onNavigate?: () => void;
   /** Called when a reader interaction is submitted to the owning format. */
   onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
   /** IDs already completed for this book/session. */
@@ -92,7 +94,7 @@ const READ_ALONG_BATCH_SIZE = 400;
 /** Distance from a scroll boundary before extending the read-along window. */
 const READ_ALONG_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
+export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onNavigate, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -151,9 +153,30 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
         boundary: trigger.boundary,
         position: toBoundary,
       };
-      void Promise.resolve(onEngineEventRef.current?.(event)).catch(() => undefined);
+      void Promise.resolve(onEngineEventRef.current?.(event)).catch(() => {
+        deliveredTriggerIdsRef.current.delete(trigger.id);
+      });
     }
   };
+
+  // Pause when interrupted: returning to the app must not silently skip words.
+  useEffect(() => {
+    const pause = () => {
+      resumeAfterInteractionRef.current = false;
+      clockRef.current?.pause();
+      setRunning(false);
+      if (clockRef.current) onPositionChange?.(clockRef.current.index);
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") pause(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", pause);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", pause);
+    };
+  }, [onPositionChange]);
+
+  const sentences = useMemo(() => sentenceStarts(stream.words), [stream.words]);
 
   // Sync running state to parent coordinator
   useEffect(() => {
@@ -254,8 +277,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     }
   }, [viewMode, frame, contextChunkStart]);
 
-  // Keep the highlighted word rendered after mode entry and large seeks.
-  useEffect(() => {
+  // Populate the text window before painting a mode change or large seek.
+  useLayoutEffect(() => {
     if (viewMode !== "read-along") return;
     const currentIndex = frame?.index ?? initialIndex;
     setReadAlongRange((previous) => {
@@ -418,10 +441,17 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       interactionRecordsRef.current,
     );
     const destination = interaction ? Math.max(0, interaction.boundary - 1) : clamped;
+    resumeAfterInteractionRef.current = false;
     clock.seek(destination);
+    setRunning(false);
     previewIndex(destination);
     onPositionChange?.(destination);
+    onNavigate?.();
     if (interaction) focusInteraction(interaction);
+  };
+
+  const seekSentence = (direction: -1 | 1) => {
+    jumpTo(sentenceDestination(sentences, clockRef.current?.index ?? frame?.index ?? 0, direction, stream.words.length));
   };
 
   const seekTo = (index: number) => {
@@ -440,7 +470,7 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     word.scrollIntoView({ block: "center", behavior: "auto" });
     const nudge = readAlongEntryNudgeRef.current;
     requestAnimationFrame(() => {
-      container.scrollBy({ top: nudge, behavior: "smooth" });
+      container.scrollBy({ top: nudge, behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       readAlongEntryNudgeRef.current = null;
     });
   }, [viewMode, readAlongRange]);
@@ -1201,6 +1231,10 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
 
         {controlsOpen && (
           <div style={{ padding: isMobile ? "0 16px 12px" : "6px 16px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="sentence-controls" aria-label="Sentence navigation">
+              <button onClick={() => seekSentence(-1)} disabled={frame.index === 0}>Previous sentence</button>
+              <button onClick={() => seekSentence(1)} disabled={frame.index >= stream.words.length - 1}>Next sentence</button>
+            </div>
             {isMobile ? (
               <>
                 {/* Mobile transport buttons */}
@@ -1275,8 +1309,8 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
                 }}
               >
                 <button onClick={toggle} style={{ minWidth: 70 }}>{running ? "Pause" : "Play"}</button>
-                <button onClick={() => seek(-1)}>◀</button>
-                <button onClick={() => seek(1)}>▶</button>
+                <button aria-label="Previous word" onClick={() => seek(-1)}>◀</button>
+                <button aria-label="Next word" onClick={() => seek(1)}>▶</button>
                 <SeekBar
                   value={frame.index}
                   max={stream.words.length - 1}

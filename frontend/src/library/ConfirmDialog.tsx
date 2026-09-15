@@ -1,7 +1,7 @@
 // src/library/ConfirmDialog.tsx
 // A small themed confirmation dialog for destructive actions (remove book).
 
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 
@@ -17,33 +17,20 @@ export interface ConfirmDialogProps {
 
 export function ConfirmDialog({ open, title, message, confirmLabel = "Remove", onConfirm, onCancel, theme }: ConfirmDialogProps) {
   const t = themeTokens(theme);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+    if (open) dialog.current?.showModal();
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 3000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.45)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }}
-    >
+    <dialog ref={dialog} aria-labelledby={titleId} className="confirm-dialog"
+      onCancel={(event) => { event.preventDefault(); onCancel(); }}
+      onClick={(event) => { if (event.target === event.currentTarget) onCancel(); }}
+      style={{ padding: 0, border: 0, borderRadius: 16, background: "transparent", maxWidth: "min(92vw, 440px)", color: t.fg }}>
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -60,10 +47,11 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Remove", o
           fontFamily: "system-ui",
         }}
       >
-        <h3 style={{ marginTop: 0, marginBottom: 8 }}>{title}</h3>
+        <h3 id={titleId} style={{ marginTop: 0, marginBottom: 8 }}>{title}</h3>
         <p style={{ margin: "0 0 20px", color: t.muted, fontSize: 14, lineHeight: 1.5 }}>{message}</p>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button
+            autoFocus
             onClick={onCancel}
             style={{
               padding: "8px 14px",
@@ -94,6 +82,6 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Remove", o
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

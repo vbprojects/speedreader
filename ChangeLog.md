@@ -4,6 +4,20 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+
+## 2026-09-15 — Reading continuity and library recovery
+
+- Added Continue reading with the most recently opened title, saved word position, and reading mode; remembered library search across reloads.
+- Added sentence navigation through existing interaction gates, immediate progress saves on pause/seek, background playback pause, and visible persistence failures with retry. Mode switching retains the shared word position.
+- Standardized file, downloaded-file, and catalog import previews with title, reading-time estimate, excerpt, warnings, duplicate feedback, and recovery actions. Static text can be cleaned into a separate copy; interactive sources retain their original actions.
+- Added paste/TXT and inert saved-webpage ingestion, plus a short sample entry point alongside import and external catalogs. Blank text imports are rejected before creating a tile.
+- Added persistent Removed books, immediate Undo, restore with progress/source intact, and confirmed permanent deletion. Restarting a bundled demonstration now requires confirmation.
+- Added offline/live-source labels, cached reading while disconnected, explicit unavailable SugarCube reader-engine messaging, and PDF worker `.mjs` precaching.
+- Enlarged reading/library touch targets, added focus handling for import/removal dialogs, and respected reduced-motion preferences. Existing mobile input-zoom prevention and settings interactions remain in place.
+- Added representative PDF, saved HTML, SugarCube, and Markdown-response fixtures plus recovery and sentence-navigation regressions.
+
+---
+
 ## 2026-08-28 — OpenAI-compatible LangGraph ingestion
 
 - **Built-in LLM conversation**: Added an incomplete, resettable LLM Chat book whose inline text actions are routed through a LangGraph workflow and appended to the existing WordStream as assistant text.

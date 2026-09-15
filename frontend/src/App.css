@@ -528,3 +528,41 @@ button {
     background-color: #0f0f0f69;
   }
 }
+
+/* Library and reading controls share comfortable targets without changing settings. */
+.library-screen button, .reader-screen > div > button, .sentence-controls button,
+.import-dialog button, .removed-books summary { min-height: 44px; }
+.library-screen button { min-width: 44px; }
+.continue-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid; border-radius: 16px; margin-bottom: 24px; }
+.continue-card h2 { margin: 8px 0; }
+.continue-card p { margin: 0; }
+.library-welcome { margin-bottom: 24px; }
+.library-message { margin: 16px 24px; }
+.removed-books { margin-bottom: 20px; }
+.removed-books summary { cursor: pointer; }
+.removed-book { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.removed-book span { flex: 1; min-width: 150px; }
+.import-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; padding: 24px; border: 1px solid; border-radius: 16px; overflow-y: auto; }
+.import-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+.import-dialog label { display: block; margin: 16px 0; }
+.import-dialog input, .import-dialog textarea { display: block; box-sizing: border-box; width: 100%; font: inherit; font-size: 16px; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 8px; padding: 12px; margin-top: 8px; }
+.import-excerpt { white-space: pre-wrap; line-height: 1.65; }
+.import-actions, .sentence-controls, .reader-status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.import-actions { margin-top: 16px; }
+.sentence-controls { justify-content: center; }
+.reader-status { padding: 8px 16px; }
+.library-screen :focus-visible, .reader-screen :focus-visible, .import-dialog :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .library-screen *, .reader-screen *, .import-dialog * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .library-screen [role="button"] { transform: none !important; }
+}
+@media (max-width: 600px) {
+  .continue-card { padding: 16px; }
+  .continue-card h2 { font-size: 20px; }
+}
+
+.confirm-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+.confirm-dialog button { min-height: 44px; }
+
+body { margin: 0; }
+.sentence-controls button { font-size: 14px; padding: 8px 10px; }

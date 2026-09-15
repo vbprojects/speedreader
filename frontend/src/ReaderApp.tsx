@@ -6,7 +6,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDb } from "./db";
-import type { Book } from "./db";
+import type { Book, ReaderState } from "./db";
+import { TextParser, HtmlTextParser, textFile, SAMPLE_TEXT } from "./ingestion/text";
+import { ImportDialog } from "./library/ImportDialog";
+import type { ImportResult } from "./library/types";
+import { lastReadBook } from "./library/reading-info";
+import { useOnline } from "./library/connectivity";
 import { BlueskyJetstreamFormat, EncryptedCredentialVault, IngestionEngine, EpubParser, OPENAI_COMPATIBLE_FORMAT, OpenAICompatibleFormat, PdfJsParser, pickFileBrowser } from "./ingestion";
 import type { OpenAICompatibleConnection } from "./ingestion";
 import { LibraryStore } from "./library";
@@ -32,6 +37,8 @@ import {
 import { ForeignLibraryDialog } from "./library/ForeignLibraryDialog";
 
 export default function ReaderApp() {
+  const online = useOnline();
+  const [streamAttempt, setStreamAttempt] = useState(0);
   // ---- Stores (created once) ----
   const [settingsStore] = useState(() => new SettingsStore());
   const [credentialVault] = useState(() => new EncryptedCredentialVault());
@@ -50,7 +57,7 @@ export default function ReaderApp() {
   const [library] = useState(() => new LibraryStore(
     createDb("indexeddb"),
     new IngestionEngine(
-      [new EpubParser(), new PdfJsParser()],
+      [new EpubParser(), new PdfJsParser(), new TextParser(), new HtmlTextParser()],
       [
         () => new BlueskyJetstreamFormat(),
         () => new OpenAICompatibleFormat(),
@@ -71,6 +78,15 @@ export default function ReaderApp() {
   const [positions, setPositions] = useState<Record<string, number>>({});
   const [pendingLlmBookId, setPendingLlmBookId] = useState<string | null>(null);
   const [foreignLibraryOpen, setForeignLibraryOpen] = useState(false);
+  const [readerStates, setReaderStates] = useState<Record<string, ReaderState>>({});
+  const [removedBooks, setRemovedBooks] = useState<Book[]>([]);
+  const [previewVersion, setPreviewVersion] = useState(0);
+  const [preview, setPreview] = useState<ImportResult | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+  const openingRef = useRef(false);
+  const importLock = useRef(false);
 
   // ---- Reader session ----
   const [openBookId, setOpenBookId] = useState<string | null>(null);
@@ -80,6 +96,10 @@ export default function ReaderApp() {
   const [completedInteractionIds, setCompletedInteractionIds] = useState<string[]>([]);
   const [interactionRecords, setInteractionRecords] = useState<InteractionRecord[]>([]);
   const [deliveredTriggerIds, setDeliveredTriggerIds] = useState<string[]>([]);
+
+  const reportSaveError = useCallback((cause: unknown) => {
+    setError(`Could not save your place: ${cause instanceof Error ? cause.message : String(cause)}. Free some device storage and try again.`);
+  }, []);
 
   // Debounced position persistence.
   const positionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,13 +143,16 @@ export default function ReaderApp() {
     try {
       const list = await library.getBooks();
       setBooks(list);
+      setRemovedBooks(await library.getRemovedBooks());
       // Load saved positions for progress display.
       const pos: Record<string, number> = {};
+      const states: Record<string, ReaderState> = {};
       for (const b of list) {
         const st = await library.getReaderState(b.id);
-        if (st) pos[b.id] = st.position;
+        if (st) { pos[b.id] = st.position; states[b.id] = st; }
       }
       setPositions(pos);
+      setReaderStates(states);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -149,32 +172,42 @@ export default function ReaderApp() {
     })();
   }, [refreshBooks]);
 
+  const showImport = useCallback(async (result: ImportResult) => {
+    await refreshBooks();
+    setPasting(false);
+    setPreview(result);
+    setPreviewVersion((version) => version + 1);
+    setImportStatus(null);
+  }, [refreshBooks]);
+
   // ---- Import ----
   const handleImport = useCallback(async () => {
+    if (importLock.current) return;
+    importLock.current = true;
     setImporting(true);
+    setImportStatus("Preparing import…");
     setError(null);
     setNotice(null);
     try {
       const file = await pickFileBrowser();
       if (!file) return;
+      setImportStatus("Extracting and saving text…");
       const result = await library.importFile(file);
-      await refreshBooks();
-      // Non-fatal parser warnings need an explicit user acknowledgement in the
-      // library before opening. Simple imports continue straight to the reader.
-      if (!result.existed && result.book.ingestionWarnings?.length) {
-        setNotice(result.book.ingestionWarnings.join(" "));
-      } else if (!result.existed) {
-        await openBook(result.book.id);
-      }
+      await showImport(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      importLock.current = false;
       setImporting(false);
+      setImportStatus(null);
     }
-  }, [library, refreshBooks]);
+  }, [library, showImport]);
 
   const handleForeignImport = useCallback(async (plan: ForeignImportPlan) => {
+    if (importLock.current) return;
+    importLock.current = true;
     setImporting(true);
+    setImportStatus("Preparing import…");
     setError(null);
     setNotice(null);
     try {
@@ -185,27 +218,27 @@ export default function ReaderApp() {
         setPendingLlmBookId(result.book.id);
         return;
       }
+      setImportStatus("Downloading content…");
       const acquired = await foreignCoordinator.acquire(plan);
+      setImportStatus("Extracting and saving text…");
       const result = await library.importForeignFile(acquired.file, acquired.provenance);
-      await refreshBooks();
-      if (!result.existed && result.book.ingestionWarnings?.length) {
-        setNotice(result.book.ingestionWarnings.join(" "));
-      } else if (!result.existed) {
-        await openBook(result.book.id);
-      } else {
-        setNotice(`“${result.book.title}” is already in your library.`);
-      }
+      await showImport(result);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
       throw importError;
     } finally {
+      importLock.current = false;
       setImporting(false);
+      setImportStatus(null);
     }
-  }, [foreignCoordinator, library, refreshBooks]);
+  }, [foreignCoordinator, library, refreshBooks, showImport]);
 
   const handleForeignManualImport = useCallback(async (plan: ForeignDownloadPlan): Promise<boolean> => {
     foreignRegistry.validatePlan(plan);
+    if (importLock.current) return false;
+    importLock.current = true;
     setImporting(true);
+    setImportStatus("Choose your downloaded file…");
     setError(null);
     setNotice(null);
     try {
@@ -218,26 +251,35 @@ export default function ReaderApp() {
         ...plan.provenance,
         acquiredAt: new Date().toISOString(),
       });
-      await refreshBooks();
-      if (!result.existed && result.book.ingestionWarnings?.length) {
-        setNotice(result.book.ingestionWarnings.join(" "));
-      } else if (!result.existed) {
-        await openBook(result.book.id);
-      } else {
-        setNotice(`“${result.book.title}” is already in your library.`);
-      }
+      await showImport(result);
       return true;
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
       throw importError;
     } finally {
+      importLock.current = false;
       setImporting(false);
+      setImportStatus(null);
     }
-  }, [foreignRegistry, library, refreshBooks]);
+  }, [foreignRegistry, library, showImport]);
+
+  const handleTextImport = useCallback(async (text: string, title: string) => {
+    if (importLock.current) return;
+    importLock.current = true;
+    setImporting(true);
+    setError(null);
+    setNotice(null);
+    setImportStatus("Saving text…");
+    try { await showImport(await library.importFile(textFile(text, title))); }
+    finally { importLock.current = false; setImporting(false); setImportStatus(null); }
+  }, [library, showImport]);
 
   // ---- Open a book (cached rehydrate) ----
   const openBook = useCallback(
     async (bookId: string) => {
+      if (openingRef.current) return;
+      openingRef.current = true;
+      setOpening(true);
       setError(null);
       try {
         const opened = await library.openBook(bookId);
@@ -268,6 +310,9 @@ export default function ReaderApp() {
         await enqueueReaderState(bookId, state?.position ?? 0, state?.settings ?? {});
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        openingRef.current = false;
+        setOpening(false);
       }
     },
     [enqueueReaderState, library, global]
@@ -275,10 +320,11 @@ export default function ReaderApp() {
 
   // A live format owns its connection only while its library book is open.
   useEffect(() => {
-    if (!openBookId) return;
+    if (!openBookId || !online) return;
     let disposed = false;
     let stop: (() => void) | null = null;
     const book = books.find((candidate) => candidate.id === openBookId);
+    if (book?.format === OPENAI_COMPATIBLE_FORMAT && !llmConnection.current) return;
     const formatInput = book?.format === OPENAI_COMPATIBLE_FORMAT && llmConnection.current
       ? { connection: llmConnection.current }
       : undefined;
@@ -314,15 +360,25 @@ export default function ReaderApp() {
       disposed = true;
       stop?.();
     };
-  }, [books, enqueueReaderState, library, openBookId]);
+  }, [books, enqueueReaderState, library, openBookId, online, streamAttempt]);
 
   const handleEngineEvent = useCallback(async (event: ReaderEngineEvent) => {
     const bookId = openBookId;
     if (!bookId) return;
+    const format = books.find((book) => book.id === bookId)?.format;
+    if (event.kind === "interaction-response" && (format === OPENAI_COMPATIBLE_FORMAT || format === "bluesky-jetstream") && !online) {
+      throw new Error("Reconnect before requesting new content. Your saved text is still available.");
+    }
+    if (format === OPENAI_COMPATIBLE_FORMAT && !llmConnection.current) {
+      throw new Error("Return to the library and connect this chat before sending a message.");
+    }
     if (event.kind === "trigger" && latestDeliveredTriggerIds.current.includes(event.triggerId)) return;
     if (!latestPendingEngineEvents.current.some((pending) => pending.eventId === event.eventId)) {
       latestPendingEngineEvents.current = [...latestPendingEngineEvents.current, event];
       await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+    }
+    if (!online && (format === OPENAI_COMPATIBLE_FORMAT || format === "bluesky-jetstream")) {
+      throw new Error("New content will load when you reconnect.");
     }
     await library.handleReaderEngineEvent(bookId, event);
     latestPendingEngineEvents.current = latestPendingEngineEvents.current.filter((pending) => pending.eventId !== event.eventId);
@@ -331,7 +387,7 @@ export default function ReaderApp() {
       setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
     }
     await enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
-  }, [enqueueReaderState, library, openBookId]);
+  }, [enqueueReaderState, library, openBookId, books, online]);
 
   const handleInteractionEngineSubmit = useCallback(async (response: import("./interactions/types").InteractionResponse) => {
     const interaction = openStream?.interactions?.find((candidate) => candidate.id === response.interactionId);
@@ -356,10 +412,10 @@ export default function ReaderApp() {
       if (!bookId) return;
       positionTimer.current = setTimeout(() => {
         positionTimer.current = null;
-        void enqueueReaderState(bookId, latestPosition.current, latestSettings.current);
+        void enqueueReaderState(bookId, latestPosition.current, latestSettings.current).catch(reportSaveError);
       }, 500);
     },
-    [enqueueReaderState, openBookId]
+    [enqueueReaderState, openBookId, reportSaveError]
   );
 
   // ---- Reader interaction completion ----
@@ -369,10 +425,10 @@ export default function ReaderApp() {
       latestCompletedInteractionIds.current = next;
       setCompletedInteractionIds(next);
       if (openBookId) {
-        void enqueueReaderState(openBookId, latestPosition.current, latestSettings.current, next);
+        void enqueueReaderState(openBookId, latestPosition.current, latestSettings.current, next).catch(reportSaveError);
       }
     },
-    [enqueueReaderState, openBookId]
+    [enqueueReaderState, openBookId, reportSaveError]
   );
 
   const handleInteractionCommitted = useCallback(
@@ -383,9 +439,9 @@ export default function ReaderApp() {
       const completed = Array.from(new Set([...latestCompletedInteractionIds.current, record.interactionId]));
       latestCompletedInteractionIds.current = completed;
       setCompletedInteractionIds(completed);
-      if (openBookId) void enqueueReaderState(openBookId, latestPosition.current, latestSettings.current);
+      if (openBookId) void enqueueReaderState(openBookId, latestPosition.current, latestSettings.current).catch(reportSaveError);
     },
-    [enqueueReaderState, openBookId]
+    [enqueueReaderState, openBookId, reportSaveError]
   );
 
   // ---- Reader settings change ----
@@ -395,17 +451,17 @@ export default function ReaderApp() {
       const next = { ...latestSettings.current, ...patch };
       latestSettings.current = next;
       setReaderSettings((prev) => (prev ? mergeSettings(prev, patch) : prev));
-      void enqueueReaderState(openBookId, latestPosition.current, next);
+      void enqueueReaderState(openBookId, latestPosition.current, next).catch(reportSaveError);
     },
-    [enqueueReaderState, openBookId]
+    [enqueueReaderState, openBookId, reportSaveError]
   );
 
   const handleSettingsReset = useCallback(() => {
     if (!openBookId) return;
     latestSettings.current = {};
     setReaderSettings(global);
-    void enqueueReaderState(openBookId, latestPosition.current, {});
-  }, [enqueueReaderState, openBookId, global]);
+    void enqueueReaderState(openBookId, latestPosition.current, {}).catch(reportSaveError);
+  }, [enqueueReaderState, openBookId, global, reportSaveError]);
 
   // ---- Flush latest state on exit / visibility change / pagehide ----
   const flushState = useCallback((): Promise<void> => {
@@ -419,35 +475,35 @@ export default function ReaderApp() {
 
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") flushState();
+      if (document.visibilityState === "hidden") void flushState().catch(reportSaveError);
     };
-    const onPageHide = () => flushState();
+    const onPageHide = () => { void flushState().catch(reportSaveError); };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [flushState]);
+  }, [flushState, reportSaveError]);
 
   // ---- Back to library ----
   const handleBack = useCallback(async () => {
-    await flushState();
+    try { await flushState(); } catch (cause) { reportSaveError(cause); return; }
     setOpenBookId(null);
     setOpenStream(null);
     setReaderSettings(null);
     llmConnection.current = null;
     await refreshBooks();
-  }, [flushState, refreshBooks]);
+  }, [flushState, refreshBooks, reportSaveError]);
 
   const handleLibraryOpen = useCallback((bookId: string) => {
     const book = books.find((candidate) => candidate.id === bookId);
-    if (book?.format === OPENAI_COMPATIBLE_FORMAT) {
+    if (book?.format === OPENAI_COMPATIBLE_FORMAT && online) {
       setPendingLlmBookId(bookId);
       return;
     }
     void openBook(bookId);
-  }, [books, openBook]);
+  }, [books, openBook, online]);
 
   const handleLlmConnect = useCallback((connection: OpenAICompatibleConnection) => {
     const bookId = pendingLlmBookId;
@@ -462,7 +518,8 @@ export default function ReaderApp() {
     async (bookId: string) => {
       setError(null);
       try {
-        await library.removeBook(bookId);
+        await library.trashBook(bookId);
+        setNotice("Book removed. Undo below, or restore it later from Removed books.");
         await refreshBooks();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -470,6 +527,15 @@ export default function ReaderApp() {
     },
     [library, refreshBooks]
   );
+
+  const handleRestore = async (bookId: string) => {
+    try { await library.restoreBook(bookId); setNotice("Book restored with its saved progress."); await refreshBooks(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
+  const handleDelete = async (bookId: string) => {
+    try { await library.removeBook(bookId); await refreshBooks(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
 
   const handleRestart = useCallback(
     async (bookId: string) => {
@@ -510,10 +576,20 @@ export default function ReaderApp() {
         onEngineEvent={handleEngineEvent}
         onInteractionSubmit={handleInteractionEngineSubmit}
         liveError={error}
+        offline={!online}
+        sourceFormat={books.find((book) => book.id === openBookId)?.format}
+        onRetry={() => {
+          setError(null);
+          if (books.find((book) => book.id === openBookId)?.format === OPENAI_COMPATIBLE_FORMAT && !llmConnection.current) {
+            void handleBack();
+          } else setStreamAttempt((attempt) => attempt + 1);
+        }}
+        onPause={() => { void flushState().then(() => setError((previous) => previous?.startsWith("Could not save your place:") ? null : previous)).catch(reportSaveError); }}
       />
     );
   }
 
+  const continueBook = lastReadBook(books, readerStates);
   const pendingLlmConfig = books.find((book) => book.id === pendingLlmBookId)?.interactiveConfig;
   const pendingLlmBaseUrl = typeof pendingLlmConfig?.baseUrl === "string"
     ? pendingLlmConfig.baseUrl
@@ -527,7 +603,7 @@ export default function ReaderApp() {
       <LibraryView
       books={books}
       loading={loading}
-      importing={importing}
+      importing={importing || opening}
       error={error}
       notice={notice}
       theme={global.theme}
@@ -539,7 +615,24 @@ export default function ReaderApp() {
       onRemove={handleRemove}
       onRestart={handleRestart}
       positions={positions}
+      online={online}
+      status={opening ? "Opening book…" : importStatus}
+      onPaste={() => { setPreview(null); setPasting(true); }}
+      onSample={() => { void handleTextImport(SAMPLE_TEXT, "A moment to read").catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause))); }}
+      continueBook={continueBook}
+      continueState={readerStates[continueBook?.id ?? ""]}
+      removedBooks={removedBooks}
+      onRestore={(bookId) => void handleRestore(bookId)}
+      onDelete={(bookId) => void handleDelete(bookId)}
       />
+      {(preview || pasting) && <ImportDialog
+        key={preview ? `${preview.book.id}:${previewVersion}` : "paste"}
+        result={preview ?? undefined} theme={global.theme} wpm={global.wpm} busy={importing}
+        onClose={() => { setPreview(null); setPasting(false); }}
+        onRead={(bookId) => { setPreview(null); handleLibraryOpen(bookId); }}
+        onSaveText={handleTextImport}
+        onChooseFile={() => { setPreview(null); void handleImport(); }}
+      />}
       <LlmConnectionDialog
         open={pendingLlmBookId !== null}
         theme={global.theme}

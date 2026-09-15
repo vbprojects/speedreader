@@ -23,7 +23,7 @@ export function ReaderViewModeSelector({
           onChange(mode);
         }}
         style={{
-          minHeight: 34,
+          minHeight: 44,
           padding: "6px 12px",
           border: 0,
           borderRadius: 7,

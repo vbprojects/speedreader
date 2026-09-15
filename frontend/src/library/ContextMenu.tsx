@@ -51,9 +51,9 @@ export function ContextMenu({ state, book, onClose, onRemove, onRestart, theme }
 
   // Keep the menu inside the viewport.
   const menuWidth = 200;
-  const menuHeight = 48;
-  const x = Math.min(state.x, window.innerWidth - menuWidth - 8);
-  const y = Math.min(state.y, window.innerHeight - menuHeight - 8);
+  const menuHeight = 64;
+  const x = Math.max(8, Math.min(state.x, window.innerWidth - menuWidth - 8));
+  const y = Math.max(8, Math.min(state.y, window.innerHeight - menuHeight - 8));
 
   return (
     <div
@@ -64,7 +64,8 @@ export function ContextMenu({ state, book, onClose, onRemove, onRestart, theme }
         left: x,
         top: y,
         zIndex: 2000,
-        minWidth: menuWidth,
+        width: menuWidth,
+        boxSizing: "border-box",
         borderRadius: 10,
         border: `1px solid ${t.border}`,
         background: `${t.panel}f2`,

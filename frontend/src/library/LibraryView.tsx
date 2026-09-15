@@ -4,16 +4,31 @@
 // long-press). Built-in demo books can be restarted; imported books can be removed.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Book } from "../db/types";
+import type { Book, ReaderState } from "../db/types";
 import { JETSTREAM_FORMAT } from "../ingestion/jetstream";
 import type { GlobalSettings, ReaderSettings, Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 import { SettingsModal } from "../settings/SettingsModal";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { availability, importRecovery } from "./reading-info";
+
+const SEARCH_KEY = "speedreader.library.search";
+function savedSearch(): string {
+  try { return localStorage.getItem(SEARCH_KEY) ?? ""; } catch { return ""; }
+}
 
 export interface LibraryViewProps {
   books: Book[];
+  online?: boolean;
+  status?: string | null;
+  onPaste?: () => void;
+  onSample?: () => void;
+  continueBook?: Book;
+  continueState?: ReaderState;
+  removedBooks?: Book[];
+  onRestore?: (bookId: string) => void;
+  onDelete?: (bookId: string) => void;
   /** True while the library is loading from the db. */
   loading: boolean;
   /** True while an import is in progress. */
@@ -38,6 +53,7 @@ const LONG_PRESS_MS = 500;
 
 export function LibraryView({
   books,
+  online = true, status, onPaste, onSample, continueBook, continueState, removedBooks = [], onRestore, onDelete,
   loading,
   importing,
   error,
@@ -53,7 +69,10 @@ export function LibraryView({
   positions,
 }: LibraryViewProps) {
   const t = themeTokens(theme);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(savedSearch);
+  useEffect(() => { try { localStorage.setItem(SEARCH_KEY, searchQuery); } catch { /* Optional preference. */ } }, [searchQuery]);
+  const [deleteBook, setDeleteBook] = useState<Book | null>(null);
+  const [restartBook, setRestartBook] = useState<Book | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [confirmBook, setConfirmBook] = useState<Book | null>(null);
@@ -121,7 +140,7 @@ export function LibraryView({
   const handleTileClick = (book: Book) => {
     // A long press that opened the menu shouldn't also open the book.
     if (menu?.bookId === book.id) return;
-    onOpen(book.id);
+    if (!importing) onOpen(book.id);
   };
 
   const handleRemove = (bookId: string) => {
@@ -132,7 +151,7 @@ export function LibraryView({
 
   const handleRestart = (bookId: string) => {
     setMenu(null);
-    onRestart?.(bookId);
+    setRestartBook(books.find((book) => book.id === bookId) ?? null);
   };
 
   const confirmRemove = () => {
@@ -206,7 +225,7 @@ export function LibraryView({
   };
 
   return (
-    <div
+    <div className="library-screen"
       style={{
         minHeight: "100vh",
         background: `radial-gradient(circle at 10% 10%, ${t.panel}44 0%, transparent 40%), radial-gradient(circle at 90% 90%, ${t.highlight}15 0%, transparent 45%), ${t.bg}`,
@@ -252,6 +271,7 @@ export function LibraryView({
           </span>
           <input
             type="text"
+            aria-label="Search titles or authors"
             placeholder="Search titles or authors…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -261,6 +281,7 @@ export function LibraryView({
             <button
               onClick={() => setSearchQuery("")}
               title="Clear search"
+              aria-label="Clear search"
               style={{
                 position: "absolute",
                 right: 10,
@@ -278,7 +299,8 @@ export function LibraryView({
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+          {onPaste && <button onClick={onPaste} disabled={importing} style={glassButtonStyle}>Paste text</button>}
           {settings && onUpdateSettings && (
             <button
               onClick={() => setShowSettings(true)}
@@ -295,18 +317,21 @@ export function LibraryView({
             disabled={importing}
             style={glassButtonStyle}
           >
-            <span>➕</span>
+            <span aria-hidden="true">➕</span>
             <span>{importing ? "Importing…" : "Import file"}</span>
           </button>
           {onBrowseForeign && (
             <button onClick={onBrowseForeign} disabled={importing} style={primaryButtonStyle}>
-              <span>⌕</span>
+              <span aria-hidden="true">⌕</span>
               <span>Find books</span>
             </button>
           )}
         </div>
       </header>
 
+      {(!online || status) && <div role="status" className="library-message">
+        {status ?? "You’re offline. Saved books are available; new live content requires a connection."}
+      </div>}
       {notice && (
         <div
           role="status"
@@ -317,17 +342,17 @@ export function LibraryView({
             border: "1px solid #d9890044",
             background: "#d9890018",
             backdropFilter: "blur(12px)",
-            color: "#8a5600",
+            color: t.fg,
             fontSize: 14,
             fontWeight: 500,
           }}
         >
-          ⚠️ {notice}
+          {notice}
         </div>
       )}
 
       {error && (
-        <div
+        <div role="alert"
           style={{
             margin: "16px 24px 0",
             padding: "12px 18px",
@@ -340,12 +365,41 @@ export function LibraryView({
             fontWeight: 500,
           }}
         >
-          {error}
+          <p>{error}</p><p>{importRecovery(error)}</p>
+          <button onClick={onImport} disabled={importing}>Choose file</button>{" "}
+          {onPaste && <button onClick={onPaste} disabled={importing}>Paste text</button>}
         </div>
       )}
 
       {/* Main Content Body */}
       <main style={{ padding: "28px 24px" }}>
+        {!loading && continueBook && <section className="continue-card" style={{ background: t.panel, borderColor: t.border }} aria-label="Continue reading">
+          <div><strong>Continue reading</strong><h2>{continueBook.title}</h2>
+            <p>{continueBook.wordCount ? `Word ${Math.min((continueState?.position ?? 0) + 1, continueBook.wordCount).toLocaleString()} of ${continueBook.wordCount.toLocaleString()}` : "Waiting for content"}
+              {" · "}{({ rsvp: "Single word", "read-along": "Read-along", context: "Moving context" })[continueState?.settings.viewMode ?? settings?.viewMode ?? "rsvp"]}</p>
+          </div>
+          <button disabled={importing} onClick={() => onOpen(continueBook.id)}>Continue reading</button>
+        </section>}
+        {!loading && !books.some((book) => !book.builtIn) && <section className="library-welcome" aria-label="Start reading">
+          <h2>A moment to read</h2><p>Try a short passage, paste your own text, import a file, or find a book online.</p>
+          <div className="import-actions">
+            {onSample && <button onClick={onSample} disabled={importing}>Read a sample</button>}
+            {onPaste && <button onClick={onPaste} disabled={importing}>Paste text</button>}
+            <button onClick={onImport} disabled={importing}>Import file</button>
+            {onBrowseForeign && <button onClick={onBrowseForeign} disabled={importing}>Find books</button>}
+          </div>
+        </section>}
+        {removedBooks.length > 0 && <details className="removed-books">
+          <summary>Removed books ({removedBooks.length})</summary>
+          {removedBooks.map((book) => <div key={book.id} className="removed-book">
+            <span>{book.title}</span>
+            <button onClick={() => onRestore?.(book.id)}>Restore</button>
+            <button onClick={() => setDeleteBook(book)}>Delete permanently</button>
+          </div>)}
+        </details>}
+        {notice?.startsWith("Book removed.") && removedBooks[0] && <div role="status" className="library-message">
+          Removed “{removedBooks[0].title}”. <button onClick={() => onRestore?.(removedBooks[0].id)}>Undo</button>
+        </div>}
         {loading ? (
           <div style={{ color: t.muted, padding: 60, textAlign: "center", fontSize: 15 }}>
             <div style={{ fontSize: 28, marginBottom: 12 }}>⏳</div>
@@ -369,7 +423,7 @@ export function LibraryView({
             <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
             <h2 style={{ fontSize: 20, margin: "0 0 8px", fontWeight: 700 }}>Your library is empty</h2>
             <p style={{ fontSize: 14, margin: "0 0 24px", color: t.muted, lineHeight: 1.5 }}>
-              Import an EPUB or PDF to start your speedreading journey with centered focal alignment.
+              Import an EPUB, PDF, saved webpage or text file to start reading.
             </p>
             <button
               onClick={onImport}
@@ -401,12 +455,13 @@ export function LibraryView({
             <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: t.fg, marginBottom: 4 }}>No matching books</div>
             <div style={{ fontSize: 13 }}>No books found matching &ldquo;{searchQuery}&rdquo;</div>
+            <button onClick={() => setSearchQuery("")}>Clear search</button>
           </div>
         ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
               gap: 22,
             }}
           >
@@ -451,12 +506,19 @@ export function LibraryView({
       <ConfirmDialog
         open={!!confirmBook}
         title="Remove from library?"
-        message={`"${confirmBook?.title ?? ""}" and its saved reading progress will be deleted. This can't be undone.`}
+        message={`Remove "${confirmBook?.title ?? ""}" from your library? You can restore it with its reading progress from Removed books.`}
         onConfirm={confirmRemove}
         onCancel={() => setConfirmBook(null)}
         theme={theme}
       />
 
+      <ConfirmDialog open={!!deleteBook} title="Delete permanently?"
+        message={`Delete "${deleteBook?.title ?? ""}", its source, and its saved progress? This cannot be undone.`}
+        confirmLabel="Delete permanently" theme={theme}
+        onConfirm={() => { if (deleteBook) onDelete?.(deleteBook.id); setDeleteBook(null); }} onCancel={() => setDeleteBook(null)} />
+      <ConfirmDialog open={!!restartBook} title="Restart this book?"
+        message="This clears your progress and interaction history. This cannot be undone." confirmLabel="Restart" theme={theme}
+        onConfirm={() => { if (restartBook) onRestart?.(restartBook.id); setRestartBook(null); }} onCancel={() => setRestartBook(null)} />
       <style>{`
         @media (max-width: 600px) {
           .hide-on-mobile { display: none !important; }
@@ -507,7 +569,7 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick();
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); }
       }}
       style={{
         cursor: "pointer",
@@ -583,7 +645,7 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
         ) : null}
         {book.builtIn && (
           <div
-            title="Bundled offline demonstration"
+            title="Bundled library item"
             style={{
               position: "absolute",
               bottom: 8,
@@ -653,6 +715,7 @@ function BookTile({ book, theme, progress, onContextMenu, onPointerDown, onPoint
         >
           {book.author}
         </div>
+        <div style={{ fontSize: 12, marginTop: 8, color: t.muted }}>{availability(book)}</div>
       </div>
     </div>
   );
