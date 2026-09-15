@@ -3,7 +3,7 @@
 // Receives the already-hydrated stream + effective settings + initial index,
 // and reports position/settings changes up so the coordinator can persist.
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
 import type { InteractionRecord, InteractionResponse } from "../interactions/types";
 import type { ReaderEngineEvent } from "../engine-events/types";
@@ -37,13 +37,25 @@ export interface ReaderScreenProps {
   initialDeliveredTriggerIds?: string[];
   onEngineEvent?: (event: ReaderEngineEvent) => Promise<void> | void;
   liveError?: string | null;
+  sourceFormat?: string;
+  offline?: boolean;
+  onPause?: () => void;
+  onRetry?: () => void;
 }
 
-export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent, liveError }: ReaderScreenProps) {
+export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent, liveError, sourceFormat, offline, onPause, onRetry }: ReaderScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [running, setRunning] = useState(false);
   const t = themeTokens(settings.theme);
+  const wasRunning = useRef(false);
+  const handleRunning = useCallback((next: boolean) => {
+    if (wasRunning.current && !next) onPause?.();
+    wasRunning.current = next;
+    setRunning(next);
+  }, [onPause]);
+  const requiresConnection = sourceFormat === "bluesky-jetstream" || sourceFormat === "openai-compatible-llm";
+  const unavailable = sourceFormat === "sugarcube-2-runtime";
 
   // Pacing engine recreated when effective WPM/pauses/model/gamma change.
   const pacing = useMemo(
@@ -60,7 +72,7 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+    <div className="reader-screen" style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
       {/* Top Header Bar: hidden while playing for an ultra-clean distraction-free reading experience */}
       <div
         style={{
@@ -90,6 +102,11 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
         <button onClick={() => setShowSettings(true)}>Settings</button>
       </div>
 
+      {(liveError || (offline && requiresConnection)) && <div role={liveError ? "alert" : "status"} className="reader-status" style={{ background: t.panel, color: t.fg }}>
+        <span>{liveError ?? "You’re offline. Saved content is readable; reconnect to load more."}</span>
+        {liveError && requiresConnection && !offline && !liveError.startsWith("Could not save your place:") && <button onClick={onRetry}>Retry connection</button>}
+        {liveError?.startsWith("Could not save your place:") && <button onClick={onPause}>Retry saving progress</button>}
+      </div>}
       <SettingsModal
         open={showSettings}
         onClose={() => setShowSettings(false)}
@@ -104,9 +121,9 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
         {stream.words.length === 0 ? (
           <div style={{ height: "100%", display: "grid", placeItems: "center", background: t.bg, color: t.muted, fontFamily: settings.fontFamily }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>Listening to the live stream…</div>
+              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>{unavailable ? "Reader engine unavailable" : offline ? "You’re offline" : requiresConnection ? "Waiting for content…" : "No readable text"}</div>
               <div role={liveError ? "alert" : undefined} style={{ fontSize: 13, color: liveError ? t.highlight : undefined }}>
-                {liveError ?? "Waiting for the first eligible English text post."}
+                {liveError ?? (unavailable ? "This story is saved, but its interactive reader engine is not available in this version." : offline ? "Reconnect to load new content, or return to the library to read a saved book." : sourceFormat === "bluesky-jetstream" ? "Waiting for the first eligible English text post." : "Return to the library and try importing a file with readable text.")}
               </div>
             </div>
           </div>
@@ -123,7 +140,8 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           onToggleNav={() => setNavCollapsed((c) => !c)}
           initialIndex={initialIndex}
           onPositionChange={onPositionChange}
-          onRunningChange={setRunning}
+          onNavigate={onPause}
+          onRunningChange={handleRunning}
           initialCompletedInteractionIds={initialCompletedInteractionIds}
           onInteractionResolved={onInteractionResolved}
           initialInteractionRecords={initialInteractionRecords}

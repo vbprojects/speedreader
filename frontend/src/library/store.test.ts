@@ -284,3 +284,55 @@ test("clearing LLM Chat removes conversation state and restores its initial prom
   equal((await db.getStream(LLM_CHAT_BOOK_ID))?.interactions?.[0].id, "llm:input:0");
   equal((await db.getBook(LLM_CHAT_BOOK_ID))?.formatState?.turn, 0);
 });
+
+test("removal and restoration survive a new store without losing progress or executable source", async () => {
+  const db = new MemoryDb();
+  const library = store(db);
+  const book = { ...createActionsBook(1), id: "recoverable", builtIn: false };
+  const fixture = createActionsFixture();
+  await db.addBook(book);
+  await db.saveStream(book.id, fixture.stream);
+  const state: ReaderState = { bookId: book.id, position: 12, lastOpenedAt: 123, settings: { viewMode: "read-along" }, completedInteractionIds: ["answered"] };
+  await db.saveReaderState(state);
+  const source: StoredInteractiveSource = { bookId: book.id, format: "sugarcube-2-runtime", schemaVersion: 1, mimeType: "text/html", html: "source", sourceHash: "a".repeat(64), story: { title: book.title, ifid: "TEST", startNode: "1" } };
+  await db.saveInteractiveSource(source);
+  await library.trashBook(book.id);
+  const reopened = store(db);
+  equal((await reopened.getBooks()).length, 0);
+  equal((await reopened.getRemovedBooks())[0].id, book.id);
+  await reopened.restoreBook(book.id);
+  equal((await reopened.getRemovedBooks()).length, 0);
+  deepStrictEqual((await reopened.openBook(book.id))?.stream, fixture.stream);
+  deepStrictEqual(await reopened.getReaderState(book.id), state);
+  deepStrictEqual(await db.getInteractiveSource(book.id), source);
+  await reopened.removeBook(book.id);
+  equal(await db.getBook(book.id), null);
+  equal(await db.getStream(book.id), null);
+  equal(await db.getReaderState(book.id), null);
+  equal(await db.getInteractiveSource(book.id), null);
+  await db.addBook(createActionsBook(1));
+  await rejects(() => reopened.trashBook(ACTIONS_BOOK_ID), /Built-in/);
+});
+
+test("reimporting a removed book restores it without resetting its saved position", async () => {
+  const { TextParser, textFile } = await import("../ingestion/text");
+  const db = new MemoryDb();
+  const library = new LibraryStore(db, new IngestionEngine([new TextParser()]));
+  const file = textFile("A saved sentence. Another sentence.", "Recovery");
+  const first = await library.importFile(file);
+  await library.saveReaderState({ bookId: first.book.id, position: 3, lastOpenedAt: 1, settings: {} });
+  await library.trashBook(first.book.id);
+  const again = await library.importFile(file);
+  equal(again.existed, true);
+  equal((await library.getBooks()).length, 1);
+  equal((await library.getRemovedBooks()).length, 0);
+  equal((await library.getReaderState(first.book.id))?.position, 3);
+});
+
+test("blank imports fail without creating an unusable library tile", async () => {
+  const { TextParser, textFile } = await import("../ingestion/text");
+  const db = new MemoryDb();
+  const library = new LibraryStore(db, new IngestionEngine([new TextParser()]));
+  await rejects(() => library.importFile(textFile(" \n\n ")), /No readable text/);
+  equal((await library.getBooks()).length, 0);
+});

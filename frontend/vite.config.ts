@@ -41,7 +41,7 @@ export default defineConfig(async () => ({
       },
       // Precache all built assets so the app works fully offline.
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
+        globPatterns: ["**/*.{js,mjs,css,html,svg,png,ico,woff2}"],
         // Keep this relative to the service-worker scope. The precache key is
         // `index.html` both at root and under the GitHub Pages base path;
         // binding `/index.html` fails with Workbox's non-precached-url error.

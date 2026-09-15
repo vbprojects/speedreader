@@ -28,6 +28,8 @@ export interface Book {
   format: string;
   /** When the book was added (epoch ms). */
   addedAt: number;
+  /** Soft removal keeps progress and source data recoverable until explicitly deleted. */
+  removedAt?: number;
   wordCount: number;
   chapterCount: number;
   /** Parser version used to produce the cached stream (cache invalidation). */
