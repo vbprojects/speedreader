@@ -21,10 +21,12 @@
   "dependencies": {
     "@chenglou/pretext": "^0.0.8",
     "@langchain/langgraph": "^1.4.13",
+    "@soundtouchjs/core": "2.1.1",
     "@tauri-apps/api": "^2",
     "dompurify": "^3.4.14",
     "epubjs": "^0.3.93",
     "jszip": "^3.10.1",
+    "onnxruntime-web": "1.30.0",
     "pdfjs-dist": "6.2.108",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

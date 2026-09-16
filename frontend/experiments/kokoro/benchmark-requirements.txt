@@ -1,0 +1,4 @@
+-r ui-requirements.txt
+matplotlib==3.10.6
+plotly==6.3.0
+scipy==1.16.2

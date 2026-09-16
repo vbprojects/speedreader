@@ -1,0 +1,420 @@
+{
+  "provenance": [
+    {
+      "model": "en_US-lessac-low",
+      "quality": "low",
+      "modelSha256": "f7d01dde371555732c4c314111ac79672b1a5ce2fc19266ab42178fd8df7f375",
+      "configSha256": "45754dfdebb3b8661c3fc564713772deec6e064feeb5b4e9594857dc7305193a",
+      "text": "The quick brown fox jumps over the lazy dog. We can read this passage aloud and follow each word as the voice speaks.",
+      "runtime": "1.24.3",
+      "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+      "threads": 2,
+      "sampleRate": 16000,
+      "randomOrderSeed": 2026
+    },
+    {
+      "model": "en_US-lessac-medium",
+      "quality": "medium",
+      "modelSha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+      "configSha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0",
+      "text": "The quick brown fox jumps over the lazy dog. We can read this passage aloud and follow each word as the voice speaks.",
+      "runtime": "1.24.3",
+      "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+      "threads": 2,
+      "sampleRate": 22050,
+      "randomOrderSeed": 2026
+    },
+    {
+      "model": "en_US-lessac-high",
+      "quality": "high",
+      "modelSha256": "4cabf7c3a638017137f34a1516522032d4fe3f38228a843cc9b764ddcbcd9e09",
+      "configSha256": "db42b97d9859f257bc1561b8ed980e7fb2398402050a74ddd6cbec931a92412f",
+      "text": "The quick brown fox jumps over the lazy dog. We can read this passage aloud and follow each word as the voice speaks.",
+      "runtime": "1.24.3",
+      "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+      "threads": 2,
+      "sampleRate": 22050,
+      "randomOrderSeed": 2026
+    }
+  ],
+  "summary": [
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 0.5,
+      "meanWpm": 150.92005532043908,
+      "sdWpm": 7.63498969159798
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 0.75,
+      "meanWpm": 193.66830004352678,
+      "sdWpm": 5.203914036466345
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 1,
+      "meanWpm": 220.16148026799692,
+      "sdWpm": 2.5463592834631075
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 1.25,
+      "meanWpm": 234.1477327994075,
+      "sdWpm": 6.706927600423678
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 1.5,
+      "meanWpm": 260.7047198040183,
+      "sdWpm": 6.488695827939997
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 2,
+      "meanWpm": 287.5767619784227,
+      "sdWpm": 5.255908906330314
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 2.5,
+      "meanWpm": 310.2726756525177,
+      "sdWpm": 2.8456040957842834
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 3,
+      "meanWpm": 316.1955391229573,
+      "sdWpm": 3.4510272594838396
+    },
+    {
+      "quality": "low",
+      "mode": "production-noise",
+      "pacing": 4,
+      "meanWpm": 319.9299915140508,
+      "sdWpm": 2.150821488151911
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 0.5,
+      "meanWpm": 170.11834319526628,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 0.75,
+      "meanWpm": 222.29381443298968,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 1,
+      "meanWpm": 239.58333333333334,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 1.25,
+      "meanWpm": 264.57055214723925,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 1.5,
+      "meanWpm": 295.37671232876716,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 2,
+      "meanWpm": 308.0357142857143,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 2.5,
+      "meanWpm": 320.63197026022306,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 3,
+      "meanWpm": 324.24812030075185,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "low",
+      "mode": "zero-noise-control",
+      "pacing": 4,
+      "meanWpm": 325.47169811320754,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 0.5,
+      "meanWpm": 128.41579021124818,
+      "sdWpm": 3.6139159672421255
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 0.75,
+      "meanWpm": 181.9095912492449,
+      "sdWpm": 3.3702275758324096
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 1,
+      "meanWpm": 217.47895433141989,
+      "sdWpm": 5.202849012943848
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 1.25,
+      "meanWpm": 246.74174878817684,
+      "sdWpm": 3.310152619615848
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 1.5,
+      "meanWpm": 288.16236242046733,
+      "sdWpm": 5.345475727881674
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 2,
+      "meanWpm": 336.8135110719389,
+      "sdWpm": 6.187970100252459
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 2.5,
+      "meanWpm": 361.9995940337923,
+      "sdWpm": 4.884243773238385
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 3,
+      "meanWpm": 390.2418340199731,
+      "sdWpm": 2.6411452997287324
+    },
+    {
+      "quality": "medium",
+      "mode": "production-noise",
+      "pacing": 4,
+      "meanWpm": 417.7170044976351,
+      "sdWpm": 5.876363067749553
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 0.5,
+      "meanWpm": 135.53395809578106,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 0.75,
+      "meanWpm": 197.44731104651163,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 1,
+      "meanWpm": 233.9828371062992,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 1.25,
+      "meanWpm": 268.9214507918552,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 1.5,
+      "meanWpm": 316.12574800531917,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 2,
+      "meanWpm": 367.99777476780184,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 2.5,
+      "meanWpm": 396.2109375,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 3,
+      "meanWpm": 412.7197265625,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "medium",
+      "mode": "zero-noise-control",
+      "pacing": 4,
+      "meanWpm": 435.3966346153846,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 0.5,
+      "meanWpm": 130.3752079165544,
+      "sdWpm": 2.622502932194591
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 0.75,
+      "meanWpm": 179.1263173752683,
+      "sdWpm": 5.086626194101993
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 1,
+      "meanWpm": 224.75938310026814,
+      "sdWpm": 4.2727745328637
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 1.25,
+      "meanWpm": 249.57586727593957,
+      "sdWpm": 4.719387285587231
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 1.5,
+      "meanWpm": 286.20251847022416,
+      "sdWpm": 4.637893096256377
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 2,
+      "meanWpm": 340.0271748789836,
+      "sdWpm": 3.5026797696372505
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 2.5,
+      "meanWpm": 375.7884472851277,
+      "sdWpm": 7.406112527505566
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 3,
+      "meanWpm": 397.88509117494795,
+      "sdWpm": 6.43259698176665
+    },
+    {
+      "quality": "high",
+      "mode": "production-noise",
+      "pacing": 4,
+      "meanWpm": 429.7603977679966,
+      "sdWpm": 4.048104334174507
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 0.5,
+      "meanWpm": 135.84375,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 0.75,
+      "meanWpm": 198.76802884615384,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 1,
+      "meanWpm": 237.7265625,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 1.25,
+      "meanWpm": 268.9214507918552,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 1.5,
+      "meanWpm": 316.12574800531917,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 2,
+      "meanWpm": 373.78390330188677,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 2.5,
+      "meanWpm": 408.46488402061857,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 3,
+      "meanWpm": 423.00100088967974,
+      "sdWpm": 0.0
+    },
+    {
+      "quality": "high",
+      "mode": "zero-noise-control",
+      "pacing": 4,
+      "meanWpm": 441.87093401486993,
+      "sdWpm": 6.355287432313019e-14
+    }
+  ]
+}

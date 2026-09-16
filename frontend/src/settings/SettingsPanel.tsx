@@ -10,13 +10,15 @@ import { PacingPreview } from "./PacingPreview";
 export interface SettingsPanelProps {
   settings: GlobalSettings;
   isReader?: boolean;
+  audioActive?: boolean;
+  downloads?: React.ReactNode;
   onChange: (patch: ReaderSettings) => void;
   onReset?: () => void;
 }
 
 const FONTS = ["system-ui", "Georgia, serif", "Arial, sans-serif", "Courier New, monospace", "Verdana, sans-serif"];
 
-export function SettingsPanel({ settings, isReader, onChange, onReset }: SettingsPanelProps) {
+export function SettingsPanel({ settings, isReader, audioActive = false, downloads, onChange, onReset }: SettingsPanelProps) {
   const [showChangelog, setShowChangelog] = useState(false);
   const set = (patch: ReaderSettings) => onChange(patch);
   const t = themeTokens(settings.theme);
@@ -59,6 +61,8 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
         </div>
       </div>
 
+      {downloads}
+
       <SettingsSection title="Appearance" description="Choose how text and the reader surface look." tokens={{ border: t.border, muted: t.muted }}>
         <div className="settings-select-grid">
           <Field label="Theme" color={t.muted}>
@@ -100,6 +104,8 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
         />
       </SettingsSection>
 
+      {audioActive && <p>Timing follows speech. Disable Read aloud to change visual pacing.</p>}
+      <fieldset disabled={audioActive} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <SettingsSection title="Pacing" description="Tune speed and how much word timing is allowed to vary." tokens={{ border: t.border, muted: t.muted }}>
         <Field label="Pacing model" color={t.muted}>
           <select
@@ -196,6 +202,8 @@ export function SettingsPanel({ settings, isReader, onChange, onReset }: Setting
           onChange={(paragraphPauseMs) => set({ paragraphPauseMs })}
         />
       </SettingsSection>
+
+      </fieldset>
 
       <div className="settings-changelog" style={{ borderColor: `${t.border}88` }}>
         <button

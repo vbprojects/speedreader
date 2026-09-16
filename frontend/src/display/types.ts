@@ -28,8 +28,8 @@ export type RunningStateCallback = (running: boolean) => void;
 /** Callback fired on each tick with the new frame. */
 export type FrameCallback = (frame: DisplayFrame) => void;
 
-/** A clock that advances through a sequence of durations. */
-export interface Clock {
+/** Transport operations shared by silent and future audio controllers. */
+export interface PlaybackTransport {
   /** Start advancing from the given index. */
   start(startIndex?: number): void;
   /** Pause the clock. */
@@ -40,14 +40,18 @@ export interface Clock {
   stop(): void;
   /** Seek to an index (and pause). */
   seek(index: number): void;
-  /** Dynamically append new durations to an active or growing stream. */
-  appendDurations(newDurations: number[]): void;
-  /** Replace all durations while preserving running position. */
-  updateDurations(durations: number[]): void;
   /** Current index. */
   readonly index: number;
   /** Whether the clock is running. */
   readonly running: boolean;
   /** Clean up resources. */
   destroy(): void;
+}
+
+/** Silent pacing alone accepts duration arrays. */
+export interface Clock extends PlaybackTransport {
+  /** Dynamically append new durations to an active or growing stream. */
+  appendDurations(newDurations: number[]): void;
+  /** Replace all durations while preserving running position. */
+  updateDurations(durations: number[]): void;
 }

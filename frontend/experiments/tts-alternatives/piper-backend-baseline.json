@@ -1,0 +1,266 @@
+{
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36",
+  "gpu": {
+    "vendor": "google",
+    "architecture": "swiftshader",
+    "device": "",
+    "description": "",
+    "isFallbackAdapter": true
+  },
+  "softwareGpu": true,
+  "repeats": 3,
+  "text": "This is a short sentence. Read along with Piper.",
+  "pacing": 1,
+  "compression": 1,
+  "method": "Single inference worker, WASM one thread; first inference excluded from warm median; no synthesis cache or DSP; same source text; model-default noise.",
+  "rows": [
+    {
+      "provider": "wasm",
+      "quality": "low",
+      "voice": "piper_lessac",
+      "runs": [
+        {
+          "inferenceMs": 461.90000000596046,
+          "roundTripMs": 462.3999999985099,
+          "audioSeconds": 2.992,
+          "realTimeFactor": 0.15437834224798144,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 430.5,
+          "roundTripMs": 430.79999999701977,
+          "audioSeconds": 2.912,
+          "realTimeFactor": 0.14783653846153846,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 422,
+          "roundTripMs": 422.3999999985099,
+          "audioSeconds": 3.024,
+          "realTimeFactor": 0.13955026455026454,
+          "tokens": 105
+        }
+      ],
+      "runtimeRevision": "ort-web-1.30.0-headtts-piper-bridge-1-dsp-2.1.1",
+      "modelSha256": "181816267f8cecabb2362bcd3417c94ee43edc807ad031610099dc621232813f",
+      "initializationMs": 2085.10000000149,
+      "firstRun": {
+        "inferenceMs": 505.80000000447035,
+        "roundTripMs": 506.19999999552965,
+        "audioSeconds": 2.976,
+        "realTimeFactor": 0.16995967742085696,
+        "tokens": 105
+      },
+      "medianInferenceMs": 430.5,
+      "medianRealTimeFactor": 0.14783653846153846,
+      "relativeToLow": 1
+    },
+    {
+      "provider": "wasm",
+      "quality": "medium",
+      "voice": "piper_en_US-lessac-medium",
+      "runs": [
+        {
+          "inferenceMs": 633.6000000014901,
+          "roundTripMs": 633.7000000029802,
+          "audioSeconds": 3.2043537414965986,
+          "realTimeFactor": 0.1977309782613346,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 541.7000000029802,
+          "roundTripMs": 542,
+          "audioSeconds": 2.948934240362812,
+          "realTimeFactor": 0.1836934824075067,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 558,
+          "roundTripMs": 558.2999999970198,
+          "audioSeconds": 3.030204081632653,
+          "realTimeFactor": 0.1841460129310345,
+          "tokens": 105
+        }
+      ],
+      "runtimeRevision": "ort-web-1.30.0-headtts-piper-bridge-1-dsp-2.1.1",
+      "modelSha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+      "initializationMs": 2033.8999999985099,
+      "firstRun": {
+        "inferenceMs": 638.6000000014901,
+        "roundTripMs": 639.0999999940395,
+        "audioSeconds": 2.9837641723356008,
+        "realTimeFactor": 0.21402495744213365,
+        "tokens": 105
+      },
+      "medianInferenceMs": 558,
+      "medianRealTimeFactor": 0.1841460129310345,
+      "relativeToLow": 1.2961672473867596
+    },
+    {
+      "provider": "wasm",
+      "quality": "high",
+      "voice": "piper_en_US-lessac-high",
+      "runs": [
+        {
+          "inferenceMs": 5072.80000000447,
+          "roundTripMs": 5073.19999999553,
+          "audioSeconds": 3.01859410430839,
+          "realTimeFactor": 1.6805174278860961,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 4616.29999999702,
+          "roundTripMs": 4616.5,
+          "audioSeconds": 2.8908843537414968,
+          "realTimeFactor": 1.596846997363427,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 4906.39999999851,
+          "roundTripMs": 4906.89999999851,
+          "audioSeconds": 3.0418140589569163,
+          "realTimeFactor": 1.6129848520987469,
+          "tokens": 105
+        }
+      ],
+      "runtimeRevision": "ort-web-1.30.0-headtts-piper-bridge-1-dsp-2.1.1",
+      "modelSha256": "4cabf7c3a638017137f34a1516522032d4fe3f38228a843cc9b764ddcbcd9e09",
+      "initializationMs": 2342.5,
+      "firstRun": {
+        "inferenceMs": 4468.29999999702,
+        "roundTripMs": 4468.70000000298,
+        "audioSeconds": 2.728344671201814,
+        "realTimeFactor": 1.6377329620999714,
+        "tokens": 105
+      },
+      "medianInferenceMs": 4906.39999999851,
+      "medianRealTimeFactor": 1.6129848520987469,
+      "relativeToLow": 11.39698025551338
+    },
+    {
+      "provider": "webgpu",
+      "quality": "low",
+      "voice": "piper_lessac",
+      "runs": [
+        {
+          "inferenceMs": 7734.80000000447,
+          "roundTripMs": 7735.0999999940395,
+          "audioSeconds": 3.024,
+          "realTimeFactor": 2.557804232805711,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 7639.20000000298,
+          "roundTripMs": 7639.39999999851,
+          "audioSeconds": 2.848,
+          "realTimeFactor": 2.6823033707875634,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 7632,
+          "roundTripMs": 7632.30000000447,
+          "audioSeconds": 2.944,
+          "realTimeFactor": 2.592391304347826,
+          "tokens": 105
+        }
+      ],
+      "runtimeRevision": "ort-web-1.30.0-headtts-piper-bridge-1-dsp-2.1.1",
+      "modelSha256": "181816267f8cecabb2362bcd3417c94ee43edc807ad031610099dc621232813f",
+      "initializationMs": 2133.10000000149,
+      "firstRun": {
+        "inferenceMs": 11481.20000000298,
+        "roundTripMs": 11483.39999999851,
+        "audioSeconds": 2.896,
+        "realTimeFactor": 3.964502762431968,
+        "tokens": 105
+      },
+      "medianInferenceMs": 7639.20000000298,
+      "medianRealTimeFactor": 2.592391304347826,
+      "relativeToLow": 1
+    },
+    {
+      "provider": "webgpu",
+      "quality": "medium",
+      "voice": "piper_en_US-lessac-medium",
+      "runs": [
+        {
+          "inferenceMs": 9485.90000000596,
+          "roundTripMs": 9486.19999999553,
+          "audioSeconds": 2.8328344671201813,
+          "realTimeFactor": 3.3485542872715715,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 9495.5,
+          "roundTripMs": 9495.79999999702,
+          "audioSeconds": 2.9257142857142857,
+          "realTimeFactor": 3.2455322265624997,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 10553.30000000447,
+          "roundTripMs": 10553.39999999851,
+          "audioSeconds": 3.0650340136054424,
+          "realTimeFactor": 3.4431265536236175,
+          "tokens": 105
+        }
+      ],
+      "runtimeRevision": "ort-web-1.30.0-headtts-piper-bridge-1-dsp-2.1.1",
+      "modelSha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+      "initializationMs": 2112.7999999970198,
+      "firstRun": {
+        "inferenceMs": 14390.09999999404,
+        "roundTripMs": 14392,
+        "audioSeconds": 3.076643990929705,
+        "realTimeFactor": 4.677206736436742,
+        "tokens": 105
+      },
+      "medianInferenceMs": 9495.5,
+      "medianRealTimeFactor": 3.3485542872715715,
+      "relativeToLow": 1.2429966488632704
+    },
+    {
+      "provider": "webgpu",
+      "quality": "high",
+      "voice": "piper_en_US-lessac-high",
+      "runs": [
+        {
+          "inferenceMs": 70445,
+          "roundTripMs": 70445.39999999851,
+          "audioSeconds": 2.9605442176870747,
+          "realTimeFactor": 23.794611672794115,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 71930.89999999851,
+          "roundTripMs": 71931.10000000149,
+          "audioSeconds": 3.076643990929705,
+          "realTimeFactor": 23.379663104362724,
+          "tokens": 105
+        },
+        {
+          "inferenceMs": 73093.30000000447,
+          "roundTripMs": 73093.70000000298,
+          "audioSeconds": 3.030204081632653,
+          "realTimeFactor": 24.12157664332044,
+          "tokens": 105
+        }
+      ],
+      "runtimeRevision": "ort-web-1.30.0-headtts-piper-bridge-1-dsp-2.1.1",
+      "modelSha256": "4cabf7c3a638017137f34a1516522032d4fe3f38228a843cc9b764ddcbcd9e09",
+      "initializationMs": 2493.60000000149,
+      "firstRun": {
+        "inferenceMs": 72746.79999999702,
+        "roundTripMs": 72750,
+        "audioSeconds": 2.809614512471655,
+        "realTimeFactor": 25.892092910639438,
+        "tokens": 105
+      },
+      "medianInferenceMs": 71930.89999999851,
+      "medianRealTimeFactor": 23.794611672794115,
+      "relativeToLow": 9.416025238240973,
+      "sessionNote": "Separate fresh browser session after dev-server reload interrupted the original High case."
+    }
+  ],
+  "highRecoveryStartedAt": "2026-09-16T15:38:58.883Z"
+}

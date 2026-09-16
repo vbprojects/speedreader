@@ -1,0 +1,18 @@
+.audio-settings { border: 1px solid var(--audio-border); border-radius: 16px; padding: 16px; margin-bottom: 24px; color: var(--audio-fg); }
+.audio-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.audio-settings-heading h4 { margin: 0; font-size: 16px; }
+.audio-experimental { font-size: 11px; font-weight: 600; padding: 4px 8px; border: 1px solid var(--audio-border); border-radius: 20px; color: var(--audio-muted); }
+.audio-settings p { font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.audio-settings .audio-description { color: var(--audio-muted); }
+.audio-settings label { display: block; font-size: 13px; margin: 12px 0; }
+.audio-settings select { display: block; width: 100%; min-height: 44px; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--audio-border); border-radius: 12px; background: var(--audio-panel); color: var(--audio-fg); font: inherit; font-size: 16px; box-sizing: border-box; }
+.audio-settings button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--audio-border); border-radius: 10px; background: var(--audio-panel); color: var(--audio-fg); font: inherit; font-size: 13px; cursor: pointer; }
+.audio-settings button:disabled, .audio-settings select:disabled { opacity: .5; cursor: default; }
+.audio-settings :is(button, select, input, summary):focus-visible { outline: 2px solid var(--audio-fg); outline-offset: 3px; }
+.audio-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.audio-settings .audio-enable { display: flex; align-items: center; gap: 10px; padding: 12px 0; font-size: 15px; font-weight: 600; border-block: 1px solid var(--audio-border); }
+.audio-enable input { width: 18px; height: 18px; }
+.audio-debug { border-top: 1px solid var(--audio-border); margin-top: 16px; padding-top: 12px; font-size: 13px; }
+.audio-debug summary { cursor: pointer; color: var(--audio-muted); padding: 8px 0; }
+.audio-debug button { margin: 4px; }
+.audio-settings a { color: inherit; text-underline-offset: 3px; font-size: 12px; }

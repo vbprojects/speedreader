@@ -1,0 +1,32 @@
+{
+  "autoplayUnrestricted": true,
+  "pacing": 1.5,
+  "compression": 2.4,
+  "observedWpm": 625,
+  "lastWord": 244,
+  "status": "passed",
+  "url": "http://127.0.0.1:4174/?kokoro=1",
+  "browser": "151.0.7922.34",
+  "installedDownloadFixtures": true,
+  "installationSeconds": 5.197108538002794,
+  "offlineFirstAudioSeconds": 13.671323312999448,
+  "checks": [
+    "no-model-download-before-install",
+    "install-hash-and-local-synthesis",
+    "offline-reopen",
+    "sample-cursor-progression",
+    "pause-preserves-position",
+    "all-presentations-preserve-position",
+    "offline-context-playback",
+    "seek-remains-paused",
+    "offline-two-speed-controls",
+    "offline-read-along-resume",
+    "timed-offline-soak"
+  ],
+  "soakSeconds": 1800.0439539660001,
+  "completedSoakCycles": 1,
+  "peakMainThreadJSHeapBytes": 72282729,
+  "memoryNote": "Main-thread JS heap only; excludes worker/WASM/native audio memory.",
+  "audioAudibilityValidated": false,
+  "device": "Linux headless Chromium; WASM fallback"
+}

@@ -1,0 +1,60 @@
+{
+  "backend": "wasm",
+  "note": "Headless Chromium; geometry checked, not listening validation. Other catalog voices not individually tested.",
+  "rows": [
+    {
+      "selectedVoice": "piper_lessac",
+      "provider": "wasm",
+      "compression": 1,
+      "samples": 47104,
+      "sampleRate": 16000,
+      "words": 9,
+      "inference": 498.70000000298023
+    },
+    {
+      "selectedVoice": "piper_lessac",
+      "provider": "wasm",
+      "compression": 2,
+      "samples": 23506,
+      "sampleRate": 16000,
+      "words": 9,
+      "inference": 0
+    },
+    {
+      "selectedVoice": "piper_en_US-lessac-medium",
+      "provider": "wasm",
+      "compression": 1,
+      "samples": 64768,
+      "sampleRate": 22050,
+      "words": 9,
+      "inference": 638.1000000014901
+    },
+    {
+      "selectedVoice": "piper_en_US-lessac-medium",
+      "provider": "wasm",
+      "compression": 2,
+      "samples": 32318,
+      "sampleRate": 22050,
+      "words": 9,
+      "inference": 0
+    },
+    {
+      "selectedVoice": "piper_en_US-lessac-high",
+      "provider": "wasm",
+      "compression": 1,
+      "samples": 63744,
+      "sampleRate": 22050,
+      "words": 9,
+      "inference": 4749.89999999851
+    },
+    {
+      "selectedVoice": "piper_en_US-lessac-high",
+      "provider": "wasm",
+      "compression": 2,
+      "samples": 31856,
+      "sampleRate": 22050,
+      "words": 9,
+      "inference": 0
+    }
+  ]
+}

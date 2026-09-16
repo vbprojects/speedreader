@@ -2,22 +2,26 @@
 // Glassmorphism settings modal: centered on screen, click-outside to close.
 // Reusable for both global (library) and per-reader settings.
 
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import type { GlobalSettings, ReaderSettings, Theme } from "./types";
 import { themeTokens } from "./themes";
 import { SettingsPanel } from "./SettingsPanel";
+
+const VoiceDownloads = lazy(() => import("../audio/VoiceDownloads"));
 
 export interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
   settings: GlobalSettings;
   isReader?: boolean;
+  audioActive?: boolean;
+  audioSettings?: React.ReactNode;
   onChange: (patch: ReaderSettings) => void;
   onReset?: () => void;
   theme: Theme;
 }
 
-export function SettingsModal({ open, onClose, settings, isReader, onChange, onReset, theme }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, settings, isReader, audioActive, audioSettings, onChange, onReset, theme }: SettingsModalProps) {
   const t = themeTokens(theme);
 
   // Close on Escape.
@@ -68,7 +72,7 @@ export function SettingsModal({ open, onClose, settings, isReader, onChange, onR
           color: t.fg,
         }}
       >
-        <SettingsPanel settings={settings} isReader={isReader} onChange={onChange} onReset={onReset} />
+        <SettingsPanel downloads={audioSettings ?? (!isReader ? <Suspense fallback={<p>Loading speech settings…</p>}><VoiceDownloads settings={settings} onChange={onChange} /></Suspense> : undefined)} settings={settings} isReader={isReader} audioActive={audioActive} onChange={onChange} onReset={onReset} />
       </div>
     </div>
   );

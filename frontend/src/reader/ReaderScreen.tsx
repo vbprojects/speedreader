@@ -3,11 +3,15 @@
 // Receives the already-hydrated stream + effective settings + initial index,
 // and reports position/settings changes up so the coordinator can persist.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WordStream } from "../epub/types";
 import type { InteractionRecord, InteractionResponse } from "../interactions/types";
 import type { ReaderEngineEvent } from "../engine-events/types";
 import { createPacingEngine } from "../pacing";
+import { protectReaderSession } from "../pwa-update";
+import { AudioPanel } from "../audio/AudioPanel";
+import { audioPreviewEnabled, useAudioEngine } from "../audio/use-audio-engine";
+import type { AudioState, AudioMeasurements } from "../audio/audio-transport";
 import { SpeedReader } from "../display";
 import { SettingsModal, themeTokens } from "../settings";
 import type { GlobalSettings, ReaderSettings } from "../settings";
@@ -44,6 +48,15 @@ export interface ReaderScreenProps {
 }
 
 export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent, liveError, sourceFormat, offline, onPause, onRetry }: ReaderScreenProps) {
+  useEffect(() => protectReaderSession(), []);
+  const audioEngine = useAudioEngine(settings.readAloudVoice);
+  useEffect(() => { if (!settings.readAloudEnabled) audioEngine.release(); }, [settings.readAloudEnabled, audioEngine.release]);
+  const audioPreview = audioPreviewEnabled();
+  const [pauseRequest, setPauseRequest] = useState(0);
+  const [observedWpm, setObservedWpm] = useState<number | null>(null);
+  const [audioMeasurements, setAudioMeasurements] = useState<AudioMeasurements>();
+  const [audioStatus, setAudioStatus] = useState<{ state: AudioState; error?: string }>({ state: "paused" });
+  const handleAudioStatus = useCallback((state: AudioState, error?: string) => setAudioStatus({ state, error }), []);
   const [showSettings, setShowSettings] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [running, setRunning] = useState(false);
@@ -107,11 +120,24 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
         {liveError && requiresConnection && !offline && !liveError.startsWith("Could not save your place:") && <button onClick={onRetry}>Retry connection</button>}
         {liveError?.startsWith("Could not save your place:") && <button onClick={onPause}>Retry saving progress</button>}
       </div>}
+      {audioPreview && settings.readAloudEnabled && <div role="status" style={{ padding: "8px 16px", background: t.panel, color: t.muted, fontSize: 13, display: "flex", gap: 12, alignItems: "center", flexShrink: 0 }}>
+        <span style={{ flex: 1 }}>{audioStatus.error || `Read aloud · ${audioStatus.state}${observedWpm === null ? "" : ` · ${Math.round(observedWpm)} WPM`}`}</span>
+        <button onClick={() => setShowSettings(true)}>Speech settings</button>
+      </div>}
       <SettingsModal
+        audioSettings={audioPreview && <AudioPanel theme={settings.theme} settings={settings} onChange={patch => {
+        if (patch.readAloudVoice) { setAudioMeasurements(undefined); setObservedWpm(null); setAudioStatus({ state: "paused" }); }
+        onSettingsChange(patch);
+      }} store={audioEngine.store}
+        getEngine={audioEngine.getEngine} pauseReader={() => setPauseRequest(value => value + 1)} mainRunning={running}
+        metadata={audioEngine.metadata} release={audioEngine.release} backend={audioEngine.backend} selectBackend={value => {
+          setAudioMeasurements(undefined); setAudioStatus({ state: "paused" }); audioEngine.selectBackend(value);
+        }} state={audioStatus.state} error={audioStatus.error} measurements={audioMeasurements} observedWpm={observedWpm} />}
         open={showSettings}
         onClose={() => setShowSettings(false)}
         settings={settings}
         isReader
+        audioActive={audioPreview && settings.readAloudEnabled}
         onChange={onSettingsChange}
         onReset={onSettingsReset}
         theme={settings.theme}
@@ -128,6 +154,8 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
             </div>
           </div>
         ) : <SpeedReader
+          pauseRequest={pauseRequest}
+          audio={audioPreview ? { settings, engine: audioEngine.getEngine, onStatus: handleAudioStatus, onMeasurements: setAudioMeasurements, onObservedWpm: setObservedWpm } : undefined}
           stream={stream}
           pacing={pacing}
           config={{ wpm: settings.wpm }}

@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "repository": "onnx-community/Kokoro-82M-v1.0-ONNX",
+    "revision": "1939ad2a8e416c0acfeecc08a694d14ef25f2231",
+    "asset": "onnx/model_quantized.onnx",
+    "bytes": 92361116,
+    "sha256": "fbae9257e1e05ffc727e951ef9b9c98418e6d79f1c9b6b13bd59f5c9028a1478",
+    "license": "Apache-2.0",
+    "licenseUrl": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/blob/1939ad2a8e416c0acfeecc08a694d14ef25f2231/README.md"
+  },
+  "inspector": {
+    "onnx": "1.17.0"
+  },
+  "opsets": [
+    {
+      "domain": "",
+      "version": 20
+    },
+    {
+      "domain": "com.microsoft.experimental",
+      "version": 1
+    },
+    {
+      "domain": "ai.onnx.ml",
+      "version": 5
+    },
+    {
+      "domain": "ai.onnx.training",
+      "version": 1
+    },
+    {
+      "domain": "com.microsoft",
+      "version": 1
+    },
+    {
+      "domain": "ai.onnx.preview.training",
+      "version": 1
+    },
+    {
+      "domain": "com.microsoft.nchwc",
+      "version": 1
+    },
+    {
+      "domain": "org.pytorch.aten",
+      "version": 1
+    }
+  ],
+  "inputs": [
+    {
+      "name": "input_ids",
+      "dtype": "INT64",
+      "shape": [
+        1,
+        "sequence_length"
+      ]
+    },
+    {
+      "name": "style",
+      "dtype": "FLOAT",
+      "shape": [
+        1,
+        256
+      ]
+    },
+    {
+      "name": "speed",
+      "dtype": "FLOAT",
+      "shape": [
+        1
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "waveform",
+      "dtype": "FLOAT",
+      "shape": [
+        1,
+        "num_samples"
+      ]
+    }
+  ],
+  "durationInspectionCandidates": [
+    {
+      "name": "/encoder/Round",
+      "op": "Round",
+      "outputs": [
+        "/encoder/Round_output_0"
+      ]
+    },
+    {
+      "name": "/encoder/CumSum",
+      "op": "CumSum",
+      "outputs": [
+        "/encoder/CumSum_output_0"
+      ]
+    },
+    {
+      "name": "/decoder/decoder/generator/m_source/l_sin_gen/CumSum",
+      "op": "CumSum",
+      "outputs": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/CumSum_output_0"
+      ]
+    }
+  ],
+  "alignmentGate": "unvalidated",
+  "nextStep": "Trace predicted durations; export them and verify waveform parity before word alignment."
+}

@@ -10,8 +10,8 @@ export default defineConfig(async () => ({
   plugins: [
     react(),
     VitePWA({
-      // Auto-update the service worker when a new build is deployed.
-      registerType: "autoUpdate",
+      // Activation is coordinated across reader sessions in main.tsx.
+      registerType: "prompt",
       // Don't run the service worker in dev (avoids stale-cache confusion
       // during Tauri dev; the SW is only for the built/production app).
       devOptions: { enabled: false },
@@ -41,14 +41,17 @@ export default defineConfig(async () => ({
       },
       // Precache all built assets so the app works fully offline.
       workbox: {
-        globPatterns: ["**/*.{js,mjs,css,html,svg,png,ico,woff2}"],
+        globPatterns: ["**/*.{js,mjs,css,html,svg,png,ico,woff2,txt}"],
+        // Optional ORT WASM is verified and cached by the voice installer.
+        // Do not make its 22 MB download part of mandatory app installation.
+        globIgnores: ["**/*.wasm"],
         // Keep this relative to the service-worker scope. The precache key is
         // `index.html` both at root and under the GitHub Pages base path;
         // binding `/index.html` fails with Workbox's non-precached-url error.
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
-        // Aggressive update: activate new SW immediately and claim all client tabs
-        skipWaiting: true,
+        // Wait for a safe boundary across all reader tabs.
+        skipWaiting: false,
         clientsClaim: true,
       },
     }),

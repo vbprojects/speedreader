@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "browser": "151.0.7922.34",
+  "autoplayUnrestricted": true,
+  "installedDownloadFixtures": true,
+  "checks": [
+    "real-worker-waits-for-reader-in-other-tab",
+    "activation-after-reader-exit",
+    "pack-assets-survive-app-update",
+    "offline-synthesis-after-update"
+  ],
+  "retainedPackAssets": 4
+}

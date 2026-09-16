@@ -6,7 +6,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "src-tauri/**", "experiments/**", "vite.config.ts"],
+    ignores: ["dist/**", "src/audio/vendor/**", "src-tauri/**", "experiments/**", "vite.config.ts"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

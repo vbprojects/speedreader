@@ -269,3 +269,7 @@ debug.log
 TODO.md
 .aider*
 .vscode
+# Production subpath acceptance build
+dist-pages/
+
+dist-check/

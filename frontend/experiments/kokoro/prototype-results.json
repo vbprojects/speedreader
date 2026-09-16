@@ -1,0 +1,643 @@
+{
+  "date": "2026-09-15",
+  "device": "Linux CPU; 4 PyTorch threads",
+  "validation": "Source coverage, duration count, monotonic timestamps and audio bounds passed. Audible onset accuracy not assessed.",
+  "runs": [
+    {
+      "speed": 1.0,
+      "durationSeconds": 8.05,
+      "synthesisSeconds": 2.299289404999854,
+      "audioSamples": 193200,
+      "model": {
+        "repository": "hexgrad/Kokoro-82M",
+        "revision": "f3ff3571791e39611d31c381e3a41a3af07b4987"
+      },
+      "packages": {
+        "kokoro": "0.9.4",
+        "misaki": "0.9.4",
+        "torch": "2.6.0+cpu",
+        "transformers": "4.48.3",
+        "spacy": "3.8.16",
+        "en_core_web_sm": "3.8.0",
+        "espeakng-loader": "0.2.4"
+      },
+      "assets": {
+        "config.json": "5abb01e2403b072bf03d04fde160443e209d7a0dad49a423be15196b9b43c17f",
+        "kokoro-v1_0.pth": "496dba118d1a58f5f3db2efc88dbdc216e0483fc89fe6e47ee1f2c53f18ad1e4",
+        "voices/af_heart.pt": "0ab5709b8ffab19bfd849cd11d98f75b60af7733253ad0d67b12382a102cb4ff"
+      },
+      "words": [
+        {
+          "index": 0,
+          "text": "Dr.",
+          "charStart": 0,
+          "charEnd": 3,
+          "utf16Start": 0,
+          "utf16End": 3,
+          "tokenIndices": [
+            0
+          ],
+          "start": 0.3,
+          "end": 0.7,
+          "status": "timed",
+          "phonemes": "dˈɑktəɹ"
+        },
+        {
+          "index": 1,
+          "text": "Smith",
+          "charStart": 4,
+          "charEnd": 9,
+          "utf16Start": 4,
+          "utf16End": 9,
+          "tokenIndices": [
+            1
+          ],
+          "start": 0.7,
+          "end": 1.025,
+          "status": "timed",
+          "phonemes": "smˈɪθ"
+        },
+        {
+          "index": 2,
+          "text": "paid",
+          "charStart": 10,
+          "charEnd": 14,
+          "utf16Start": 10,
+          "utf16End": 14,
+          "tokenIndices": [
+            2
+          ],
+          "start": 1.025,
+          "end": 1.3625,
+          "status": "timed",
+          "phonemes": "pˈAd"
+        },
+        {
+          "index": 3,
+          "text": "$25",
+          "charStart": 15,
+          "charEnd": 18,
+          "utf16Start": 15,
+          "utf16End": 18,
+          "tokenIndices": [
+            3,
+            4
+          ],
+          "start": 1.3625,
+          "end": 2.375,
+          "status": "timed",
+          "phonemes": "twˈɛnti fˈIv dˈɑləɹz"
+        },
+        {
+          "index": 4,
+          "text": "for",
+          "charStart": 19,
+          "charEnd": 22,
+          "utf16Start": 19,
+          "utf16End": 22,
+          "tokenIndices": [
+            5
+          ],
+          "start": 2.375,
+          "end": 2.5375,
+          "status": "timed",
+          "phonemes": "fɔɹ"
+        },
+        {
+          "index": 5,
+          "text": "three",
+          "charStart": 23,
+          "charEnd": 28,
+          "utf16Start": 23,
+          "utf16End": 28,
+          "tokenIndices": [
+            6
+          ],
+          "start": 2.5375,
+          "end": 2.775,
+          "status": "timed",
+          "phonemes": "θɹˈi"
+        },
+        {
+          "index": 6,
+          "text": "books.",
+          "charStart": 29,
+          "charEnd": 35,
+          "utf16Start": 29,
+          "utf16End": 35,
+          "tokenIndices": [
+            7,
+            8
+          ],
+          "start": 2.775,
+          "end": 3.45,
+          "status": "timed",
+          "phonemes": "bˈʊks ."
+        },
+        {
+          "index": 7,
+          "text": "I",
+          "charStart": 36,
+          "charEnd": 37,
+          "utf16Start": 36,
+          "utf16End": 37,
+          "tokenIndices": [
+            9
+          ],
+          "start": 3.45,
+          "end": 3.5625,
+          "status": "timed",
+          "phonemes": "ˌI"
+        },
+        {
+          "index": 8,
+          "text": "don't",
+          "charStart": 38,
+          "charEnd": 43,
+          "utf16Start": 38,
+          "utf16End": 43,
+          "tokenIndices": [
+            10
+          ],
+          "start": 3.5625,
+          "end": 3.725,
+          "status": "timed",
+          "phonemes": "dˈOnt"
+        },
+        {
+          "index": 9,
+          "text": "think",
+          "charStart": 44,
+          "charEnd": 49,
+          "utf16Start": 44,
+          "utf16End": 49,
+          "tokenIndices": [
+            11
+          ],
+          "start": 3.725,
+          "end": 3.9,
+          "status": "timed",
+          "phonemes": "θˈɪŋk"
+        },
+        {
+          "index": 10,
+          "text": "they're",
+          "charStart": 50,
+          "charEnd": 57,
+          "utf16Start": 50,
+          "utf16End": 57,
+          "tokenIndices": [
+            12
+          ],
+          "start": 3.9,
+          "end": 4.075,
+          "status": "timed",
+          "phonemes": "ðɛɹ"
+        },
+        {
+          "index": 11,
+          "text": "overpriced.",
+          "charStart": 58,
+          "charEnd": 69,
+          "utf16Start": 58,
+          "utf16End": 69,
+          "tokenIndices": [
+            13,
+            14
+          ],
+          "start": 4.075,
+          "end": 5.1625,
+          "status": "timed",
+          "phonemes": "ˌOvəɹpɹˈIst ."
+        },
+        {
+          "index": 12,
+          "text": "The",
+          "charStart": 70,
+          "charEnd": 73,
+          "utf16Start": 70,
+          "utf16End": 73,
+          "tokenIndices": [
+            15
+          ],
+          "start": 5.1625,
+          "end": 5.3,
+          "status": "timed",
+          "phonemes": "ðə"
+        },
+        {
+          "index": 13,
+          "text": "well-known",
+          "charStart": 74,
+          "charEnd": 84,
+          "utf16Start": 74,
+          "utf16End": 84,
+          "tokenIndices": [
+            16
+          ],
+          "start": 5.3,
+          "end": 5.775,
+          "status": "timed",
+          "phonemes": "wˌɛlnˈOn"
+        },
+        {
+          "index": 14,
+          "text": "reader",
+          "charStart": 85,
+          "charEnd": 91,
+          "utf16Start": 85,
+          "utf16End": 91,
+          "tokenIndices": [
+            17
+          ],
+          "start": 5.775,
+          "end": 6.1125,
+          "status": "timed",
+          "phonemes": "ɹˈidəɹ"
+        },
+        {
+          "index": 15,
+          "text": "said,",
+          "charStart": 92,
+          "charEnd": 97,
+          "utf16Start": 92,
+          "utf16End": 97,
+          "tokenIndices": [
+            18,
+            19
+          ],
+          "start": 6.1125,
+          "end": 6.675,
+          "status": "timed",
+          "phonemes": "sˈɛd ,"
+        },
+        {
+          "index": 16,
+          "text": "“Let's",
+          "charStart": 98,
+          "charEnd": 104,
+          "utf16Start": 98,
+          "utf16End": 104,
+          "tokenIndices": [
+            20,
+            21
+          ],
+          "start": 6.675,
+          "end": 7.0,
+          "status": "timed",
+          "phonemes": "“ lˈɛts"
+        },
+        {
+          "index": 17,
+          "text": "read",
+          "charStart": 105,
+          "charEnd": 109,
+          "utf16Start": 105,
+          "utf16End": 109,
+          "tokenIndices": [
+            22
+          ],
+          "start": 7.0,
+          "end": 7.1875,
+          "status": "timed",
+          "phonemes": "ɹˈid"
+        },
+        {
+          "index": 18,
+          "text": "again!”",
+          "charStart": 110,
+          "charEnd": 117,
+          "utf16Start": 110,
+          "utf16End": 117,
+          "tokenIndices": [
+            23,
+            24,
+            25
+          ],
+          "start": 7.1875,
+          "end": 7.95,
+          "status": "timed",
+          "phonemes": "əɡˈɛn ! ”"
+        }
+      ]
+    },
+    {
+      "speed": 1.5,
+      "durationSeconds": 5.15,
+      "synthesisSeconds": 1.5557185539998954,
+      "audioSamples": 123600,
+      "model": {
+        "repository": "hexgrad/Kokoro-82M",
+        "revision": "f3ff3571791e39611d31c381e3a41a3af07b4987"
+      },
+      "packages": {
+        "kokoro": "0.9.4",
+        "misaki": "0.9.4",
+        "torch": "2.6.0+cpu",
+        "transformers": "4.48.3",
+        "spacy": "3.8.16",
+        "en_core_web_sm": "3.8.0",
+        "espeakng-loader": "0.2.4"
+      },
+      "assets": {
+        "config.json": "5abb01e2403b072bf03d04fde160443e209d7a0dad49a423be15196b9b43c17f",
+        "kokoro-v1_0.pth": "496dba118d1a58f5f3db2efc88dbdc216e0483fc89fe6e47ee1f2c53f18ad1e4",
+        "voices/af_heart.pt": "0ab5709b8ffab19bfd849cd11d98f75b60af7733253ad0d67b12382a102cb4ff"
+      },
+      "words": [
+        {
+          "index": 0,
+          "text": "Dr.",
+          "charStart": 0,
+          "charEnd": 3,
+          "utf16Start": 0,
+          "utf16End": 3,
+          "tokenIndices": [
+            0
+          ],
+          "start": 0.175,
+          "end": 0.4,
+          "status": "timed",
+          "phonemes": "dˈɑktəɹ"
+        },
+        {
+          "index": 1,
+          "text": "Smith",
+          "charStart": 4,
+          "charEnd": 9,
+          "utf16Start": 4,
+          "utf16End": 9,
+          "tokenIndices": [
+            1
+          ],
+          "start": 0.4,
+          "end": 0.5875,
+          "status": "timed",
+          "phonemes": "smˈɪθ"
+        },
+        {
+          "index": 2,
+          "text": "paid",
+          "charStart": 10,
+          "charEnd": 14,
+          "utf16Start": 10,
+          "utf16End": 14,
+          "tokenIndices": [
+            2
+          ],
+          "start": 0.5875,
+          "end": 0.775,
+          "status": "timed",
+          "phonemes": "pˈAd"
+        },
+        {
+          "index": 3,
+          "text": "$25",
+          "charStart": 15,
+          "charEnd": 18,
+          "utf16Start": 15,
+          "utf16End": 18,
+          "tokenIndices": [
+            3,
+            4
+          ],
+          "start": 0.775,
+          "end": 1.4125,
+          "status": "timed",
+          "phonemes": "twˈɛnti fˈIv dˈɑləɹz"
+        },
+        {
+          "index": 4,
+          "text": "for",
+          "charStart": 19,
+          "charEnd": 22,
+          "utf16Start": 19,
+          "utf16End": 22,
+          "tokenIndices": [
+            5
+          ],
+          "start": 1.4125,
+          "end": 1.525,
+          "status": "timed",
+          "phonemes": "fɔɹ"
+        },
+        {
+          "index": 5,
+          "text": "three",
+          "charStart": 23,
+          "charEnd": 28,
+          "utf16Start": 23,
+          "utf16End": 28,
+          "tokenIndices": [
+            6
+          ],
+          "start": 1.525,
+          "end": 1.6625,
+          "status": "timed",
+          "phonemes": "θɹˈi"
+        },
+        {
+          "index": 6,
+          "text": "books.",
+          "charStart": 29,
+          "charEnd": 35,
+          "utf16Start": 29,
+          "utf16End": 35,
+          "tokenIndices": [
+            7,
+            8
+          ],
+          "start": 1.6625,
+          "end": 2.1125,
+          "status": "timed",
+          "phonemes": "bˈʊks ."
+        },
+        {
+          "index": 7,
+          "text": "I",
+          "charStart": 36,
+          "charEnd": 37,
+          "utf16Start": 36,
+          "utf16End": 37,
+          "tokenIndices": [
+            9
+          ],
+          "start": 2.1125,
+          "end": 2.1875,
+          "status": "timed",
+          "phonemes": "ˌI"
+        },
+        {
+          "index": 8,
+          "text": "don't",
+          "charStart": 38,
+          "charEnd": 43,
+          "utf16Start": 38,
+          "utf16End": 43,
+          "tokenIndices": [
+            10
+          ],
+          "start": 2.1875,
+          "end": 2.3375,
+          "status": "timed",
+          "phonemes": "dˈOnt"
+        },
+        {
+          "index": 9,
+          "text": "think",
+          "charStart": 44,
+          "charEnd": 49,
+          "utf16Start": 44,
+          "utf16End": 49,
+          "tokenIndices": [
+            11
+          ],
+          "start": 2.3375,
+          "end": 2.4875,
+          "status": "timed",
+          "phonemes": "θˈɪŋk"
+        },
+        {
+          "index": 10,
+          "text": "they're",
+          "charStart": 50,
+          "charEnd": 57,
+          "utf16Start": 50,
+          "utf16End": 57,
+          "tokenIndices": [
+            12
+          ],
+          "start": 2.4875,
+          "end": 2.5875,
+          "status": "timed",
+          "phonemes": "ðɛɹ"
+        },
+        {
+          "index": 11,
+          "text": "overpriced.",
+          "charStart": 58,
+          "charEnd": 69,
+          "utf16Start": 58,
+          "utf16End": 69,
+          "tokenIndices": [
+            13,
+            14
+          ],
+          "start": 2.5875,
+          "end": 3.3,
+          "status": "timed",
+          "phonemes": "ˌOvəɹpɹˈIst ."
+        },
+        {
+          "index": 12,
+          "text": "The",
+          "charStart": 70,
+          "charEnd": 73,
+          "utf16Start": 70,
+          "utf16End": 73,
+          "tokenIndices": [
+            15
+          ],
+          "start": 3.3,
+          "end": 3.4,
+          "status": "timed",
+          "phonemes": "ðə"
+        },
+        {
+          "index": 13,
+          "text": "well-known",
+          "charStart": 74,
+          "charEnd": 84,
+          "utf16Start": 74,
+          "utf16End": 84,
+          "tokenIndices": [
+            16
+          ],
+          "start": 3.4,
+          "end": 3.7125,
+          "status": "timed",
+          "phonemes": "wˌɛlnˈOn"
+        },
+        {
+          "index": 14,
+          "text": "reader",
+          "charStart": 85,
+          "charEnd": 91,
+          "utf16Start": 85,
+          "utf16End": 91,
+          "tokenIndices": [
+            17
+          ],
+          "start": 3.7125,
+          "end": 3.9,
+          "status": "timed",
+          "phonemes": "ɹˈidəɹ"
+        },
+        {
+          "index": 15,
+          "text": "said,",
+          "charStart": 92,
+          "charEnd": 97,
+          "utf16Start": 92,
+          "utf16End": 97,
+          "tokenIndices": [
+            18,
+            19
+          ],
+          "start": 3.9,
+          "end": 4.2625,
+          "status": "timed",
+          "phonemes": "sˈɛd ,"
+        },
+        {
+          "index": 16,
+          "text": "“Let's",
+          "charStart": 98,
+          "charEnd": 104,
+          "utf16Start": 98,
+          "utf16End": 104,
+          "tokenIndices": [
+            20,
+            21
+          ],
+          "start": 4.2625,
+          "end": 4.4375,
+          "status": "timed",
+          "phonemes": "“ lˈɛts"
+        },
+        {
+          "index": 17,
+          "text": "read",
+          "charStart": 105,
+          "charEnd": 109,
+          "utf16Start": 105,
+          "utf16End": 109,
+          "tokenIndices": [
+            22
+          ],
+          "start": 4.4375,
+          "end": 4.5625,
+          "status": "timed",
+          "phonemes": "ɹˈid"
+        },
+        {
+          "index": 18,
+          "text": "again!”",
+          "charStart": 110,
+          "charEnd": 117,
+          "utf16Start": 110,
+          "utf16End": 117,
+          "tokenIndices": [
+            23,
+            24,
+            25
+          ],
+          "start": 4.5625,
+          "end": 5.05,
+          "status": "timed",
+          "phonemes": "əɡˈɛn ! ”"
+        }
+      ]
+    }
+  ]
+}

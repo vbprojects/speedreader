@@ -1,0 +1,10 @@
+assets/
+output/
+__pycache__/
+.venv/
+
+output-pacing/
+
+output-quality-pacing/
+
+output-backends/

@@ -1,0 +1,53 @@
+{
+  "runtime": "onnxruntime-web@1.30.0",
+  "browserPhonemizer": "HeadTTS English normalization with Piper IPA bridge",
+  "fixture": "This is a short sentence. Read along with Piper.",
+  "measurements": [
+    {
+      "provider": "wasm",
+      "compression": 1,
+      "samples": 48640,
+      "sampleRate": 16000,
+      "words": 9,
+      "inference": 548.8999999985099
+    },
+    {
+      "provider": "wasm",
+      "compression": 2,
+      "samples": 24361,
+      "sampleRate": 16000,
+      "words": 9,
+      "inference": 0
+    },
+    {
+      "provider": "webgpu",
+      "compression": 1,
+      "samples": 45568,
+      "sampleRate": 16000,
+      "words": 9,
+      "inference": 11814.5
+    },
+    {
+      "provider": "webgpu",
+      "compression": 2,
+      "samples": 22808,
+      "sampleRate": 16000,
+      "words": 9,
+      "inference": 0
+    }
+  ],
+  "gpu": "SwiftShader software adapter with --enable-unsafe-webgpu",
+  "modelDownloads": "local file fixtures with production integrity checks",
+  "audibleAlignmentValidated": false,
+  "hardwareGpuValidated": false,
+  "checks": [
+    "native duration/sample geometry",
+    "compressed word bounds",
+    "model dropdown",
+    "real install synthesis probe",
+    "pack isolation",
+    "production global install and removal",
+    "production reader pack recognition",
+    "production offline voice preview"
+  ]
+}

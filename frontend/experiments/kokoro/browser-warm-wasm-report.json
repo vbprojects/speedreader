@@ -1,0 +1,28 @@
+{
+  "status": "completed",
+  "browser": "151.0.7922.34",
+  "provider": "wasm",
+  "adapter": null,
+  "softwareGpuFlag": false,
+  "pacing": 1,
+  "initializationMilliseconds": 1037.2000000029802,
+  "firstInferenceMilliseconds": 14235.79999999702,
+  "warmMedianMilliseconds": 13947.300000000745,
+  "warmMilliseconds": [
+    13896,
+    13947.300000000745,
+    14035
+  ],
+  "outputSampleCounts": [
+    191400,
+    191400,
+    191400,
+    191400
+  ],
+  "repeatSampleCountsEqual": true,
+  "maxCpuReferenceDurationFrameDifference": 1,
+  "nativeGeometryValidated": true,
+  "audibleParityValidated": false,
+  "note": "Fixed fixture, native synthesis only; excludes phonemization, DSP and audio device latency. Few repeats are not a robust p95 measurement.",
+  "concurrentWorkload": "Full-speech WASM soak was running in another browser on the same host; these are not isolated machine throughput measurements."
+}

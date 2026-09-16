@@ -1,3 +1,5 @@
+import { DEFAULT_AUDIO_SETTINGS, audioSettingsPatch, type AudioSettings } from "../audio/settings";
+
 // src/settings/types.ts
 // Settings model: global (library-wide) + per-reader (local) settings.
 // Per-reader settings override global ones for that reader instance.
@@ -12,7 +14,7 @@ export type PacingAlgorithm =
   | "surprisal-lognormal-nig";
 
 /** Global settings — apply to the whole app / library view. */
-export interface GlobalSettings {
+export interface GlobalSettings extends AudioSettings {
   theme: Theme;
   /** Default font family for the reader. */
   fontFamily: string;
@@ -45,6 +47,7 @@ export interface SettingsState {
 }
 
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
+  ...DEFAULT_AUDIO_SETTINGS,
   theme: "light",
   fontFamily: "system-ui",
   fontSize: 28,
@@ -60,6 +63,10 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
 
 /** Merge per-reader overrides onto global settings → effective settings. */
 export function mergeSettings(global: GlobalSettings, local?: ReaderSettings): GlobalSettings {
-  if (!local) return global;
-  return { ...global, ...local };
+  return {
+    ...global, ...local,
+    ...DEFAULT_AUDIO_SETTINGS,
+    ...audioSettingsPatch(global),
+    ...audioSettingsPatch(local),
+  };
 }

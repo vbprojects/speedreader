@@ -4,6 +4,8 @@ The architectural overview, subsystem boundaries, and extension guidance live in
 
 This directory contains the React/Vite/PWA application and the optional Tauri shell.
 
+Requires Node.js 22.14 or newer. Run these commands from `frontend/`:
+
 ```bash
 npm install
 npm run dev

@@ -13,7 +13,11 @@ import type { PacingEngine } from "../pacing/engine";
 import type { Theme } from "../settings/types";
 import { themeTokens } from "../settings/themes";
 import { NavTreeView } from "../navigation";
-import { SelfCorrectingClock } from "./clock";
+import { SelfCorrectingClock, type ClockOptions } from "./clock";
+import { AudioTransport, type AudioState, type AudioMeasurements } from "../audio/audio-transport";
+import type { AudioSettings } from "../audio/settings";
+import type { KokoroEngine } from "../audio/kokoro-engine";
+import type { Clock, PlaybackTransport } from "./types";
 import { buildFrame } from "./renderer";
 import { readAlongEntryScrollNudge, readAlongScrollAdjustment } from "./read-along-scroll";
 import { ReaderViewModeSelector } from "./ReaderViewModeSelector";
@@ -39,6 +43,8 @@ function useMediaQuery(query: string): boolean {
 }
 
 export interface SpeedReaderProps {
+  pauseRequest?: number;
+  audio?: { settings: AudioSettings; engine(): Promise<KokoroEngine>; onStatus(state: AudioState, error?: string): void; onMeasurements?(measurements: AudioMeasurements): void; onObservedWpm?(wpm: number | null): void };
   stream: WordStream;
   pacing: PacingEngine;
   config?: Partial<DisplayConfig>;
@@ -94,7 +100,7 @@ const READ_ALONG_BATCH_SIZE = 400;
 /** Distance from a scroll boundary before extending the read-along window. */
 const READ_ALONG_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onNavigate, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
+export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onNavigate, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -117,7 +123,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
   const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null);
   const [recordsVersion, setRecordsVersion] = useState(0);
   const isMobile = useMediaQuery("(max-width: 640px)");
-  const clockRef = useRef<SelfCorrectingClock | null>(null);
+  const clockRef = useRef<(PlaybackTransport & Partial<Clock>) | null>(null);
+  const transportSnapshot = useRef<{ index: number; running: boolean } | null>(null);
+  const audioRef = useRef(audio);
+  audioRef.current = audio;
+  const audioEnabled = audio?.settings.readAloudEnabled === true;
+  const transportPacing = audioEnabled ? null : pacing;
   const streamRef = useRef(stream);
   const durationCountRef = useRef(0);
   streamRef.current = stream;
@@ -175,6 +186,11 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       window.removeEventListener("pagehide", pause);
     };
   }, [onPositionChange]);
+
+  useEffect(() => {
+    if (!pauseRequest) return;
+    clockRef.current?.pause(); setRunning(false);
+  }, [pauseRequest]);
 
   const sentences = useMemo(() => sentenceStarts(stream.words), [stream.words]);
 
@@ -311,12 +327,13 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     const stats = { totalWords: currentStream.meta.totalWords, avgWordLength: currentStream.meta.avgWordLength };
     const durations = pacing.durations(currentStream.words, stats);
     durationCountRef.current = durations.length;
-    const prevIndex = clockRef.current?.index ?? initialIndex;
-    const wasRunning = clockRef.current?.running ?? false;
+    const prevIndex = transportSnapshot.current?.index ?? clockRef.current?.index ?? initialIndex;
+    const wasRunning = transportSnapshot.current?.running ?? clockRef.current?.running ?? false;
+    transportSnapshot.current = null;
     // An incomplete live stream keeps the UI's running intent while its clock
     // waits at the temporary tail. A newly appended batch resumes from there.
     const shouldResume = wasRunning || (running && currentStream.meta.isComplete === false);
-    const clock = new SelfCorrectingClock({
+    const callbacks: ClockOptions = {
       durations,
       canStart: (index) => {
         dispatchTriggers(index - 1, index);
@@ -346,7 +363,27 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
           setRunning(false);
         }
       },
-    });
+    };
+    const clock = audioEnabled ? new AudioTransport({
+      words: () => streamRef.current.words,
+      complete: () => streamRef.current.meta.isComplete !== false,
+      settings: () => audioRef.current!.settings,
+      engine: () => audioRef.current!.engine(),
+      allowedEnd: start => {
+        const stream = streamRef.current;
+        return (stream.interactions ?? []).filter(item => item.boundary >= start &&
+          !resolvedInteractionIdsRef.current.has(item.id) && !interactionRecordsRef.current.has(item.id))
+          .reduce((end, item) => Math.min(end, item.boundary), stream.words.length);
+      },
+      canStart: callbacks.canStart!, canAdvance: callbacks.canAdvance!,
+      onBlocked: callbacks.onBlocked!, onTick: callbacks.onTick, onEnd: callbacks.onEnd!,
+      onObservedWpm: wpm => audioRef.current?.onObservedWpm?.(wpm),
+      onMeasurements: measurements => audioRef.current?.onMeasurements?.(measurements),
+      onStatus: (state, error) => {
+        audioRef.current?.onStatus(state, error);
+        if (state === "error" || state === "ended") setRunning(false);
+      },
+    }) : new SelfCorrectingClock(callbacks);
     clockRef.current = clock;
     clock.seek(prevIndex);
     setFrame(buildFrame(currentStream.words, prevIndex, cfgRef.current));
@@ -359,9 +396,12 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
       clock.start(prevIndex);
       setRunning(clock.running);
     }
-    return () => clock.destroy();
+    return () => {
+      transportSnapshot.current = { index: clock.index, running: clock.running };
+      clock.destroy();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pacing]);
+  }, [transportPacing, audioEnabled]);
 
   // Extend the clock without disturbing its elapsed time. If playback reached
   // an incomplete stream's temporary tail, preserve the user's running intent.
@@ -373,13 +413,32 @@ export function SpeedReader({ stream, pacing, config, fontFamily = "system-ui", 
     const chunk = stream.words.slice(previousCount);
     const stats = { totalWords: stream.meta.totalWords, avgWordLength: stream.meta.avgWordLength };
     const appendedDurations = pacing.durationsForChunk(chunk, stream.words[previousCount - 1], stats);
-    clock.appendDurations(appendedDurations);
+    clock.appendDurations?.(appendedDurations);
+    if (clock instanceof AudioTransport) clock.appended();
     durationCountRef.current = stream.words.length;
     if (running && !clock.running) {
       clock.resume();
       setRunning(clock.running);
     }
   }, [stream.words.length, pacing, running]);
+
+  useEffect(() => {
+    const transport = clockRef.current;
+    if (transport instanceof AudioTransport) transport.settingsChanged();
+  }, [audio?.settings.kokoroPacing, audio?.settings.speechCompression, audio?.settings.readAloudVoice]);
+
+  const priorAudioContent = useRef(stream);
+  useEffect(() => {
+    const prior = priorAudioContent.current;
+    priorAudioContent.current = stream;
+    const clock = clockRef.current;
+    if (!(clock instanceof AudioTransport)) return;
+    const edited = prior.words.length > stream.words.length || prior.words.some((word, index) =>
+      stream.words[index]?.text !== word.text || stream.words[index]?.index !== word.index);
+    const boundariesChanged = JSON.stringify(prior.interactions) !== JSON.stringify(stream.interactions);
+    if (edited || boundariesChanged) clock.contentChanged();
+    else clock.appended();
+  }, [stream.words, stream.interactions, stream.meta.isComplete]);
 
   const [contextOffset, setContextOffset] = useState({ x: 0, y: 0 });
 

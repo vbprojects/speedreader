@@ -4,7 +4,7 @@
 // Per-book reader settings + positions live in IndexedDB (see db/ + library/),
 // keyed by the stable SHA-256 book id.
 
-import { DEFAULT_GLOBAL_SETTINGS } from "./types";
+import { DEFAULT_GLOBAL_SETTINGS, mergeSettings } from "./types";
 import type { GlobalSettings, SettingsState } from "./types";
 
 const STORAGE_KEY = "speedreader.settings.v1";
@@ -19,7 +19,7 @@ export class SettingsStore {
     this.state = this.load();
     if (initial) {
       this.state = {
-        global: { ...this.state.global, ...initial.global },
+        global: mergeSettings(this.state.global, initial.global),
       };
     }
   }
@@ -30,7 +30,7 @@ export class SettingsStore {
 
   /** Update global settings (partial). */
   updateGlobal(patch: Partial<GlobalSettings>): void {
-    this.state = { ...this.state, global: { ...this.state.global, ...patch } };
+    this.state = { ...this.state, global: mergeSettings(this.state.global, patch) };
     this.persist();
     this.emit();
   }
@@ -46,7 +46,7 @@ export class SettingsStore {
       if (!raw) return { global: { ...DEFAULT_GLOBAL_SETTINGS } };
       const parsed = JSON.parse(raw) as Partial<SettingsState>;
       return {
-        global: { ...DEFAULT_GLOBAL_SETTINGS, ...parsed.global },
+        global: mergeSettings(DEFAULT_GLOBAL_SETTINGS, parsed.global),
       };
     } catch {
       return { global: { ...DEFAULT_GLOBAL_SETTINGS } };
