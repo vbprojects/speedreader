@@ -809,3 +809,7 @@ retry actions. It starts collapsed. Controls use theme-aware borders, panels,
 focus indicators, and mobile-sized targets. Closing Settings stops a voice
 preview and cancels an unfinished download; normal reader audio remains managed
 by the reader's engine. The existing experimental availability gate is retained.
+
+Read aloud controls are now visible by default in development and production,
+including GitHub Pages. No `?kokoro=1` flag is required. The Experimental badge
+remains, and voice installation and playback are still opt-in.

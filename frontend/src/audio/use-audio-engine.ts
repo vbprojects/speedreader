@@ -42,5 +42,6 @@ export function useAudioEngine(voice = DEFAULT_VOICE) {
   return { store, metadata, getEngine, release, backend, selectBackend };
 }
 export function audioPreviewEnabled(): boolean {
-  return import.meta.env.DEV || new URLSearchParams(location.search).get("kokoro") === "1";
+  // Experimental controls are visible in all builds; playback remains opt-in.
+  return true;
 }
