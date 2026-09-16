@@ -5,6 +5,16 @@ A running log of setup, findings, and decisions for the speedreader project.
 ---
 
 
+## 2026-09-16 — Experimental offline read aloud
+
+- Made experimental Read aloud available in global and reader Settings by default, including GitHub Pages; no URL flag is required. Voice installation and playback remain opt-in.
+- Added Piper voice and quality selection, offline voice downloads, CPU/WASM and WebGPU controls, native pacing, and pitch-preserving compression.
+- Simplified the reader to a compact speech status/WPM row and moved technical timings and recovery actions into a collapsed Debug and diagnostics menu.
+- Added speech-only normalization and unsupported-phoneme fallback while preserving original text, word alignment, and reader interaction boundaries.
+- Temporarily disabled non-Pages GitHub Actions workflows; their definitions are retained for restoration.
+
+---
+
 ## 2026-09-15 — Reading continuity and library recovery
 
 - Added Continue reading with the most recently opened title, saved word position, and reading mode; remembered library search across reloads.
