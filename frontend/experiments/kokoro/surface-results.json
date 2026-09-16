@@ -1,0 +1,374 @@
+{
+  "manifest": {
+    "seed": 20260915,
+    "sampling": "10-point Latin hypercube, uniform 0.5\u20134 on each axis",
+    "sourceSha256": "46c0e604874c8032bc5ccb1fb0c326eaafa39c175d98f8fdc6ed876f2a05f2ad",
+    "words": 4023,
+    "wordDefinition": "Whitespace-delimited source tokens, including standalone punctuation",
+    "modelRevision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "voice": "af_heart",
+    "sampleRate": 24000,
+    "points": [
+      [
+        0.7116781709761707,
+        1.251948644480958
+      ],
+      [
+        2.3932929821810456,
+        3.436150535708888
+      ],
+      [
+        2.197071108635474,
+        2.0667703744632204
+      ],
+      [
+        1.0882917459511008,
+        1.6946934114078558
+      ],
+      [
+        1.6442109092788029,
+        2.3027189520811984
+      ],
+      [
+        3.684919149572706,
+        1.1345209434778536
+      ],
+      [
+        3.216892216236945,
+        2.933754454209028
+      ],
+      [
+        2.753706380366208,
+        0.7732970024834994
+      ],
+      [
+        1.5132359354039862,
+        3.8706009335254477
+      ],
+      [
+        3.624443151767675,
+        3.273553007614277
+      ]
+    ],
+    "timing": "Full concatenated audio including model silence; no added pauses. Excludes compute/buffering time."
+  },
+  "results": [
+    {
+      "point": 1,
+      "pacing": 0.7116781709761707,
+      "compression": 1.251948644480958,
+      "words": 4023,
+      "originalSeconds": 1911.25,
+      "processedSeconds": 1526.6059583333333,
+      "originalWpm": 126.29431000654023,
+      "wpm": 158.11545781173666,
+      "synthesisSeconds": 1085.5644452650001,
+      "minimumFrameTokenFraction": 0.13164823591363875,
+      "originalAudio": "point-01-original.wav",
+      "processedAudio": "point-01-processed.wav"
+    },
+    {
+      "point": 2,
+      "pacing": 2.3932929821810456,
+      "compression": 3.436150535708888,
+      "words": 4023,
+      "originalSeconds": 674.8,
+      "processedSeconds": 196.35983333333334,
+      "originalWpm": 357.705986959099,
+      "wpm": 1229.2738076948867,
+      "synthesisSeconds": 352.94345666300023,
+      "minimumFrameTokenFraction": 0.9171493768650166,
+      "originalAudio": "point-02-original.wav",
+      "processedAudio": "point-02-processed.wav"
+    },
+    {
+      "point": 3,
+      "pacing": 2.197071108635474,
+      "compression": 2.0667703744632204,
+      "words": 4023,
+      "originalSeconds": 696.0,
+      "processedSeconds": 336.72633333333334,
+      "originalWpm": 346.8103448275862,
+      "wpm": 716.843252532472,
+      "synthesisSeconds": 378.27905365800007,
+      "minimumFrameTokenFraction": 0.8963489555906617,
+      "originalAudio": "point-03-original.wav",
+      "processedAudio": "point-03-processed.wav"
+    },
+    {
+      "point": 4,
+      "pacing": 1.0882917459511008,
+      "compression": 1.6946934114078558,
+      "words": 4023,
+      "originalSeconds": 1282.05,
+      "processedSeconds": 756.4922083333333,
+      "originalWpm": 188.27658827658828,
+      "wpm": 319.0779724378082,
+      "synthesisSeconds": 717.9048850210005,
+      "minimumFrameTokenFraction": 0.29541864139020535,
+      "originalAudio": "point-04-original.wav",
+      "processedAudio": "point-04-processed.wav"
+    },
+    {
+      "point": 5,
+      "pacing": 1.6442109092788029,
+      "compression": 2.3027189520811984,
+      "words": 4023,
+      "originalSeconds": 836.125,
+      "processedSeconds": 363.0799166666667,
+      "originalWpm": 288.6888922110928,
+      "wpm": 664.8123151950706,
+      "synthesisSeconds": 478.76712045099976,
+      "minimumFrameTokenFraction": 0.7325785501140951,
+      "originalAudio": "point-05-original.wav",
+      "processedAudio": "point-05-processed.wav"
+    },
+    {
+      "point": 6,
+      "pacing": 3.684919149572706,
+      "compression": 1.1345209434778536,
+      "words": 4023,
+      "originalSeconds": 613.925,
+      "processedSeconds": 541.1030833333333,
+      "originalWpm": 393.17506210041944,
+      "wpm": 446.08875357545094,
+      "synthesisSeconds": 295.3909853309997,
+      "minimumFrameTokenFraction": 0.969633140249254,
+      "originalAudio": "point-06-original.wav",
+      "processedAudio": "point-06-processed.wav"
+    },
+    {
+      "point": 7,
+      "pacing": 3.216892216236945,
+      "compression": 2.933754454209028,
+      "words": 4023,
+      "originalSeconds": 625.0,
+      "processedSeconds": 213.00370833333332,
+      "originalWpm": 386.208,
+      "wpm": 1133.219707246881,
+      "synthesisSeconds": 302.17247109800076,
+      "minimumFrameTokenFraction": 0.9632701421800948,
+      "originalAudio": "point-07-original.wav",
+      "processedAudio": "point-07-processed.wav"
+    },
+    {
+      "point": 8,
+      "pacing": 2.753706380366208,
+      "compression": 0.7732970024834994,
+      "words": 4023,
+      "originalSeconds": 645.225,
+      "processedSeconds": 834.3525833333333,
+      "originalWpm": 374.10205742182956,
+      "wpm": 289.3021545347885,
+      "synthesisSeconds": 296.6909635890006,
+      "minimumFrameTokenFraction": 0.9465508162190627,
+      "originalAudio": "point-08-original.wav",
+      "processedAudio": "point-08-processed.wav"
+    },
+    {
+      "point": 9,
+      "pacing": 1.5132359354039862,
+      "compression": 3.8706009335254477,
+      "words": 4023,
+      "originalSeconds": 872.3,
+      "processedSeconds": 225.35433333333333,
+      "originalWpm": 276.7167258970538,
+      "wpm": 1071.113195072057,
+      "synthesisSeconds": 346.93764487199996,
+      "minimumFrameTokenFraction": 0.7074776197998947,
+      "originalAudio": "point-09-original.wav",
+      "processedAudio": "point-09-processed.wav"
+    },
+    {
+      "point": 10,
+      "pacing": 3.624443151767675,
+      "compression": 3.273553007614277,
+      "words": 4023,
+      "originalSeconds": 615.3,
+      "processedSeconds": 187.92491666666666,
+      "originalWpm": 392.29644076060464,
+      "wpm": 1284.4491527866405,
+      "synthesisSeconds": 258.3330392119992,
+      "minimumFrameTokenFraction": 0.9688432508337722,
+      "originalAudio": "point-10-original.wav",
+      "processedAudio": "point-10-processed.wav"
+    }
+  ],
+  "fit": {
+    "completedPoints": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "formula": "WPM(p,c) \u2248 c * sum(a[k] * p**k)",
+    "pacingRange": [
+      0.7116781709761707,
+      3.684919149572706
+    ],
+    "compressionRange": [
+      0.7732970024834994,
+      3.8706009335254477
+    ],
+    "compressionMultiplierFit": 1.0001212504336308,
+    "compressionMaxRelativeDeviation": 0.0001915267456324976,
+    "polynomials": [
+      {
+        "degree": 1,
+        "coefficientsAscending": [
+          125.32363292971921,
+          82.22618337327162
+        ],
+        "trainRmse": 33.43993829248208,
+        "leaveOneOutRmse": 44.67223996152089,
+        "rSquared": 0.855288547429582
+      },
+      {
+        "degree": 2,
+        "coefficientsAscending": [
+          -39.00215083691896,
+          260.650281336976,
+          -39.26210574787928
+        ],
+        "trainRmse": 6.233134402082834,
+        "leaveOneOutRmse": 8.229813681418225,
+        "rSquared": 0.9949721194530851
+      },
+      {
+        "degree": 3,
+        "coefficientsAscending": [
+          -82.50801421829863,
+          339.51669444016716,
+          -79.4190377009505,
+          6.03067162374147
+        ],
+        "trainRmse": 4.9261732797546065,
+        "leaveOneOutRmse": 14.163878215390076,
+        "rSquared": 0.9968595539530478
+      }
+    ],
+    "selected": {
+      "degree": 2,
+      "coefficientsAscending": [
+        -39.00215083691896,
+        260.650281336976,
+        -39.26210574787928
+      ],
+      "trainRmse": 6.233134402082834,
+      "leaveOneOutRmse": 8.229813681418225,
+      "rSquared": 0.9949721194530851
+    },
+    "caveat": "Provisional single speech/voice fit. Leave-one-out error is not a confidence interval. No extrapolation; polynomials do not enforce a physical saturation limit."
+  },
+  "rationalFit": {
+    "points": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "formula": "WPM(p,c) = c * M * p^2 / (K^2 + p^2)",
+    "M": 437.94687151680654,
+    "K": 1.1733020983093159,
+    "KSquared": 1.3766378138970434,
+    "pacingRange": [
+      0.7116781709761707,
+      3.684919149572706
+    ],
+    "compressionRange": [
+      0.7732970024834994,
+      3.8706009335254477
+    ],
+    "trainRmse": 6.282766024633614,
+    "leaveOneOutRmse": 8.5570963532877,
+    "quadraticLeaveOneOutRmse": 8.229813681418225,
+    "rSquared": 0.9948917312093079,
+    "combinedLeaveOneOutRmse": 16.113184574012518,
+    "constraints": "M>0, K>0; f(0)=0; f is increasing for p>0 and bounded above by M",
+    "caveat": "M is a fitted asymptote, not a measured or validated physical maximum. Predictions beyond measured pacing are extrapolation. Single speech and voice.",
+    "measurements": [
+      {
+        "point": 1,
+        "pacing": 0.7116781709761707,
+        "originalWpm": 126.29431000654023,
+        "fittedWpm": 117.79039678426031,
+        "heldOutWpm": 115.21279542808372
+      },
+      {
+        "point": 2,
+        "pacing": 2.3932929821810456,
+        "originalWpm": 357.705986959099,
+        "fittedWpm": 353.08584713279004,
+        "heldOutWpm": 352.4677313261118
+      },
+      {
+        "point": 3,
+        "pacing": 2.197071108635474,
+        "originalWpm": 346.8103448275862,
+        "fittedWpm": 340.764792467661,
+        "heldOutWpm": 339.9830970615119
+      },
+      {
+        "point": 4,
+        "pacing": 1.0882917459511008,
+        "originalWpm": 188.27658827658828,
+        "fittedWpm": 202.5348123862844,
+        "heldOutWpm": 209.13401226061103
+      },
+      {
+        "point": 5,
+        "pacing": 1.6442109092788029,
+        "originalWpm": 288.6888922110928,
+        "fittedWpm": 290.1811178348926,
+        "heldOutWpm": 290.499701766755
+      },
+      {
+        "point": 6,
+        "pacing": 3.684919149572706,
+        "originalWpm": 393.17506210041944,
+        "fittedWpm": 397.63370119953,
+        "heldOutWpm": 399.09643810266726
+      },
+      {
+        "point": 7,
+        "pacing": 3.216892216236945,
+        "originalWpm": 386.208,
+        "fittedWpm": 386.5274677437498,
+        "heldOutWpm": 386.6041175864768
+      },
+      {
+        "point": 8,
+        "pacing": 2.753706380366208,
+        "originalWpm": 374.10205742182956,
+        "fittedWpm": 370.65608988160113,
+        "heldOutWpm": 370.0771992093709
+      },
+      {
+        "point": 9,
+        "pacing": 1.5132359354039862,
+        "originalWpm": 276.7167258970538,
+        "fittedWpm": 273.51463315394244,
+        "heldOutWpm": 272.6666405327292
+      },
+      {
+        "point": 10,
+        "pacing": 3.624443151767675,
+        "originalWpm": 392.29644076060464,
+        "fittedWpm": 396.40585059727727,
+        "heldOutWpm": 397.70522398965664
+      }
+    ]
+  }
+}

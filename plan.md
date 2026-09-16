@@ -428,3 +428,13 @@ speedreader/
 ### Deployment note (PWA-first)
 
 The app is currently deployed as a **PWA** (offline-first, installable). Tauri remains a compatible shell (the same web codebase), but no native-specific persistence or dialog work is included yet. The `db` abstraction keeps the door open for a Tauri/desktop adapter later without changing Library/Reader code.
+
+### Offline Kokoro read-aloud — revised implementation track
+
+The active feature plan is [docs/kokoro-offline-audio.md](docs/kokoro-offline-audio.md).
+The experimental PWA now has a duration-enabled ONNX worker, local English source
+mapping, independent pacing/compression, sample-driven playback, bounded buffering,
+voice installation/repair/removal and coordinated PWA updates. Open with
+`?kokoro=1` to try it. The fitted WPM remains a display-only Python-baseline estimate.
+See the feature plan and experiment reports for automated evidence and the remaining
+GPU/mobile/listening release gates. Independent pitch remains deferred as specified.

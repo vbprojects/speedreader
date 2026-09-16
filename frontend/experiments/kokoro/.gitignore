@@ -1,0 +1,4 @@
+/output*/
+
+# Transient checkpoints; final acceptance reports are retained.
+*.progress.json

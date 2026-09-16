@@ -238,17 +238,30 @@ frontend/
 
 Requirements:
 
-- Node.js 20 or newer
+- Node.js 22.14 or newer
 - npm 9 or newer
 - Rust and the platform-specific Tauri prerequisites only when building the native shell
 
 ```bash
-cd frontend
-npm install
+npm --prefix frontend install
 npm run dev
 ```
 
 The development server runs at `http://localhost:1420`.
+
+Run these commands from the repository root. You can also run `npm install` and
+`npm run dev` inside `frontend/`. The optional catalog gateway does not need to
+run for the local reader or Kokoro voice downloads.
+
+If startup reports that port 1420 is already in use, open the existing server at
+that address or stop its terminal with Ctrl+C before starting another instance.
+For a remote IDE, forward port 1420 and open its forwarded URL.
+
+To choose another port, pass Vite options after `--`:
+
+```bash
+npm run dev -- --port 5250
+```
 
 The normal verification path is:
 

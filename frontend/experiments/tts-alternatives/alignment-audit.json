@@ -1,0 +1,89 @@
+[
+  {
+    "model": "kitten-fp32",
+    "text": "The quick brown fox jumps over the lazy dog. We can read this passage aloud and follow each word as the voice speaks.",
+    "sourceWords": 23,
+    "mappedWords": 23,
+    "status": "verified-phoneme-ownership",
+    "phonemes": "\u00f0\u0259 kw\u02c8\u026ak b\u0279\u02c8a\u028an f\u02c8\u0251\u02d0ks d\u0292\u02c8\u028cmps \u02cco\u028av\u025a \u00f0\u0259 l\u02c8e\u026azi d\u02c8\u0251\u02d0\u0261 . wi\u02d0 k\u00e6n \u0279\u02c8i\u02d0d \u00f0\u026as p\u02c8\u00e6s\u026ad\u0292 \u0250l\u02c8a\u028ad \u00e6nd f\u02c8\u0251\u02d0lo\u028a \u02c8i\u02d0t\u0283 w\u02c8\u025c\u02d0d \u00e6z \u00f0\u0259 v\u02c8\u0254\u026as sp\u02c8i\u02d0ks .",
+    "tokenCount": 136
+  },
+  {
+    "model": "kitten-fp32",
+    "text": "Dr. Smith paid $25.50 for three books.",
+    "sourceWords": 7,
+    "mappedWords": 0,
+    "status": "unavailable-ownership-mismatch",
+    "phonemes": "d\u02c8\u0251\u02d0kt\u025a . sm\u02c8\u026a\u03b8 p\u02c8e\u026ad d\u02c8\u0251\u02d0l\u025a tw\u02c8\u025bnti f\u02c8a\u026av .",
+    "tokenCount": 47
+  },
+  {
+    "model": "kitten-fp32",
+    "text": "I don't think they're overpriced.",
+    "sourceWords": 5,
+    "mappedWords": 0,
+    "status": "unavailable-ownership-mismatch",
+    "phonemes": "a\u026a d\u02c8o\u028ant \u03b8\u02c8\u026a\u014bk \u00f0e\u026a\u025a\u0279 \u02cco\u028av\u025ap\u0279\u02c8a\u026ast .",
+    "tokenCount": 39
+  },
+  {
+    "model": "kitten-fp32",
+    "text": "The apple is on the table.",
+    "sourceWords": 6,
+    "mappedWords": 0,
+    "status": "unavailable-ownership-mismatch",
+    "phonemes": "\u00f0\u026a \u02c8\u00e6p\u0259l \u026az \u0254n\u00f0\u0259 t\u02c8e\u026ab\u0259l .",
+    "tokenCount": 29
+  },
+  {
+    "model": "kitten-fp32",
+    "text": "The well-known reader said, \u201cLet us read again!\u201d",
+    "status": "unsupported",
+    "reason": "Unsupported Kitten phonemes: {'\u201c', '\u201d'}"
+  },
+  {
+    "model": "piper",
+    "text": "The quick brown fox jumps over the lazy dog. We can read this passage aloud and follow each word as the voice speaks.",
+    "sourceWords": 23,
+    "mappedWords": 23,
+    "status": "verified-phoneme-ownership",
+    "phonemes": "\u00f0\u0259 kw\u02c8\u026ak b\u0279\u02c8a\u028an f\u02c8\u0251\u02d0ks d\u0292\u02c8\u028cmps \u02cco\u028av\u025a \u00f0\u0259 l\u02c8e\u026azi d\u02c8\u0251\u02d0\u0261. wi\u02d0 k\u00e6n \u0279\u02c8i\u02d0d \u00f0\u026as p\u02c8\u00e6s\u026ad\u0292 \u0250l\u02c8a\u028ad \u00e6nd f\u02c8\u0251\u02d0lo\u028a \u02c8i\u02d0t\u0283 w\u02c8\u025c\u02d0d \u00e6z \u00f0\u0259 v\u02c8\u0254\u026as sp\u02c8i\u02d0ks.",
+    "tokenCount": 265
+  },
+  {
+    "model": "piper",
+    "text": "Dr. Smith paid $25.50 for three books.",
+    "sourceWords": 7,
+    "mappedWords": 0,
+    "status": "unavailable-ownership-mismatch",
+    "phonemes": "d\u02c8\u0251\u02d0kt\u025a. sm\u02c8\u026a\u03b8 p\u02c8e\u026ad d\u02c8\u0251\u02d0l\u025a tw\u02c8\u025bnti f\u02c8a\u026av p\u0254\u026ant f\u02c8a\u026av z\u02c8i\u0259\u0279o\u028a f\u0254\u02d0\u0279 \u03b8\u0279\u02c8i\u02d0 b\u02c8\u028aks.",
+    "tokenCount": 161
+  },
+  {
+    "model": "piper",
+    "text": "I don't think they're overpriced.",
+    "sourceWords": 5,
+    "mappedWords": 0,
+    "status": "unavailable-ownership-mismatch",
+    "phonemes": "a\u026a d\u02c8o\u028ant \u03b8\u02c8\u026a\u014bk \u00f0e\u026a\u025a\u0279 \u02cco\u028av\u025ap\u0279\u02c8a\u026ast.",
+    "tokenCount": 73
+  },
+  {
+    "model": "piper",
+    "text": "The apple is on the table.",
+    "sourceWords": 6,
+    "mappedWords": 0,
+    "status": "unavailable-ownership-mismatch",
+    "phonemes": "\u00f0\u026a\u02b2 \u02c8\u00e6p\u0259l \u026az \u0254n\u00f0\u0259 t\u02c8e\u026ab\u0259l.",
+    "tokenCount": 55
+  },
+  {
+    "model": "piper",
+    "text": "The well-known reader said, \u201cLet us read again!\u201d",
+    "sourceWords": 8,
+    "mappedWords": 8,
+    "status": "verified-phoneme-ownership",
+    "phonemes": "\u00f0\u0259 w\u02c8\u025bln\u02c8o\u028an \u0279\u02c8i\u02d0d\u025a s\u02c8\u025bd, l\u02c8\u025bt \u02cc\u028cs \u0279\u02c8i\u02d0d \u0250\u0261\u02c8\u025bn! ",
+    "tokenCount": 99
+  }
+]

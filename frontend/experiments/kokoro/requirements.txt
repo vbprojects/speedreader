@@ -1,0 +1,4 @@
+# Graph inspection only; this is not the browser inference runtime.
+onnx==1.17.0
+numpy==2.2.6
+protobuf==5.29.5

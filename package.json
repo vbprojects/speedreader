@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "dev": "npm --prefix frontend run dev --"
+  },
   "devDependencies": {
     "vite-plugin-pwa": "^1.3.0"
   }

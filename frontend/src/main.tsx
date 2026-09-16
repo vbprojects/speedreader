@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { applyWaitingUpdate, deferAppUpdate, onNewController } from "./pwa-update";
 import { registerSW } from "virtual:pwa-register";
 
 // A production worker left behind on the development origin can continue to
@@ -22,8 +23,7 @@ if (import.meta.env.PROD && !("__TAURI_INTERNALS__" in window)) {
   const updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      // Aggressively update: immediately reload to activate the new version
-      updateSW(true);
+      deferAppUpdate(() => updateSW(false));
     },
     onRegistered(registration) {
       if (registration) {
@@ -45,14 +45,9 @@ if (import.meta.env.PROD && !("__TAURI_INTERNALS__" in window)) {
     },
   });
 
-  // Automatically reload when a new service worker takes control
-  let refreshing = false;
-  navigator.serviceWorker?.addEventListener("controllerchange", () => {
-    if (!refreshing) {
-      refreshing = true;
-      window.location.reload();
-    }
-  });
+  // Recheck after another tab leaves its reader. Active readers hold a shared lease.
+  setInterval(() => { void applyWaitingUpdate(); }, 5000);
+  navigator.serviceWorker?.addEventListener("controllerchange", onNewController);
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

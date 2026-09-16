@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "provider": "webgpu",
+  "adapter": "Google SwiftShader software fallback",
+  "hardwareGpu": false,
+  "unsafeWebgpuFlag": true,
+  "browser": "151.0.7922.34",
+  "measurements": [
+    {
+      "type": "initialized",
+      "id": 1,
+      "provider": "webgpu",
+      "milliseconds": 1414
+    },
+    {
+      "pacing": 0.5,
+      "milliseconds": 73277.79999999702,
+      "samples": 408600,
+      "maxDurationFrameDifference": 25,
+      "expectedSamples": 386400
+    },
+    {
+      "pacing": 1,
+      "milliseconds": 32289.5,
+      "samples": 204600,
+      "maxDurationFrameDifference": 12,
+      "expectedSamples": 193200
+    },
+    {
+      "pacing": 1.5,
+      "milliseconds": 22122.599999997765,
+      "samples": 129000,
+      "maxDurationFrameDifference": 8,
+      "expectedSamples": 123000
+    },
+    {
+      "pacing": 4,
+      "milliseconds": 15291.099999997765,
+      "samples": 82800,
+      "maxDurationFrameDifference": 3,
+      "expectedSamples": 86400
+    }
+  ],
+  "checks": [
+    "initialization",
+    "four-pacing-inferences",
+    "native-duration-sample-geometry"
+  ],
+  "parityValidated": false,
+  "note": "Durations differ from the CPU reference by up to 25 frames. This is an execution/geometry probe, not numerical or audible parity, and software GPU timing does not predict hardware performance."
+}

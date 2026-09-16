@@ -1,0 +1,65 @@
+[
+  {
+    "model": "kitten-int8",
+    "file": "config.json",
+    "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/resolve/84781d74e29ee25217551556398b42f80593a813/config.json",
+    "bytes": 688,
+    "sha256": "b66006ccbeccd4de5fc3c9272059c47f5725df7215fd889785c03602652fab64"
+  },
+  {
+    "model": "kitten-int8",
+    "file": "kitten_tts_nano_v0_8.onnx",
+    "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/resolve/84781d74e29ee25217551556398b42f80593a813/kitten_tts_nano_v0_8.onnx",
+    "bytes": 24369971,
+    "sha256": "f7b0afcbee92870b32b8e0276d855b954dc25470c9f051b376ac7eee537c76fc"
+  },
+  {
+    "model": "kitten-int8",
+    "file": "voices.npz",
+    "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/resolve/84781d74e29ee25217551556398b42f80593a813/voices.npz",
+    "bytes": 3278902,
+    "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f"
+  },
+  {
+    "model": "kitten-fp32",
+    "file": "config.json",
+    "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/config.json",
+    "bytes": 688,
+    "sha256": "b66006ccbeccd4de5fc3c9272059c47f5725df7215fd889785c03602652fab64"
+  },
+  {
+    "model": "kitten-fp32",
+    "file": "kitten_tts_nano_v0_8.onnx",
+    "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/kitten_tts_nano_v0_8.onnx",
+    "bytes": 56767095,
+    "sha256": "320564d2615f235de972ca27a7f39551c94185cfa24ca85b07a29084135f1e5e"
+  },
+  {
+    "model": "kitten-fp32",
+    "file": "voices.npz",
+    "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/voices.npz",
+    "bytes": 3278902,
+    "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f"
+  },
+  {
+    "model": "piper",
+    "file": "en_US-lessac-low.onnx",
+    "url": "https://huggingface.co/rhasspy/piper-voices/resolve/1162a9173d0ce503555aed757976b7a9912eae4c/en/en_US/lessac/low/en_US-lessac-low.onnx",
+    "bytes": 63201294,
+    "sha256": "f7d01dde371555732c4c314111ac79672b1a5ce2fc19266ab42178fd8df7f375"
+  },
+  {
+    "model": "piper",
+    "file": "en_US-lessac-low.onnx.json",
+    "url": "https://huggingface.co/rhasspy/piper-voices/resolve/1162a9173d0ce503555aed757976b7a9912eae4c/en/en_US/lessac/low/en_US-lessac-low.onnx.json",
+    "bytes": 4882,
+    "sha256": "45754dfdebb3b8661c3fc564713772deec6e064feeb5b4e9594857dc7305193a"
+  },
+  {
+    "model": "piper",
+    "file": "MODEL_CARD",
+    "url": "https://huggingface.co/rhasspy/piper-voices/resolve/1162a9173d0ce503555aed757976b7a9912eae4c/en/en_US/lessac/low/MODEL_CARD",
+    "bytes": 345,
+    "sha256": "f4f5b5ab354ab71dd2c71b571bcd0879b259ddfabaa5169b968a60427d0b73f3"
+  }
+]

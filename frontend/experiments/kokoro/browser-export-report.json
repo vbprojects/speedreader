@@ -1,0 +1,7 @@
+{
+  "sourceSha256": "fbae9257e1e05ffc727e951ef9b9c98418e6d79f1c9b6b13bd59f5c9028a1478",
+  "browserExportSha256": "51468a82bdf31825b5fa7e51b0c7e8be7058504523aba9164efc953897358a95",
+  "pythonExportSha256": "5c9076e6a9477758edfa7483c04941c17b8f816367f2bce6b3d6a06e3c676968",
+  "decodedModelProtobufEqual": true,
+  "note": "Different protobuf field order; decoded model is exactly equal to the waveform-parity-tested Python export."
+}

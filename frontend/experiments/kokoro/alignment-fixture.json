@@ -1,0 +1,2642 @@
+{
+  "schemaVersion": 1,
+  "text": "Dr. Smith paid $25 for three books. I don't think they're overpriced. The well-known reader said, “Let's read again!”",
+  "voice": "af_heart",
+  "speed": 1.0,
+  "sampleRate": 24000,
+  "audioSamples": 193200,
+  "durationSeconds": 8.05,
+  "synthesisSeconds": 2.299289404999854,
+  "model": {
+    "repository": "hexgrad/Kokoro-82M",
+    "revision": "f3ff3571791e39611d31c381e3a41a3af07b4987"
+  },
+  "packages": {
+    "kokoro": "0.9.4",
+    "misaki": "0.9.4",
+    "torch": "2.6.0+cpu",
+    "transformers": "4.48.3",
+    "spacy": "3.8.16",
+    "en_core_web_sm": "3.8.0",
+    "espeakng-loader": "0.2.4"
+  },
+  "assets": {
+    "config.json": "5abb01e2403b072bf03d04fde160443e209d7a0dad49a423be15196b9b43c17f",
+    "kokoro-v1_0.pth": "496dba118d1a58f5f3db2efc88dbdc216e0483fc89fe6e47ee1f2c53f18ad1e4",
+    "voices/af_heart.pt": "0ab5709b8ffab19bfd849cd11d98f75b60af7733253ad0d67b12382a102cb4ff"
+  },
+  "timingMethod": "KPipeline.join_timestamps; predicted durations, no transcription",
+  "rawPhonemeTiming": "Unadjusted 40 Hz model frames; not validated audible onsets",
+  "phonemes": "dˈɑktəɹ smˈɪθ pˈAd twˈɛnti fˈIv dˈɑləɹz fɔɹ θɹˈi bˈʊks. ˌI dˈOnt θˈɪŋk ðɛɹ ˌOvəɹpɹˈIst. ðə wˌɛlnˈOn ɹˈidəɹ sˈɛd, “lˈɛts ɹˈid əɡˈɛn!”",
+  "words": [
+    {
+      "index": 0,
+      "text": "Dr.",
+      "charStart": 0,
+      "charEnd": 3,
+      "utf16Start": 0,
+      "utf16End": 3,
+      "tokenIndices": [
+        0
+      ],
+      "start": 0.3,
+      "end": 0.7,
+      "status": "timed",
+      "phonemes": "dˈɑktəɹ"
+    },
+    {
+      "index": 1,
+      "text": "Smith",
+      "charStart": 4,
+      "charEnd": 9,
+      "utf16Start": 4,
+      "utf16End": 9,
+      "tokenIndices": [
+        1
+      ],
+      "start": 0.7,
+      "end": 1.025,
+      "status": "timed",
+      "phonemes": "smˈɪθ"
+    },
+    {
+      "index": 2,
+      "text": "paid",
+      "charStart": 10,
+      "charEnd": 14,
+      "utf16Start": 10,
+      "utf16End": 14,
+      "tokenIndices": [
+        2
+      ],
+      "start": 1.025,
+      "end": 1.3625,
+      "status": "timed",
+      "phonemes": "pˈAd"
+    },
+    {
+      "index": 3,
+      "text": "$25",
+      "charStart": 15,
+      "charEnd": 18,
+      "utf16Start": 15,
+      "utf16End": 18,
+      "tokenIndices": [
+        3,
+        4
+      ],
+      "start": 1.3625,
+      "end": 2.375,
+      "status": "timed",
+      "phonemes": "twˈɛnti fˈIv dˈɑləɹz"
+    },
+    {
+      "index": 4,
+      "text": "for",
+      "charStart": 19,
+      "charEnd": 22,
+      "utf16Start": 19,
+      "utf16End": 22,
+      "tokenIndices": [
+        5
+      ],
+      "start": 2.375,
+      "end": 2.5375,
+      "status": "timed",
+      "phonemes": "fɔɹ"
+    },
+    {
+      "index": 5,
+      "text": "three",
+      "charStart": 23,
+      "charEnd": 28,
+      "utf16Start": 23,
+      "utf16End": 28,
+      "tokenIndices": [
+        6
+      ],
+      "start": 2.5375,
+      "end": 2.775,
+      "status": "timed",
+      "phonemes": "θɹˈi"
+    },
+    {
+      "index": 6,
+      "text": "books.",
+      "charStart": 29,
+      "charEnd": 35,
+      "utf16Start": 29,
+      "utf16End": 35,
+      "tokenIndices": [
+        7,
+        8
+      ],
+      "start": 2.775,
+      "end": 3.45,
+      "status": "timed",
+      "phonemes": "bˈʊks ."
+    },
+    {
+      "index": 7,
+      "text": "I",
+      "charStart": 36,
+      "charEnd": 37,
+      "utf16Start": 36,
+      "utf16End": 37,
+      "tokenIndices": [
+        9
+      ],
+      "start": 3.45,
+      "end": 3.5625,
+      "status": "timed",
+      "phonemes": "ˌI"
+    },
+    {
+      "index": 8,
+      "text": "don't",
+      "charStart": 38,
+      "charEnd": 43,
+      "utf16Start": 38,
+      "utf16End": 43,
+      "tokenIndices": [
+        10
+      ],
+      "start": 3.5625,
+      "end": 3.725,
+      "status": "timed",
+      "phonemes": "dˈOnt"
+    },
+    {
+      "index": 9,
+      "text": "think",
+      "charStart": 44,
+      "charEnd": 49,
+      "utf16Start": 44,
+      "utf16End": 49,
+      "tokenIndices": [
+        11
+      ],
+      "start": 3.725,
+      "end": 3.9,
+      "status": "timed",
+      "phonemes": "θˈɪŋk"
+    },
+    {
+      "index": 10,
+      "text": "they're",
+      "charStart": 50,
+      "charEnd": 57,
+      "utf16Start": 50,
+      "utf16End": 57,
+      "tokenIndices": [
+        12
+      ],
+      "start": 3.9,
+      "end": 4.075,
+      "status": "timed",
+      "phonemes": "ðɛɹ"
+    },
+    {
+      "index": 11,
+      "text": "overpriced.",
+      "charStart": 58,
+      "charEnd": 69,
+      "utf16Start": 58,
+      "utf16End": 69,
+      "tokenIndices": [
+        13,
+        14
+      ],
+      "start": 4.075,
+      "end": 5.1625,
+      "status": "timed",
+      "phonemes": "ˌOvəɹpɹˈIst ."
+    },
+    {
+      "index": 12,
+      "text": "The",
+      "charStart": 70,
+      "charEnd": 73,
+      "utf16Start": 70,
+      "utf16End": 73,
+      "tokenIndices": [
+        15
+      ],
+      "start": 5.1625,
+      "end": 5.3,
+      "status": "timed",
+      "phonemes": "ðə"
+    },
+    {
+      "index": 13,
+      "text": "well-known",
+      "charStart": 74,
+      "charEnd": 84,
+      "utf16Start": 74,
+      "utf16End": 84,
+      "tokenIndices": [
+        16
+      ],
+      "start": 5.3,
+      "end": 5.775,
+      "status": "timed",
+      "phonemes": "wˌɛlnˈOn"
+    },
+    {
+      "index": 14,
+      "text": "reader",
+      "charStart": 85,
+      "charEnd": 91,
+      "utf16Start": 85,
+      "utf16End": 91,
+      "tokenIndices": [
+        17
+      ],
+      "start": 5.775,
+      "end": 6.1125,
+      "status": "timed",
+      "phonemes": "ɹˈidəɹ"
+    },
+    {
+      "index": 15,
+      "text": "said,",
+      "charStart": 92,
+      "charEnd": 97,
+      "utf16Start": 92,
+      "utf16End": 97,
+      "tokenIndices": [
+        18,
+        19
+      ],
+      "start": 6.1125,
+      "end": 6.675,
+      "status": "timed",
+      "phonemes": "sˈɛd ,"
+    },
+    {
+      "index": 16,
+      "text": "“Let's",
+      "charStart": 98,
+      "charEnd": 104,
+      "utf16Start": 98,
+      "utf16End": 104,
+      "tokenIndices": [
+        20,
+        21
+      ],
+      "start": 6.675,
+      "end": 7.0,
+      "status": "timed",
+      "phonemes": "“ lˈɛts"
+    },
+    {
+      "index": 17,
+      "text": "read",
+      "charStart": 105,
+      "charEnd": 109,
+      "utf16Start": 105,
+      "utf16End": 109,
+      "tokenIndices": [
+        22
+      ],
+      "start": 7.0,
+      "end": 7.1875,
+      "status": "timed",
+      "phonemes": "ɹˈid"
+    },
+    {
+      "index": 18,
+      "text": "again!”",
+      "charStart": 110,
+      "charEnd": 117,
+      "utf16Start": 110,
+      "utf16End": 117,
+      "tokenIndices": [
+        23,
+        24,
+        25
+      ],
+      "start": 7.1875,
+      "end": 7.95,
+      "status": "timed",
+      "phonemes": "əɡˈɛn ! ”"
+    }
+  ],
+  "tokens": [
+    {
+      "index": 0,
+      "text": "Dr.",
+      "phonemes": "dˈɑktəɹ",
+      "charStart": 0,
+      "charEnd": 3,
+      "wordIndices": [
+        0
+      ],
+      "start": 0.3,
+      "end": 0.7,
+      "modelTokenIndices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "index": 1,
+      "text": "Smith",
+      "phonemes": "smˈɪθ",
+      "charStart": 4,
+      "charEnd": 9,
+      "wordIndices": [
+        1
+      ],
+      "start": 0.7,
+      "end": 1.025,
+      "modelTokenIndices": [
+        9,
+        10,
+        11,
+        12,
+        13
+      ]
+    },
+    {
+      "index": 2,
+      "text": "paid",
+      "phonemes": "pˈAd",
+      "charStart": 10,
+      "charEnd": 14,
+      "wordIndices": [
+        2
+      ],
+      "start": 1.025,
+      "end": 1.3625,
+      "modelTokenIndices": [
+        15,
+        16,
+        17,
+        18
+      ]
+    },
+    {
+      "index": 3,
+      "text": "$",
+      "phonemes": "",
+      "charStart": 15,
+      "charEnd": 16,
+      "wordIndices": [
+        3
+      ],
+      "start": null,
+      "end": null,
+      "modelTokenIndices": []
+    },
+    {
+      "index": 4,
+      "text": "25",
+      "phonemes": "twˈɛnti fˈIv dˈɑləɹz",
+      "charStart": 16,
+      "charEnd": 18,
+      "wordIndices": [
+        3
+      ],
+      "start": 1.3625,
+      "end": 2.375,
+      "modelTokenIndices": [
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39
+      ]
+    },
+    {
+      "index": 5,
+      "text": "for",
+      "phonemes": "fɔɹ",
+      "charStart": 19,
+      "charEnd": 22,
+      "wordIndices": [
+        4
+      ],
+      "start": 2.375,
+      "end": 2.5375,
+      "modelTokenIndices": [
+        41,
+        42,
+        43
+      ]
+    },
+    {
+      "index": 6,
+      "text": "three",
+      "phonemes": "θɹˈi",
+      "charStart": 23,
+      "charEnd": 28,
+      "wordIndices": [
+        5
+      ],
+      "start": 2.5375,
+      "end": 2.775,
+      "modelTokenIndices": [
+        45,
+        46,
+        47,
+        48
+      ]
+    },
+    {
+      "index": 7,
+      "text": "books",
+      "phonemes": "bˈʊks",
+      "charStart": 29,
+      "charEnd": 34,
+      "wordIndices": [
+        6
+      ],
+      "start": 2.775,
+      "end": 3.375,
+      "modelTokenIndices": [
+        50,
+        51,
+        52,
+        53,
+        54
+      ]
+    },
+    {
+      "index": 8,
+      "text": ".",
+      "phonemes": ".",
+      "charStart": 34,
+      "charEnd": 35,
+      "wordIndices": [
+        6
+      ],
+      "start": 3.375,
+      "end": 3.45,
+      "modelTokenIndices": [
+        55
+      ]
+    },
+    {
+      "index": 9,
+      "text": "I",
+      "phonemes": "ˌI",
+      "charStart": 36,
+      "charEnd": 37,
+      "wordIndices": [
+        7
+      ],
+      "start": 3.45,
+      "end": 3.5625,
+      "modelTokenIndices": [
+        57,
+        58
+      ]
+    },
+    {
+      "index": 10,
+      "text": "don't",
+      "phonemes": "dˈOnt",
+      "charStart": 38,
+      "charEnd": 43,
+      "wordIndices": [
+        8
+      ],
+      "start": 3.5625,
+      "end": 3.725,
+      "modelTokenIndices": [
+        60,
+        61,
+        62,
+        63,
+        64
+      ]
+    },
+    {
+      "index": 11,
+      "text": "think",
+      "phonemes": "θˈɪŋk",
+      "charStart": 44,
+      "charEnd": 49,
+      "wordIndices": [
+        9
+      ],
+      "start": 3.725,
+      "end": 3.9,
+      "modelTokenIndices": [
+        66,
+        67,
+        68,
+        69,
+        70
+      ]
+    },
+    {
+      "index": 12,
+      "text": "they're",
+      "phonemes": "ðɛɹ",
+      "charStart": 50,
+      "charEnd": 57,
+      "wordIndices": [
+        10
+      ],
+      "start": 3.9,
+      "end": 4.075,
+      "modelTokenIndices": [
+        72,
+        73,
+        74
+      ]
+    },
+    {
+      "index": 13,
+      "text": "overpriced",
+      "phonemes": "ˌOvəɹpɹˈIst",
+      "charStart": 58,
+      "charEnd": 68,
+      "wordIndices": [
+        11
+      ],
+      "start": 4.075,
+      "end": 5.025,
+      "modelTokenIndices": [
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86
+      ]
+    },
+    {
+      "index": 14,
+      "text": ".",
+      "phonemes": ".",
+      "charStart": 68,
+      "charEnd": 69,
+      "wordIndices": [
+        11
+      ],
+      "start": 5.025,
+      "end": 5.1625,
+      "modelTokenIndices": [
+        87
+      ]
+    },
+    {
+      "index": 15,
+      "text": "The",
+      "phonemes": "ðə",
+      "charStart": 70,
+      "charEnd": 73,
+      "wordIndices": [
+        12
+      ],
+      "start": 5.1625,
+      "end": 5.3,
+      "modelTokenIndices": [
+        89,
+        90
+      ]
+    },
+    {
+      "index": 16,
+      "text": "well-known",
+      "phonemes": "wˌɛlnˈOn",
+      "charStart": 74,
+      "charEnd": 84,
+      "wordIndices": [
+        13
+      ],
+      "start": 5.3,
+      "end": 5.775,
+      "modelTokenIndices": [
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99
+      ]
+    },
+    {
+      "index": 17,
+      "text": "reader",
+      "phonemes": "ɹˈidəɹ",
+      "charStart": 85,
+      "charEnd": 91,
+      "wordIndices": [
+        14
+      ],
+      "start": 5.775,
+      "end": 6.1125,
+      "modelTokenIndices": [
+        101,
+        102,
+        103,
+        104,
+        105,
+        106
+      ]
+    },
+    {
+      "index": 18,
+      "text": "said",
+      "phonemes": "sˈɛd",
+      "charStart": 92,
+      "charEnd": 96,
+      "wordIndices": [
+        15
+      ],
+      "start": 6.1125,
+      "end": 6.575,
+      "modelTokenIndices": [
+        108,
+        109,
+        110,
+        111
+      ]
+    },
+    {
+      "index": 19,
+      "text": ",",
+      "phonemes": ",",
+      "charStart": 96,
+      "charEnd": 97,
+      "wordIndices": [
+        15
+      ],
+      "start": 6.575,
+      "end": 6.675,
+      "modelTokenIndices": [
+        112
+      ]
+    },
+    {
+      "index": 20,
+      "text": "“",
+      "phonemes": "“",
+      "charStart": 98,
+      "charEnd": 99,
+      "wordIndices": [
+        16
+      ],
+      "start": 6.675,
+      "end": 6.75,
+      "modelTokenIndices": [
+        114
+      ]
+    },
+    {
+      "index": 21,
+      "text": "Let's",
+      "phonemes": "lˈɛts",
+      "charStart": 99,
+      "charEnd": 104,
+      "wordIndices": [
+        16
+      ],
+      "start": 6.75,
+      "end": 7.0,
+      "modelTokenIndices": [
+        115,
+        116,
+        117,
+        118,
+        119
+      ]
+    },
+    {
+      "index": 22,
+      "text": "read",
+      "phonemes": "ɹˈid",
+      "charStart": 105,
+      "charEnd": 109,
+      "wordIndices": [
+        17
+      ],
+      "start": 7.0,
+      "end": 7.1875,
+      "modelTokenIndices": [
+        121,
+        122,
+        123,
+        124
+      ]
+    },
+    {
+      "index": 23,
+      "text": "again",
+      "phonemes": "əɡˈɛn",
+      "charStart": 110,
+      "charEnd": 115,
+      "wordIndices": [
+        18
+      ],
+      "start": 7.1875,
+      "end": 7.8,
+      "modelTokenIndices": [
+        126,
+        127,
+        128,
+        129,
+        130
+      ]
+    },
+    {
+      "index": 24,
+      "text": "!",
+      "phonemes": "!",
+      "charStart": 115,
+      "charEnd": 116,
+      "wordIndices": [
+        18
+      ],
+      "start": 7.8,
+      "end": 7.925,
+      "modelTokenIndices": [
+        131
+      ]
+    },
+    {
+      "index": 25,
+      "text": "”",
+      "phonemes": "”",
+      "charStart": 116,
+      "charEnd": 117,
+      "wordIndices": [
+        18
+      ],
+      "start": 7.925,
+      "end": 7.95,
+      "modelTokenIndices": [
+        132
+      ]
+    }
+  ],
+  "modelTokens": [
+    {
+      "modelTokenIndex": 0,
+      "modelTokenId": 0,
+      "symbol": "<bos>",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 15,
+      "frameStart": 0,
+      "frameEnd": 15,
+      "rawStartSeconds": 0.0,
+      "rawEndSeconds": 0.375
+    },
+    {
+      "modelTokenIndex": 1,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 2,
+      "frameStart": 15,
+      "frameEnd": 17,
+      "rawStartSeconds": 0.375,
+      "rawEndSeconds": 0.425
+    },
+    {
+      "modelTokenIndex": 2,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 3,
+      "frameStart": 17,
+      "frameEnd": 20,
+      "rawStartSeconds": 0.425,
+      "rawEndSeconds": 0.5
+    },
+    {
+      "modelTokenIndex": 3,
+      "modelTokenId": 69,
+      "symbol": "ɑ",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 2,
+      "frameStart": 20,
+      "frameEnd": 22,
+      "rawStartSeconds": 0.5,
+      "rawEndSeconds": 0.55
+    },
+    {
+      "modelTokenIndex": 4,
+      "modelTokenId": 53,
+      "symbol": "k",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 2,
+      "frameStart": 22,
+      "frameEnd": 24,
+      "rawStartSeconds": 0.55,
+      "rawEndSeconds": 0.6
+    },
+    {
+      "modelTokenIndex": 5,
+      "modelTokenId": 62,
+      "symbol": "t",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 2,
+      "frameStart": 24,
+      "frameEnd": 26,
+      "rawStartSeconds": 0.6,
+      "rawEndSeconds": 0.65
+    },
+    {
+      "modelTokenIndex": 6,
+      "modelTokenId": 83,
+      "symbol": "ə",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 2,
+      "frameStart": 26,
+      "frameEnd": 28,
+      "rawStartSeconds": 0.65,
+      "rawEndSeconds": 0.7
+    },
+    {
+      "modelTokenIndex": 7,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 0,
+      "wordIndices": [
+        0
+      ],
+      "durationFrames": 2,
+      "frameStart": 28,
+      "frameEnd": 30,
+      "rawStartSeconds": 0.7,
+      "rawEndSeconds": 0.75
+    },
+    {
+      "modelTokenIndex": 8,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 30,
+      "frameEnd": 32,
+      "rawStartSeconds": 0.75,
+      "rawEndSeconds": 0.8
+    },
+    {
+      "modelTokenIndex": 9,
+      "modelTokenId": 61,
+      "symbol": "s",
+      "tokenIndex": 1,
+      "wordIndices": [
+        1
+      ],
+      "durationFrames": 3,
+      "frameStart": 32,
+      "frameEnd": 35,
+      "rawStartSeconds": 0.8,
+      "rawEndSeconds": 0.875
+    },
+    {
+      "modelTokenIndex": 10,
+      "modelTokenId": 55,
+      "symbol": "m",
+      "tokenIndex": 1,
+      "wordIndices": [
+        1
+      ],
+      "durationFrames": 2,
+      "frameStart": 35,
+      "frameEnd": 37,
+      "rawStartSeconds": 0.875,
+      "rawEndSeconds": 0.925
+    },
+    {
+      "modelTokenIndex": 11,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 1,
+      "wordIndices": [
+        1
+      ],
+      "durationFrames": 2,
+      "frameStart": 37,
+      "frameEnd": 39,
+      "rawStartSeconds": 0.925,
+      "rawEndSeconds": 0.975
+    },
+    {
+      "modelTokenIndex": 12,
+      "modelTokenId": 102,
+      "symbol": "ɪ",
+      "tokenIndex": 1,
+      "wordIndices": [
+        1
+      ],
+      "durationFrames": 2,
+      "frameStart": 39,
+      "frameEnd": 41,
+      "rawStartSeconds": 0.975,
+      "rawEndSeconds": 1.025
+    },
+    {
+      "modelTokenIndex": 13,
+      "modelTokenId": 119,
+      "symbol": "θ",
+      "tokenIndex": 1,
+      "wordIndices": [
+        1
+      ],
+      "durationFrames": 2,
+      "frameStart": 41,
+      "frameEnd": 43,
+      "rawStartSeconds": 1.025,
+      "rawEndSeconds": 1.075
+    },
+    {
+      "modelTokenIndex": 14,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 43,
+      "frameEnd": 45,
+      "rawStartSeconds": 1.075,
+      "rawEndSeconds": 1.125
+    },
+    {
+      "modelTokenIndex": 15,
+      "modelTokenId": 58,
+      "symbol": "p",
+      "tokenIndex": 2,
+      "wordIndices": [
+        2
+      ],
+      "durationFrames": 2,
+      "frameStart": 45,
+      "frameEnd": 47,
+      "rawStartSeconds": 1.125,
+      "rawEndSeconds": 1.175
+    },
+    {
+      "modelTokenIndex": 16,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 2,
+      "wordIndices": [
+        2
+      ],
+      "durationFrames": 4,
+      "frameStart": 47,
+      "frameEnd": 51,
+      "rawStartSeconds": 1.175,
+      "rawEndSeconds": 1.275
+    },
+    {
+      "modelTokenIndex": 17,
+      "modelTokenId": 24,
+      "symbol": "A",
+      "tokenIndex": 2,
+      "wordIndices": [
+        2
+      ],
+      "durationFrames": 3,
+      "frameStart": 51,
+      "frameEnd": 54,
+      "rawStartSeconds": 1.275,
+      "rawEndSeconds": 1.35
+    },
+    {
+      "modelTokenIndex": 18,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 2,
+      "wordIndices": [
+        2
+      ],
+      "durationFrames": 2,
+      "frameStart": 54,
+      "frameEnd": 56,
+      "rawStartSeconds": 1.35,
+      "rawEndSeconds": 1.4
+    },
+    {
+      "modelTokenIndex": 19,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 3,
+      "frameStart": 56,
+      "frameEnd": 59,
+      "rawStartSeconds": 1.4,
+      "rawEndSeconds": 1.475
+    },
+    {
+      "modelTokenIndex": 20,
+      "modelTokenId": 62,
+      "symbol": "t",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 59,
+      "frameEnd": 61,
+      "rawStartSeconds": 1.475,
+      "rawEndSeconds": 1.525
+    },
+    {
+      "modelTokenIndex": 21,
+      "modelTokenId": 65,
+      "symbol": "w",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 1,
+      "frameStart": 61,
+      "frameEnd": 62,
+      "rawStartSeconds": 1.525,
+      "rawEndSeconds": 1.55
+    },
+    {
+      "modelTokenIndex": 22,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 1,
+      "frameStart": 62,
+      "frameEnd": 63,
+      "rawStartSeconds": 1.55,
+      "rawEndSeconds": 1.575
+    },
+    {
+      "modelTokenIndex": 23,
+      "modelTokenId": 86,
+      "symbol": "ɛ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 1,
+      "frameStart": 63,
+      "frameEnd": 64,
+      "rawStartSeconds": 1.575,
+      "rawEndSeconds": 1.6
+    },
+    {
+      "modelTokenIndex": 24,
+      "modelTokenId": 56,
+      "symbol": "n",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 1,
+      "frameStart": 64,
+      "frameEnd": 65,
+      "rawStartSeconds": 1.6,
+      "rawEndSeconds": 1.625
+    },
+    {
+      "modelTokenIndex": 25,
+      "modelTokenId": 62,
+      "symbol": "t",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 65,
+      "frameEnd": 67,
+      "rawStartSeconds": 1.625,
+      "rawEndSeconds": 1.675
+    },
+    {
+      "modelTokenIndex": 26,
+      "modelTokenId": 51,
+      "symbol": "i",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 67,
+      "frameEnd": 69,
+      "rawStartSeconds": 1.675,
+      "rawEndSeconds": 1.725
+    },
+    {
+      "modelTokenIndex": 27,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 69,
+      "frameEnd": 71,
+      "rawStartSeconds": 1.725,
+      "rawEndSeconds": 1.775
+    },
+    {
+      "modelTokenIndex": 28,
+      "modelTokenId": 48,
+      "symbol": "f",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 71,
+      "frameEnd": 73,
+      "rawStartSeconds": 1.775,
+      "rawEndSeconds": 1.825
+    },
+    {
+      "modelTokenIndex": 29,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 4,
+      "frameStart": 73,
+      "frameEnd": 77,
+      "rawStartSeconds": 1.825,
+      "rawEndSeconds": 1.925
+    },
+    {
+      "modelTokenIndex": 30,
+      "modelTokenId": 25,
+      "symbol": "I",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 77,
+      "frameEnd": 79,
+      "rawStartSeconds": 1.925,
+      "rawEndSeconds": 1.975
+    },
+    {
+      "modelTokenIndex": 31,
+      "modelTokenId": 64,
+      "symbol": "v",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 79,
+      "frameEnd": 81,
+      "rawStartSeconds": 1.975,
+      "rawEndSeconds": 2.025
+    },
+    {
+      "modelTokenIndex": 32,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 81,
+      "frameEnd": 83,
+      "rawStartSeconds": 2.025,
+      "rawEndSeconds": 2.075
+    },
+    {
+      "modelTokenIndex": 33,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 1,
+      "frameStart": 83,
+      "frameEnd": 84,
+      "rawStartSeconds": 2.075,
+      "rawEndSeconds": 2.1
+    },
+    {
+      "modelTokenIndex": 34,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 3,
+      "frameStart": 84,
+      "frameEnd": 87,
+      "rawStartSeconds": 2.1,
+      "rawEndSeconds": 2.175
+    },
+    {
+      "modelTokenIndex": 35,
+      "modelTokenId": 69,
+      "symbol": "ɑ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 87,
+      "frameEnd": 89,
+      "rawStartSeconds": 2.175,
+      "rawEndSeconds": 2.225
+    },
+    {
+      "modelTokenIndex": 36,
+      "modelTokenId": 54,
+      "symbol": "l",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 89,
+      "frameEnd": 91,
+      "rawStartSeconds": 2.225,
+      "rawEndSeconds": 2.275
+    },
+    {
+      "modelTokenIndex": 37,
+      "modelTokenId": 83,
+      "symbol": "ə",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 91,
+      "frameEnd": 93,
+      "rawStartSeconds": 2.275,
+      "rawEndSeconds": 2.325
+    },
+    {
+      "modelTokenIndex": 38,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 93,
+      "frameEnd": 95,
+      "rawStartSeconds": 2.325,
+      "rawEndSeconds": 2.375
+    },
+    {
+      "modelTokenIndex": 39,
+      "modelTokenId": 68,
+      "symbol": "z",
+      "tokenIndex": 4,
+      "wordIndices": [
+        3
+      ],
+      "durationFrames": 2,
+      "frameStart": 95,
+      "frameEnd": 97,
+      "rawStartSeconds": 2.375,
+      "rawEndSeconds": 2.425
+    },
+    {
+      "modelTokenIndex": 40,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 97,
+      "frameEnd": 99,
+      "rawStartSeconds": 2.425,
+      "rawEndSeconds": 2.475
+    },
+    {
+      "modelTokenIndex": 41,
+      "modelTokenId": 48,
+      "symbol": "f",
+      "tokenIndex": 5,
+      "wordIndices": [
+        4
+      ],
+      "durationFrames": 1,
+      "frameStart": 99,
+      "frameEnd": 100,
+      "rawStartSeconds": 2.475,
+      "rawEndSeconds": 2.5
+    },
+    {
+      "modelTokenIndex": 42,
+      "modelTokenId": 76,
+      "symbol": "ɔ",
+      "tokenIndex": 5,
+      "wordIndices": [
+        4
+      ],
+      "durationFrames": 1,
+      "frameStart": 100,
+      "frameEnd": 101,
+      "rawStartSeconds": 2.5,
+      "rawEndSeconds": 2.525
+    },
+    {
+      "modelTokenIndex": 43,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 5,
+      "wordIndices": [
+        4
+      ],
+      "durationFrames": 2,
+      "frameStart": 101,
+      "frameEnd": 103,
+      "rawStartSeconds": 2.525,
+      "rawEndSeconds": 2.575
+    },
+    {
+      "modelTokenIndex": 44,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 3,
+      "frameStart": 103,
+      "frameEnd": 106,
+      "rawStartSeconds": 2.575,
+      "rawEndSeconds": 2.65
+    },
+    {
+      "modelTokenIndex": 45,
+      "modelTokenId": 119,
+      "symbol": "θ",
+      "tokenIndex": 6,
+      "wordIndices": [
+        5
+      ],
+      "durationFrames": 2,
+      "frameStart": 106,
+      "frameEnd": 108,
+      "rawStartSeconds": 2.65,
+      "rawEndSeconds": 2.7
+    },
+    {
+      "modelTokenIndex": 46,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 6,
+      "wordIndices": [
+        5
+      ],
+      "durationFrames": 1,
+      "frameStart": 108,
+      "frameEnd": 109,
+      "rawStartSeconds": 2.7,
+      "rawEndSeconds": 2.725
+    },
+    {
+      "modelTokenIndex": 47,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 6,
+      "wordIndices": [
+        5
+      ],
+      "durationFrames": 2,
+      "frameStart": 109,
+      "frameEnd": 111,
+      "rawStartSeconds": 2.725,
+      "rawEndSeconds": 2.775
+    },
+    {
+      "modelTokenIndex": 48,
+      "modelTokenId": 51,
+      "symbol": "i",
+      "tokenIndex": 6,
+      "wordIndices": [
+        5
+      ],
+      "durationFrames": 2,
+      "frameStart": 111,
+      "frameEnd": 113,
+      "rawStartSeconds": 2.775,
+      "rawEndSeconds": 2.825
+    },
+    {
+      "modelTokenIndex": 49,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 113,
+      "frameEnd": 115,
+      "rawStartSeconds": 2.825,
+      "rawEndSeconds": 2.875
+    },
+    {
+      "modelTokenIndex": 50,
+      "modelTokenId": 44,
+      "symbol": "b",
+      "tokenIndex": 7,
+      "wordIndices": [
+        6
+      ],
+      "durationFrames": 2,
+      "frameStart": 115,
+      "frameEnd": 117,
+      "rawStartSeconds": 2.875,
+      "rawEndSeconds": 2.925
+    },
+    {
+      "modelTokenIndex": 51,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 7,
+      "wordIndices": [
+        6
+      ],
+      "durationFrames": 3,
+      "frameStart": 117,
+      "frameEnd": 120,
+      "rawStartSeconds": 2.925,
+      "rawEndSeconds": 3.0
+    },
+    {
+      "modelTokenIndex": 52,
+      "modelTokenId": 135,
+      "symbol": "ʊ",
+      "tokenIndex": 7,
+      "wordIndices": [
+        6
+      ],
+      "durationFrames": 3,
+      "frameStart": 120,
+      "frameEnd": 123,
+      "rawStartSeconds": 3.0,
+      "rawEndSeconds": 3.075
+    },
+    {
+      "modelTokenIndex": 53,
+      "modelTokenId": 53,
+      "symbol": "k",
+      "tokenIndex": 7,
+      "wordIndices": [
+        6
+      ],
+      "durationFrames": 3,
+      "frameStart": 123,
+      "frameEnd": 126,
+      "rawStartSeconds": 3.075,
+      "rawEndSeconds": 3.15
+    },
+    {
+      "modelTokenIndex": 54,
+      "modelTokenId": 61,
+      "symbol": "s",
+      "tokenIndex": 7,
+      "wordIndices": [
+        6
+      ],
+      "durationFrames": 12,
+      "frameStart": 126,
+      "frameEnd": 138,
+      "rawStartSeconds": 3.15,
+      "rawEndSeconds": 3.45
+    },
+    {
+      "modelTokenIndex": 55,
+      "modelTokenId": 4,
+      "symbol": ".",
+      "tokenIndex": 8,
+      "wordIndices": [
+        6
+      ],
+      "durationFrames": 2,
+      "frameStart": 138,
+      "frameEnd": 140,
+      "rawStartSeconds": 3.45,
+      "rawEndSeconds": 3.5
+    },
+    {
+      "modelTokenIndex": 56,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 140,
+      "frameEnd": 142,
+      "rawStartSeconds": 3.5,
+      "rawEndSeconds": 3.55
+    },
+    {
+      "modelTokenIndex": 57,
+      "modelTokenId": 157,
+      "symbol": "ˌ",
+      "tokenIndex": 9,
+      "wordIndices": [
+        7
+      ],
+      "durationFrames": 2,
+      "frameStart": 142,
+      "frameEnd": 144,
+      "rawStartSeconds": 3.55,
+      "rawEndSeconds": 3.6
+    },
+    {
+      "modelTokenIndex": 58,
+      "modelTokenId": 25,
+      "symbol": "I",
+      "tokenIndex": 9,
+      "wordIndices": [
+        7
+      ],
+      "durationFrames": 1,
+      "frameStart": 144,
+      "frameEnd": 145,
+      "rawStartSeconds": 3.6,
+      "rawEndSeconds": 3.625
+    },
+    {
+      "modelTokenIndex": 59,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 1,
+      "frameStart": 145,
+      "frameEnd": 146,
+      "rawStartSeconds": 3.625,
+      "rawEndSeconds": 3.65
+    },
+    {
+      "modelTokenIndex": 60,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 10,
+      "wordIndices": [
+        8
+      ],
+      "durationFrames": 1,
+      "frameStart": 146,
+      "frameEnd": 147,
+      "rawStartSeconds": 3.65,
+      "rawEndSeconds": 3.675
+    },
+    {
+      "modelTokenIndex": 61,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 10,
+      "wordIndices": [
+        8
+      ],
+      "durationFrames": 1,
+      "frameStart": 147,
+      "frameEnd": 148,
+      "rawStartSeconds": 3.675,
+      "rawEndSeconds": 3.7
+    },
+    {
+      "modelTokenIndex": 62,
+      "modelTokenId": 31,
+      "symbol": "O",
+      "tokenIndex": 10,
+      "wordIndices": [
+        8
+      ],
+      "durationFrames": 1,
+      "frameStart": 148,
+      "frameEnd": 149,
+      "rawStartSeconds": 3.7,
+      "rawEndSeconds": 3.725
+    },
+    {
+      "modelTokenIndex": 63,
+      "modelTokenId": 56,
+      "symbol": "n",
+      "tokenIndex": 10,
+      "wordIndices": [
+        8
+      ],
+      "durationFrames": 1,
+      "frameStart": 149,
+      "frameEnd": 150,
+      "rawStartSeconds": 3.725,
+      "rawEndSeconds": 3.75
+    },
+    {
+      "modelTokenIndex": 64,
+      "modelTokenId": 62,
+      "symbol": "t",
+      "tokenIndex": 10,
+      "wordIndices": [
+        8
+      ],
+      "durationFrames": 1,
+      "frameStart": 150,
+      "frameEnd": 151,
+      "rawStartSeconds": 3.75,
+      "rawEndSeconds": 3.775
+    },
+    {
+      "modelTokenIndex": 65,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 151,
+      "frameEnd": 153,
+      "rawStartSeconds": 3.775,
+      "rawEndSeconds": 3.825
+    },
+    {
+      "modelTokenIndex": 66,
+      "modelTokenId": 119,
+      "symbol": "θ",
+      "tokenIndex": 11,
+      "wordIndices": [
+        9
+      ],
+      "durationFrames": 1,
+      "frameStart": 153,
+      "frameEnd": 154,
+      "rawStartSeconds": 3.825,
+      "rawEndSeconds": 3.85
+    },
+    {
+      "modelTokenIndex": 67,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 11,
+      "wordIndices": [
+        9
+      ],
+      "durationFrames": 1,
+      "frameStart": 154,
+      "frameEnd": 155,
+      "rawStartSeconds": 3.85,
+      "rawEndSeconds": 3.875
+    },
+    {
+      "modelTokenIndex": 68,
+      "modelTokenId": 102,
+      "symbol": "ɪ",
+      "tokenIndex": 11,
+      "wordIndices": [
+        9
+      ],
+      "durationFrames": 1,
+      "frameStart": 155,
+      "frameEnd": 156,
+      "rawStartSeconds": 3.875,
+      "rawEndSeconds": 3.9
+    },
+    {
+      "modelTokenIndex": 69,
+      "modelTokenId": 112,
+      "symbol": "ŋ",
+      "tokenIndex": 11,
+      "wordIndices": [
+        9
+      ],
+      "durationFrames": 1,
+      "frameStart": 156,
+      "frameEnd": 157,
+      "rawStartSeconds": 3.9,
+      "rawEndSeconds": 3.925
+    },
+    {
+      "modelTokenIndex": 70,
+      "modelTokenId": 53,
+      "symbol": "k",
+      "tokenIndex": 11,
+      "wordIndices": [
+        9
+      ],
+      "durationFrames": 1,
+      "frameStart": 157,
+      "frameEnd": 158,
+      "rawStartSeconds": 3.925,
+      "rawEndSeconds": 3.95
+    },
+    {
+      "modelTokenIndex": 71,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 158,
+      "frameEnd": 160,
+      "rawStartSeconds": 3.95,
+      "rawEndSeconds": 4.0
+    },
+    {
+      "modelTokenIndex": 72,
+      "modelTokenId": 81,
+      "symbol": "ð",
+      "tokenIndex": 12,
+      "wordIndices": [
+        10
+      ],
+      "durationFrames": 1,
+      "frameStart": 160,
+      "frameEnd": 161,
+      "rawStartSeconds": 4.0,
+      "rawEndSeconds": 4.025
+    },
+    {
+      "modelTokenIndex": 73,
+      "modelTokenId": 86,
+      "symbol": "ɛ",
+      "tokenIndex": 12,
+      "wordIndices": [
+        10
+      ],
+      "durationFrames": 2,
+      "frameStart": 161,
+      "frameEnd": 163,
+      "rawStartSeconds": 4.025,
+      "rawEndSeconds": 4.075
+    },
+    {
+      "modelTokenIndex": 74,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 12,
+      "wordIndices": [
+        10
+      ],
+      "durationFrames": 2,
+      "frameStart": 163,
+      "frameEnd": 165,
+      "rawStartSeconds": 4.075,
+      "rawEndSeconds": 4.125
+    },
+    {
+      "modelTokenIndex": 75,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 165,
+      "frameEnd": 167,
+      "rawStartSeconds": 4.125,
+      "rawEndSeconds": 4.175
+    },
+    {
+      "modelTokenIndex": 76,
+      "modelTokenId": 157,
+      "symbol": "ˌ",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 2,
+      "frameStart": 167,
+      "frameEnd": 169,
+      "rawStartSeconds": 4.175,
+      "rawEndSeconds": 4.225
+    },
+    {
+      "modelTokenIndex": 77,
+      "modelTokenId": 31,
+      "symbol": "O",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 2,
+      "frameStart": 169,
+      "frameEnd": 171,
+      "rawStartSeconds": 4.225,
+      "rawEndSeconds": 4.275
+    },
+    {
+      "modelTokenIndex": 78,
+      "modelTokenId": 64,
+      "symbol": "v",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 1,
+      "frameStart": 171,
+      "frameEnd": 172,
+      "rawStartSeconds": 4.275,
+      "rawEndSeconds": 4.3
+    },
+    {
+      "modelTokenIndex": 79,
+      "modelTokenId": 83,
+      "symbol": "ə",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 1,
+      "frameStart": 172,
+      "frameEnd": 173,
+      "rawStartSeconds": 4.3,
+      "rawEndSeconds": 4.325
+    },
+    {
+      "modelTokenIndex": 80,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 2,
+      "frameStart": 173,
+      "frameEnd": 175,
+      "rawStartSeconds": 4.325,
+      "rawEndSeconds": 4.375
+    },
+    {
+      "modelTokenIndex": 81,
+      "modelTokenId": 58,
+      "symbol": "p",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 2,
+      "frameStart": 175,
+      "frameEnd": 177,
+      "rawStartSeconds": 4.375,
+      "rawEndSeconds": 4.425
+    },
+    {
+      "modelTokenIndex": 82,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 1,
+      "frameStart": 177,
+      "frameEnd": 178,
+      "rawStartSeconds": 4.425,
+      "rawEndSeconds": 4.45
+    },
+    {
+      "modelTokenIndex": 83,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 4,
+      "frameStart": 178,
+      "frameEnd": 182,
+      "rawStartSeconds": 4.45,
+      "rawEndSeconds": 4.55
+    },
+    {
+      "modelTokenIndex": 84,
+      "modelTokenId": 25,
+      "symbol": "I",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 5,
+      "frameStart": 182,
+      "frameEnd": 187,
+      "rawStartSeconds": 4.55,
+      "rawEndSeconds": 4.675
+    },
+    {
+      "modelTokenIndex": 85,
+      "modelTokenId": 61,
+      "symbol": "s",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 3,
+      "frameStart": 187,
+      "frameEnd": 190,
+      "rawStartSeconds": 4.675,
+      "rawEndSeconds": 4.75
+    },
+    {
+      "modelTokenIndex": 86,
+      "modelTokenId": 62,
+      "symbol": "t",
+      "tokenIndex": 13,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 14,
+      "frameStart": 190,
+      "frameEnd": 204,
+      "rawStartSeconds": 4.75,
+      "rawEndSeconds": 5.1
+    },
+    {
+      "modelTokenIndex": 87,
+      "modelTokenId": 4,
+      "symbol": ".",
+      "tokenIndex": 14,
+      "wordIndices": [
+        11
+      ],
+      "durationFrames": 4,
+      "frameStart": 204,
+      "frameEnd": 208,
+      "rawStartSeconds": 5.1,
+      "rawEndSeconds": 5.2
+    },
+    {
+      "modelTokenIndex": 88,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 3,
+      "frameStart": 208,
+      "frameEnd": 211,
+      "rawStartSeconds": 5.2,
+      "rawEndSeconds": 5.275
+    },
+    {
+      "modelTokenIndex": 89,
+      "modelTokenId": 81,
+      "symbol": "ð",
+      "tokenIndex": 15,
+      "wordIndices": [
+        12
+      ],
+      "durationFrames": 1,
+      "frameStart": 211,
+      "frameEnd": 212,
+      "rawStartSeconds": 5.275,
+      "rawEndSeconds": 5.3
+    },
+    {
+      "modelTokenIndex": 90,
+      "modelTokenId": 83,
+      "symbol": "ə",
+      "tokenIndex": 15,
+      "wordIndices": [
+        12
+      ],
+      "durationFrames": 2,
+      "frameStart": 212,
+      "frameEnd": 214,
+      "rawStartSeconds": 5.3,
+      "rawEndSeconds": 5.35
+    },
+    {
+      "modelTokenIndex": 91,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 214,
+      "frameEnd": 216,
+      "rawStartSeconds": 5.35,
+      "rawEndSeconds": 5.4
+    },
+    {
+      "modelTokenIndex": 92,
+      "modelTokenId": 65,
+      "symbol": "w",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 1,
+      "frameStart": 216,
+      "frameEnd": 217,
+      "rawStartSeconds": 5.4,
+      "rawEndSeconds": 5.425
+    },
+    {
+      "modelTokenIndex": 93,
+      "modelTokenId": 157,
+      "symbol": "ˌ",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 2,
+      "frameStart": 217,
+      "frameEnd": 219,
+      "rawStartSeconds": 5.425,
+      "rawEndSeconds": 5.475
+    },
+    {
+      "modelTokenIndex": 94,
+      "modelTokenId": 86,
+      "symbol": "ɛ",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 2,
+      "frameStart": 219,
+      "frameEnd": 221,
+      "rawStartSeconds": 5.475,
+      "rawEndSeconds": 5.525
+    },
+    {
+      "modelTokenIndex": 95,
+      "modelTokenId": 54,
+      "symbol": "l",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 3,
+      "frameStart": 221,
+      "frameEnd": 224,
+      "rawStartSeconds": 5.525,
+      "rawEndSeconds": 5.6
+    },
+    {
+      "modelTokenIndex": 96,
+      "modelTokenId": 56,
+      "symbol": "n",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 2,
+      "frameStart": 224,
+      "frameEnd": 226,
+      "rawStartSeconds": 5.6,
+      "rawEndSeconds": 5.65
+    },
+    {
+      "modelTokenIndex": 97,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 3,
+      "frameStart": 226,
+      "frameEnd": 229,
+      "rawStartSeconds": 5.65,
+      "rawEndSeconds": 5.725
+    },
+    {
+      "modelTokenIndex": 98,
+      "modelTokenId": 31,
+      "symbol": "O",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 2,
+      "frameStart": 229,
+      "frameEnd": 231,
+      "rawStartSeconds": 5.725,
+      "rawEndSeconds": 5.775
+    },
+    {
+      "modelTokenIndex": 99,
+      "modelTokenId": 56,
+      "symbol": "n",
+      "tokenIndex": 16,
+      "wordIndices": [
+        13
+      ],
+      "durationFrames": 2,
+      "frameStart": 231,
+      "frameEnd": 233,
+      "rawStartSeconds": 5.775,
+      "rawEndSeconds": 5.825
+    },
+    {
+      "modelTokenIndex": 100,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 233,
+      "frameEnd": 235,
+      "rawStartSeconds": 5.825,
+      "rawEndSeconds": 5.875
+    },
+    {
+      "modelTokenIndex": 101,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 17,
+      "wordIndices": [
+        14
+      ],
+      "durationFrames": 1,
+      "frameStart": 235,
+      "frameEnd": 236,
+      "rawStartSeconds": 5.875,
+      "rawEndSeconds": 5.9
+    },
+    {
+      "modelTokenIndex": 102,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 17,
+      "wordIndices": [
+        14
+      ],
+      "durationFrames": 2,
+      "frameStart": 236,
+      "frameEnd": 238,
+      "rawStartSeconds": 5.9,
+      "rawEndSeconds": 5.95
+    },
+    {
+      "modelTokenIndex": 103,
+      "modelTokenId": 51,
+      "symbol": "i",
+      "tokenIndex": 17,
+      "wordIndices": [
+        14
+      ],
+      "durationFrames": 2,
+      "frameStart": 238,
+      "frameEnd": 240,
+      "rawStartSeconds": 5.95,
+      "rawEndSeconds": 6.0
+    },
+    {
+      "modelTokenIndex": 104,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 17,
+      "wordIndices": [
+        14
+      ],
+      "durationFrames": 2,
+      "frameStart": 240,
+      "frameEnd": 242,
+      "rawStartSeconds": 6.0,
+      "rawEndSeconds": 6.05
+    },
+    {
+      "modelTokenIndex": 105,
+      "modelTokenId": 83,
+      "symbol": "ə",
+      "tokenIndex": 17,
+      "wordIndices": [
+        14
+      ],
+      "durationFrames": 2,
+      "frameStart": 242,
+      "frameEnd": 244,
+      "rawStartSeconds": 6.05,
+      "rawEndSeconds": 6.1
+    },
+    {
+      "modelTokenIndex": 106,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 17,
+      "wordIndices": [
+        14
+      ],
+      "durationFrames": 2,
+      "frameStart": 244,
+      "frameEnd": 246,
+      "rawStartSeconds": 6.1,
+      "rawEndSeconds": 6.15
+    },
+    {
+      "modelTokenIndex": 107,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 3,
+      "frameStart": 246,
+      "frameEnd": 249,
+      "rawStartSeconds": 6.15,
+      "rawEndSeconds": 6.225
+    },
+    {
+      "modelTokenIndex": 108,
+      "modelTokenId": 61,
+      "symbol": "s",
+      "tokenIndex": 18,
+      "wordIndices": [
+        15
+      ],
+      "durationFrames": 2,
+      "frameStart": 249,
+      "frameEnd": 251,
+      "rawStartSeconds": 6.225,
+      "rawEndSeconds": 6.275
+    },
+    {
+      "modelTokenIndex": 109,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 18,
+      "wordIndices": [
+        15
+      ],
+      "durationFrames": 3,
+      "frameStart": 251,
+      "frameEnd": 254,
+      "rawStartSeconds": 6.275,
+      "rawEndSeconds": 6.35
+    },
+    {
+      "modelTokenIndex": 110,
+      "modelTokenId": 86,
+      "symbol": "ɛ",
+      "tokenIndex": 18,
+      "wordIndices": [
+        15
+      ],
+      "durationFrames": 3,
+      "frameStart": 254,
+      "frameEnd": 257,
+      "rawStartSeconds": 6.35,
+      "rawEndSeconds": 6.425
+    },
+    {
+      "modelTokenIndex": 111,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 18,
+      "wordIndices": [
+        15
+      ],
+      "durationFrames": 9,
+      "frameStart": 257,
+      "frameEnd": 266,
+      "rawStartSeconds": 6.425,
+      "rawEndSeconds": 6.65
+    },
+    {
+      "modelTokenIndex": 112,
+      "modelTokenId": 3,
+      "symbol": ",",
+      "tokenIndex": 19,
+      "wordIndices": [
+        15
+      ],
+      "durationFrames": 3,
+      "frameStart": 266,
+      "frameEnd": 269,
+      "rawStartSeconds": 6.65,
+      "rawEndSeconds": 6.725
+    },
+    {
+      "modelTokenIndex": 113,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 269,
+      "frameEnd": 271,
+      "rawStartSeconds": 6.725,
+      "rawEndSeconds": 6.775
+    },
+    {
+      "modelTokenIndex": 114,
+      "modelTokenId": 14,
+      "symbol": "“",
+      "tokenIndex": 20,
+      "wordIndices": [
+        16
+      ],
+      "durationFrames": 2,
+      "frameStart": 271,
+      "frameEnd": 273,
+      "rawStartSeconds": 6.775,
+      "rawEndSeconds": 6.825
+    },
+    {
+      "modelTokenIndex": 115,
+      "modelTokenId": 54,
+      "symbol": "l",
+      "tokenIndex": 21,
+      "wordIndices": [
+        16
+      ],
+      "durationFrames": 1,
+      "frameStart": 273,
+      "frameEnd": 274,
+      "rawStartSeconds": 6.825,
+      "rawEndSeconds": 6.85
+    },
+    {
+      "modelTokenIndex": 116,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 21,
+      "wordIndices": [
+        16
+      ],
+      "durationFrames": 2,
+      "frameStart": 274,
+      "frameEnd": 276,
+      "rawStartSeconds": 6.85,
+      "rawEndSeconds": 6.9
+    },
+    {
+      "modelTokenIndex": 117,
+      "modelTokenId": 86,
+      "symbol": "ɛ",
+      "tokenIndex": 21,
+      "wordIndices": [
+        16
+      ],
+      "durationFrames": 2,
+      "frameStart": 276,
+      "frameEnd": 278,
+      "rawStartSeconds": 6.9,
+      "rawEndSeconds": 6.95
+    },
+    {
+      "modelTokenIndex": 118,
+      "modelTokenId": 62,
+      "symbol": "t",
+      "tokenIndex": 21,
+      "wordIndices": [
+        16
+      ],
+      "durationFrames": 2,
+      "frameStart": 278,
+      "frameEnd": 280,
+      "rawStartSeconds": 6.95,
+      "rawEndSeconds": 7.0
+    },
+    {
+      "modelTokenIndex": 119,
+      "modelTokenId": 61,
+      "symbol": "s",
+      "tokenIndex": 21,
+      "wordIndices": [
+        16
+      ],
+      "durationFrames": 2,
+      "frameStart": 280,
+      "frameEnd": 282,
+      "rawStartSeconds": 7.0,
+      "rawEndSeconds": 7.05
+    },
+    {
+      "modelTokenIndex": 120,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 2,
+      "frameStart": 282,
+      "frameEnd": 284,
+      "rawStartSeconds": 7.05,
+      "rawEndSeconds": 7.1
+    },
+    {
+      "modelTokenIndex": 121,
+      "modelTokenId": 123,
+      "symbol": "ɹ",
+      "tokenIndex": 22,
+      "wordIndices": [
+        17
+      ],
+      "durationFrames": 1,
+      "frameStart": 284,
+      "frameEnd": 285,
+      "rawStartSeconds": 7.1,
+      "rawEndSeconds": 7.125
+    },
+    {
+      "modelTokenIndex": 122,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 22,
+      "wordIndices": [
+        17
+      ],
+      "durationFrames": 2,
+      "frameStart": 285,
+      "frameEnd": 287,
+      "rawStartSeconds": 7.125,
+      "rawEndSeconds": 7.175
+    },
+    {
+      "modelTokenIndex": 123,
+      "modelTokenId": 51,
+      "symbol": "i",
+      "tokenIndex": 22,
+      "wordIndices": [
+        17
+      ],
+      "durationFrames": 2,
+      "frameStart": 287,
+      "frameEnd": 289,
+      "rawStartSeconds": 7.175,
+      "rawEndSeconds": 7.225
+    },
+    {
+      "modelTokenIndex": 124,
+      "modelTokenId": 46,
+      "symbol": "d",
+      "tokenIndex": 22,
+      "wordIndices": [
+        17
+      ],
+      "durationFrames": 1,
+      "frameStart": 289,
+      "frameEnd": 290,
+      "rawStartSeconds": 7.225,
+      "rawEndSeconds": 7.25
+    },
+    {
+      "modelTokenIndex": 125,
+      "modelTokenId": 16,
+      "symbol": " ",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 1,
+      "frameStart": 290,
+      "frameEnd": 291,
+      "rawStartSeconds": 7.25,
+      "rawEndSeconds": 7.275
+    },
+    {
+      "modelTokenIndex": 126,
+      "modelTokenId": 83,
+      "symbol": "ə",
+      "tokenIndex": 23,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 2,
+      "frameStart": 291,
+      "frameEnd": 293,
+      "rawStartSeconds": 7.275,
+      "rawEndSeconds": 7.325
+    },
+    {
+      "modelTokenIndex": 127,
+      "modelTokenId": 92,
+      "symbol": "ɡ",
+      "tokenIndex": 23,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 2,
+      "frameStart": 293,
+      "frameEnd": 295,
+      "rawStartSeconds": 7.325,
+      "rawEndSeconds": 7.375
+    },
+    {
+      "modelTokenIndex": 128,
+      "modelTokenId": 156,
+      "symbol": "ˈ",
+      "tokenIndex": 23,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 4,
+      "frameStart": 295,
+      "frameEnd": 299,
+      "rawStartSeconds": 7.375,
+      "rawEndSeconds": 7.475
+    },
+    {
+      "modelTokenIndex": 129,
+      "modelTokenId": 86,
+      "symbol": "ɛ",
+      "tokenIndex": 23,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 3,
+      "frameStart": 299,
+      "frameEnd": 302,
+      "rawStartSeconds": 7.475,
+      "rawEndSeconds": 7.55
+    },
+    {
+      "modelTokenIndex": 130,
+      "modelTokenId": 56,
+      "symbol": "n",
+      "tokenIndex": 23,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 13,
+      "frameStart": 302,
+      "frameEnd": 315,
+      "rawStartSeconds": 7.55,
+      "rawEndSeconds": 7.875
+    },
+    {
+      "modelTokenIndex": 131,
+      "modelTokenId": 5,
+      "symbol": "!",
+      "tokenIndex": 24,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 5,
+      "frameStart": 315,
+      "frameEnd": 320,
+      "rawStartSeconds": 7.875,
+      "rawEndSeconds": 8.0
+    },
+    {
+      "modelTokenIndex": 132,
+      "modelTokenId": 15,
+      "symbol": "”",
+      "tokenIndex": 25,
+      "wordIndices": [
+        18
+      ],
+      "durationFrames": 1,
+      "frameStart": 320,
+      "frameEnd": 321,
+      "rawStartSeconds": 8.0,
+      "rawEndSeconds": 8.025
+    },
+    {
+      "modelTokenIndex": 133,
+      "modelTokenId": 0,
+      "symbol": "<eos>",
+      "tokenIndex": null,
+      "wordIndices": [],
+      "durationFrames": 1,
+      "frameStart": 321,
+      "frameEnd": 322,
+      "rawStartSeconds": 8.025,
+      "rawEndSeconds": 8.05
+    }
+  ]
+}

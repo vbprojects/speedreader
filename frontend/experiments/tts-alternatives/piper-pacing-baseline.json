@@ -1,0 +1,119 @@
+{
+  "model": "en_US-lessac-low",
+  "text": "The quick brown fox jumps over the lazy dog. We can read this passage aloud and follow each word as the voice speaks.",
+  "runtime": "1.24.3",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "threads": 2,
+  "sampleRate": 16000,
+  "randomOrderSeed": 2026,
+  "summary": [
+    {
+      "mode": "production-noise",
+      "pacing": 0.5,
+      "meanWpm": 149.85945479270464,
+      "sdWpm": 9.057454567818432
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 0.75,
+      "meanWpm": 194.21215376258013,
+      "sdWpm": 3.2328411315376444
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 1,
+      "meanWpm": 219.6602906526121,
+      "sdWpm": 7.304716245520666
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 1.25,
+      "meanWpm": 237.3963855692335,
+      "sdWpm": 4.008702500434786
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 1.5,
+      "meanWpm": 265.97004226911037,
+      "sdWpm": 5.577336516681608
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 2,
+      "meanWpm": 291.82954704437924,
+      "sdWpm": 4.2709136157117955
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 2.5,
+      "meanWpm": 303.1351660473157,
+      "sdWpm": 5.42823949045129
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 3,
+      "meanWpm": 313.21664316951967,
+      "sdWpm": 3.7518178308064782
+    },
+    {
+      "mode": "production-noise",
+      "pacing": 4,
+      "meanWpm": 318.97293972939724,
+      "sdWpm": 0.6456344210034227
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 0.5,
+      "meanWpm": 170.11834319526628,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 0.75,
+      "meanWpm": 222.29381443298968,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 1,
+      "meanWpm": 239.58333333333334,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 1.25,
+      "meanWpm": 264.57055214723925,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 1.5,
+      "meanWpm": 295.37671232876716,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 2,
+      "meanWpm": 308.0357142857143,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 2.5,
+      "meanWpm": 320.63197026022306,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 3,
+      "meanWpm": 324.24812030075185,
+      "sdWpm": 0.0
+    },
+    {
+      "mode": "zero-noise-control",
+      "pacing": 4,
+      "meanWpm": 325.47169811320754,
+      "sdWpm": 0.0
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>Piper CPU/WebGPU benchmark</title>
+<style>body{font:16px system-ui;max-width:1100px;margin:30px auto}pre{white-space:pre-wrap}td,th{padding:10px;text-align:right}</style>
+<h1>Piper CPU/WASM and WebGPU</h1>
+<p>Low is the baseline within each backend. Downloads three Lessac models (about 240 MB total) plus the shared runtime/dictionary. One first inference and three warm repeats per model/backend. Keep this tab visible. Model noise can vary output duration; results are device-specific.</p>
+<button id="run">Run benchmark</button> <a id="download" hidden>Download JSON</a><pre id="status"></pre>
+<script type="module">
+import {benchmark} from './benchmark.js';
+const run=document.querySelector('#run'),status=document.querySelector('#status'),download=document.querySelector('#download');
+run.onclick=async()=>{run.disabled=true;try{const result=await benchmark(r=>{status.textContent=JSON.stringify(r,null,2)});download.href=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));download.download='piper-backends.json';download.hidden=false;}catch(e){status.textContent+=String(e)}finally{run.disabled=false}};
+</script>

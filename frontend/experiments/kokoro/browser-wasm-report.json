@@ -1,0 +1,36 @@
+[
+  {
+    "type": "initialized",
+    "id": 1,
+    "provider": "wasm",
+    "milliseconds": 1172.5999999996275
+  },
+  {
+    "pacing": 0.5,
+    "milliseconds": 26868.699999999255,
+    "samples": 387600,
+    "maxDurationFrameDifference": 1,
+    "expectedSamples": 386400
+  },
+  {
+    "pacing": 1,
+    "milliseconds": 13222.39999999851,
+    "samples": 191400,
+    "maxDurationFrameDifference": 1,
+    "expectedSamples": 193200
+  },
+  {
+    "pacing": 1.5,
+    "milliseconds": 8638.900000000373,
+    "samples": 123000,
+    "maxDurationFrameDifference": 0,
+    "expectedSamples": 123000
+  },
+  {
+    "pacing": 4,
+    "milliseconds": 6173.9000000003725,
+    "samples": 86400,
+    "maxDurationFrameDifference": 0,
+    "expectedSamples": 86400
+  }
+]
