@@ -1,3 +1,4 @@
+import { awaitAudioStartup, requestPlaybackSession } from "./audio-startup";
 import { OutputWatchdog } from "./output-watchdog";
 import type { WordSampleSpan } from "./alignment";
 export interface OutputCursor { sample: number; remaining: number; underrun: boolean; }
@@ -61,13 +62,21 @@ export class AudioOutput {
     this.node?.port.postMessage({ ...message, revision: this.revision }, transfers);
   }
   async play(): Promise<void> {
+    requestPlaybackSession(navigator as Navigator & { audioSession?: { type: string } });
     this.intent = true;
     this.resuming = true;
     // Initialize creates the context synchronously before awaiting its worklet.
     // Resume now, inside the user gesture, rather than after model/module I/O.
     const initialized = this.initialize();
     const resumed = this.context?.resume();
-    try { await Promise.all([initialized, resumed]); this.started = true; }
+    try {
+      await awaitAudioStartup(Promise.all([initialized, resumed]), () => this.context?.state ?? "no context");
+      if (this.context?.state !== "running") throw new Error(`Audio device is ${this.context?.state ?? "unavailable"}. Press Play to retry.`);
+      this.started = true;
+    } catch (error) {
+      this.pause();
+      throw error;
+    }
     finally { this.resuming = false; }
     if (this.intent && !this.disposed) this.send({ type: "play" });
   }

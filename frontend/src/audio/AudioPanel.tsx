@@ -29,6 +29,7 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
     useVoiceDownload(store, metadata, () => { stopPreview(); onChange({ readAloudEnabled: false }); release(); }, settings.readAloudVoice);
   const previewAbort = useRef<AbortController | null>(null);
   const previewOutput = useRef<AudioOutput | null>(null);
+  const [diagnostic, setDiagnostic] = useState("");
   const [previewing, setPreviewing] = useState(false);
   const stopPreview = () => {
     previewAbort.current?.abort(); previewAbort.current = null;
@@ -55,6 +56,31 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
       abort.signal.throwIfAborted(); output.enqueue(rendered.pcm); await output.play(); setMessage("Playing voice preview.");
     } catch (error) {
       if (!abort.signal.aborted) { stopPreview(); setMessage(error instanceof Error ? error.message : String(error)); }
+    }
+  };
+  const testOutput = async () => {
+    pauseReader(); stopPreview();
+    const abort = new AbortController(); previewAbort.current = abort;
+    setPreviewing(true); setDiagnostic("Starting audio test…");
+    const output = new AudioOutput(cursor => {
+      if (cursor.sample > 0 && cursor.remaining === 0) {
+        setDiagnostic("Test tone processed. If you heard nothing, check media volume and audio routing; speech synthesis was bypassed.");
+        stopPreview();
+      }
+    }, error => { setDiagnostic(error.message); stopPreview(); });
+    previewOutput.current = output;
+    try {
+      await output.play();
+      if (abort.signal.aborted) return;
+      const rate = output.sampleRate;
+      const pcm = Float32Array.from({ length: Math.round(rate * 0.6) }, (_, index) => {
+        const envelope = Math.min(1, index / (rate * 0.02), (rate * 0.6 - index) / (rate * 0.02));
+        return 0.12 * envelope * Math.sin(2 * Math.PI * 440 * index / rate);
+      });
+      output.enqueue(pcm);
+      setDiagnostic(`Test tone queued at ${rate} Hz. Listen for a short beep.`);
+    } catch (error) {
+      if (!abort.signal.aborted) { setDiagnostic(error instanceof Error ? error.message : String(error)); stopPreview(); }
     }
   };
   const estimate = estimateWpm(settings, { modelRevision: KOKORO_WPM_PROFILE.modelRevision, language: "en" }, KOKORO_WPM_PROFILE);
@@ -92,6 +118,8 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
     {settings.readAloudEnabled && <p>Timing follows speech. Speed changes apply after the current phrase.</p>}
     {settings.readAloudEnabled && estimate.status !== "unavailable" && <p>≈ {estimate.roundedWpm} WPM · Python experiment estimate{estimate.extrapolated ? " · outside measured range" : ""}</p>}
     <details className="audio-debug"><summary>Debug and diagnostics</summary>
+    <button disabled={previewing || busy} onClick={() => void testOutput()}>Test audio output</button>
+    {diagnostic && <p role="status">{diagnostic}</p>}
     <p>{!isPiperVoice(settings.readAloudVoice) && <><a href={`${import.meta.env.BASE_URL}licenses/kokoro-model.txt`}>Model license</a>{" · "}</>}
       <a href={`${import.meta.env.BASE_URL}licenses/headtts.txt`}>Phonemizer license</a>{" · "}
       <a href={`${import.meta.env.BASE_URL}licenses/cmudict.txt`}>Dictionary license</a>{" · "}

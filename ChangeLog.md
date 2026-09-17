@@ -16,6 +16,8 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ## 2026-09-16 — Experimental offline read aloud
 
+- Request media playback routing where Safari supports AudioSession, report stalled audio startup after eight seconds, and add a model-independent test tone under Debug and diagnostics. These are recovery/diagnostic measures; iOS beta audibility remains unverified.
+
 - Retire the audio device when the reader goes into the background and create a fresh context on the next Play gesture, preserving the current word and rejecting stale synthesis. This mitigates Safari/PWA stale audio sessions; physical iOS verification remains pending.
 
 - Made experimental Read aloud available in global and reader Settings by default, including GitHub Pages; no URL flag is required. Voice installation and playback remain opt-in.
