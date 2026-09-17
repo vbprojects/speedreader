@@ -24,6 +24,11 @@ export class ForeignLibraryRegistry {
     this.plugins.set(manifest.id, plugin);
   }
 
+  unregister(libraryId: string): void {
+    this.plugins.delete(libraryId);
+    this.hosts.delete(libraryId);
+  }
+
   get manifests(): ForeignLibraryManifest[] {
     return [...this.plugins.values()].map((plugin) => plugin.manifest);
   }

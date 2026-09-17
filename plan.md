@@ -438,3 +438,10 @@ voice installation/repair/removal and coordinated PWA updates. Open with
 `?kokoro=1` to try it. The fitted WPM remains a display-only Python-baseline estimate.
 See the feature plan and experiment reports for automated evidence and the remaining
 GPU/mobile/listening release gates. Independent pitch remains deferred as specified.
+
+## Planned: user-configured OpenBooks foreign library
+
+See [OpenBooks connector plan](docs/openbooks-foreign-library.md). Search connects
+directly to a user-owned HTTPS/WSS OpenBooks server. Acquisition is manual:
+open that server's site, download there, and select the file for import preview.
+No shared Cloudflare gateway routing or automatic book download is planned.

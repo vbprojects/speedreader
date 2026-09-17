@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { loadOpenBooksSources, openBooksBaseUrl, OpenBooksForeignLibrary, OPENBOOKS_STORAGE } from "../foreign-libraries/openbooks";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ForeignDownloadPlan,
   ForeignImportPlan,
@@ -53,7 +54,11 @@ export function ForeignLibraryDialog({
   onImportManual?: (plan: ForeignDownloadPlan) => Promise<boolean>;
   onClose: () => void;
 }) {
-  const manifests = useMemo(() => registry.manifests, [registry]);
+  const searchAbort = useRef<AbortController | null>(null);
+  const [sourceRevision, setSourceRevision] = useState(0);
+  const [serverUrl, setServerUrl] = useState("");
+  const [serverName, setServerName] = useState("");
+  const manifests = useMemo(() => registry.manifests, [registry, sourceRevision]);
   const outputFilters = useMemo(() => foreignOutputFilters(manifests), [manifests]);
   const [outputFilter, setOutputFilter] = useState<ForeignOutputType | "all">("all");
   const filteredManifests = useMemo(
@@ -154,7 +159,8 @@ export function ForeignLibraryDialog({
     setManualDownload(null);
     try {
       const submittedQuery = query.trim();
-      const page = await session.search({ query: submittedQuery, pageSize: 25 });
+      searchAbort.current = new AbortController();
+      const page = await session.search({ query: submittedQuery, pageSize: 25, signal: searchAbort.current.signal });
       setItems(page.items);
       setCatalogMode("search");
       setSearchedQuery(submittedQuery);
@@ -163,6 +169,7 @@ export function ForeignLibraryDialog({
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : String(searchError));
     } finally {
+      searchAbort.current = null;
       setBusy(false);
     }
   };
@@ -313,6 +320,28 @@ export function ForeignLibraryDialog({
 
         {!activeManifest ? (
           <>
+            <details style={{ marginBottom: 16 }}>
+              <summary style={{ cursor: "pointer" }}>Add OpenBooks server · experimental</summary>
+              <p>Connect to your own server for search. Downloads happen on its website; choose the downloaded file here. Our gateway is never used.</p>
+              <form onSubmit={event => {
+                event.preventDefault();
+                try {
+                  const baseUrl = openBooksBaseUrl(serverUrl);
+                  const sources = loadOpenBooksSources();
+                  if (sources.length >= 10) throw new Error("At most ten OpenBooks servers can be saved.");
+                  if (sources.some(source => source.baseUrl === baseUrl)) throw new Error("This server is already configured.");
+                  const source = { id: crypto.randomUUID(), name: serverName.trim() || "OpenBooks", baseUrl };
+                  if (source.name.length > 80) throw new Error("Use a shorter server name.");
+                  localStorage.setItem(OPENBOOKS_STORAGE, JSON.stringify([...sources, source]));
+                  registry.register(new OpenBooksForeignLibrary(source));
+                  setSourceRevision(value => value + 1); setServerUrl(""); setServerName(""); setError(null);
+                } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+              }} style={{ display: "grid", gap: 8 }}>
+                <label>Name<input aria-label="OpenBooks name" maxLength={80} value={serverName} onChange={e => setServerName(e.target.value)} style={{ ...control, width: "100%" }} /></label>
+                <label>Server URL<input aria-label="OpenBooks server URL" type="url" required placeholder="https://books.example.org/openbooks/" value={serverUrl} onChange={e => setServerUrl(e.target.value)} style={{ ...control, width: "100%" }} /></label>
+                <button style={control}>Save server</button>
+              </form>
+            </details>
             <div role="toolbar" aria-label="Filter libraries by output type" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button
                 type="button"
@@ -361,6 +390,14 @@ export function ForeignLibraryDialog({
                         ))}
                       </span>
                     </button>
+                    {manifest.id.startsWith("org.openbooks.") && <button type="button" style={{ ...control, marginTop: 6 }} onClick={() => {
+                      try {
+                        const sources = loadOpenBooksSources().filter(source => `org.openbooks.${source.id}` !== manifest.id);
+                        localStorage.setItem(OPENBOOKS_STORAGE, JSON.stringify(sources));
+                        registry.unregister(manifest.id);
+                        setSourceRevision(value => value + 1);
+                      } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+                    }}>Remove server</button>}
                   </div>
                 ))}
               </div>
@@ -380,7 +417,7 @@ export function ForeignLibraryDialog({
                   <span key={output.type} style={{ padding: "3px 7px", border: `1px solid ${t.border}`, borderRadius: 999, color: t.muted, fontSize: 11 }}>{output.label}</span>
                 ))}
                 {activeManifest.homepage && (
-                  <a href={activeManifest.homepage} target="_blank" rel="external noopener noreferrer" style={{ padding: "3px 7px", color: t.highlight, fontSize: 11 }}>Visit source ↗</a>
+                  <a href={activeManifest.homepage} target="_blank" rel="external noopener noreferrer" style={{ padding: "3px 7px", color: t.highlight, fontSize: 11 }} onClick={() => searchAbort.current?.abort()}>Visit source ↗</a>
                 )}
               </div>
               </div>
@@ -396,6 +433,7 @@ export function ForeignLibraryDialog({
                   <button type="button" disabled={busy} onClick={() => { void showFeatured(); }} style={control}>Featured</button>
                 )}
                 <button type="submit" disabled={busy || !session || !query.trim()} style={{ ...control, border: 0, minWidth: 96, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>{busy ? "Working…" : "Search"}</button>
+                {busy && searchAbort.current && <button type="button" onClick={() => searchAbort.current?.abort()} style={control}>Cancel search</button>}
               </form>
             ) : (
               <p style={{ color: t.muted }}>This library does not provide catalog search.</p>
@@ -408,16 +446,18 @@ export function ForeignLibraryDialog({
         {activeManifest && manualDownload && (
           <div role="note" style={{ marginTop: 12, padding: 12, border: `1px solid ${t.border}`, borderRadius: 8, background: t.bg }}>
             <strong style={{ display: "block", marginBottom: 5 }}>
-              {manualDownload.action === "source-page" ? "Choose a release on the source page." : manualDownload.plan.acquisition === "manual" ? "Download from the source." : "Direct import is unavailable in this browser."}
+              {activeManifest.id.startsWith("org.openbooks.") ? "Download on your OpenBooks server." : manualDownload.action === "source-page" ? "Choose a release on the source page." : manualDownload.plan.acquisition === "manual" ? "Download from the source." : "Direct import is unavailable in this browser."}
             </strong>
             <span style={{ display: "block", color: t.muted, fontSize: 13, lineHeight: 1.45 }}>
-              {manualDownload.action === "source-page"
+              {activeManifest.id.startsWith("org.openbooks.")
+                ? `Search for “${searchedQuery}” on your server and download the selected book. The search connection is closed; Speedreader stays open. Return here to select the file. Its identity is not verified against the search result.`
+                : manualDownload.action === "source-page"
                 ? `Open the original listing, download an ${manualDownload.plan.file.extension.toUpperCase()} release if one is available, then choose that file here. Speedreader will retain the catalog provenance.`
                 : `Download the ${manualDownload.plan.file.extension.toUpperCase()} in your browser, then choose that file here. Speedreader will retain the catalog provenance.`}
             </span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
               <a href={manualDownload.url} target="_blank" rel="external noopener noreferrer" download={manualDownload.action === "download" ? manualDownload.fileName : undefined} style={{ ...control, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
-                {manualDownload.action === "source-page" ? "Open source listing" : `Download ${manualDownload.plan.file.extension.toUpperCase()}`}
+                {activeManifest.id.startsWith("org.openbooks.") ? "Open OpenBooks server" : manualDownload.action === "source-page" ? "Open source listing" : `Download ${manualDownload.plan.file.extension.toUpperCase()}`}
               </a>
               {onImportManual && <button type="button" disabled={busy} onClick={() => { void importManualDownload(); }} style={{ ...control, border: 0, background: t.highlight, color: t.highlightFg, fontWeight: 650 }}>Choose downloaded {manualDownload.plan.file.extension.toUpperCase()}</button>}
             </div>
@@ -467,6 +507,7 @@ export function ForeignLibraryDialog({
                         {itemDetails(item) && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: t.muted, fontSize: 11 }}>{itemDetails(item)}</span>}
                       </span>
                     </button>
+
                   </div>
                 ))}
               </div>

@@ -5,7 +5,18 @@ A running log of setup, findings, and decisions for the speedreader project.
 ---
 
 
+## 2026-09-16 — OpenBooks connector prototype
+
+- Added saved user-owned HTTPS OpenBooks servers to Foreign Libraries, with direct WSS search and EPUB/PDF results.
+- Added manual website download handoff followed by the existing local-file import preview; the search connection closes before handoff.
+- Added search cancellation, cooldown, timeout and protocol tests. No OpenBooks traffic uses the shared gateway.
+- Live server and Safari compatibility remain to be verified; pending selections are not yet retained across reloads.
+
+---
+
 ## 2026-09-16 — Experimental offline read aloud
+
+- Retire the audio device when the reader goes into the background and create a fresh context on the next Play gesture, preserving the current word and rejecting stale synthesis. This mitigates Safari/PWA stale audio sessions; physical iOS verification remains pending.
 
 - Made experimental Read aloud available in global and reader Settings by default, including GitHub Pages; no URL flag is required. Voice installation and playback remain opt-in.
 - Added Piper voice and quality selection, offline voice downloads, CPU/WASM and WebGPU controls, native pacing, and pitch-preserving compression.

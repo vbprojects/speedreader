@@ -1,3 +1,4 @@
+import { loadOpenBooksSources, OpenBooksForeignLibrary } from "./foreign-libraries/openbooks";
 // src/ReaderApp.tsx
 // Root coordinator: owns the LibraryStore (IndexedDB-backed), the global
 // SettingsStore, and the current reader session. Handles import, open
@@ -47,6 +48,7 @@ export default function ReaderApp() {
     const registry = new ForeignLibraryRegistry(
       (manifest) => new ConstrainedForeignLibraryHost(manifest, globalThis.fetch, undefined, gatewayUrl),
     );
+    for (const source of loadOpenBooksSources()) registry.register(new OpenBooksForeignLibrary(source));
     registry.register(new GutenbergForeignLibrary());
     registry.register(new TwineForeignLibrary());
     registry.register(new ArxivForeignLibrary());

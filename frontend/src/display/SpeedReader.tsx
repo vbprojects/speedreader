@@ -174,7 +174,8 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
   useEffect(() => {
     const pause = () => {
       resumeAfterInteractionRef.current = false;
-      clockRef.current?.pause();
+      if (clockRef.current instanceof AudioTransport) clockRef.current.releaseAudioDevice();
+      else clockRef.current?.pause();
       setRunning(false);
       if (clockRef.current) onPositionChange?.(clockRef.current.index);
     };

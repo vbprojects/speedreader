@@ -88,11 +88,17 @@ export class AudioTransport implements PlaybackTransport {
   private observedChunkWords = 0;
   private observedSettings = "";
   private output: AudioSink;
+  private outputGeneration = 0;
   private revision: AudioRevision = { sessionId: crypto.randomUUID(), contentRevision: 0, synthesisRevision: 0, dspRevision: 0 };
   constructor(private options: AudioTransportOptions) {
     this.policy = options.policy ?? preparationPolicy("lookahead", { maxChunks: 2 });
-    const createOutput = options.outputFactory ?? ((cursor, error) => new AudioOutput(cursor, error));
-    this.output = createOutput(cursor => {
+    this.output = this.createOutput();
+  }
+  private createOutput(): AudioSink {
+    const outputGeneration = ++this.outputGeneration;
+    const createOutput = this.options.outputFactory ?? ((cursor, error) => new AudioOutput(cursor, error));
+    return createOutput(cursor => {
+      if (outputGeneration !== this.outputGeneration || this.disposed) return;
       this.consumedSamples = cursor.sample; this.remainingSamples = cursor.remaining;
       if (!this.intent || !this.active) { this.publish(); return; }
       try {
@@ -119,7 +125,7 @@ export class AudioTransport implements PlaybackTransport {
           this.status("buffering"); void this.pump();
         }
       } finally { this.publish(); }
-    }, error => this.fail(error));
+    }, error => { if (outputGeneration === this.outputGeneration) this.fail(error); });
   }
   get index(): number { return this.position; }
   get running(): boolean { return this.intent; }
@@ -162,6 +168,16 @@ export class AudioTransport implements PlaybackTransport {
     this.status(this.active ? "playing" : "preparing");
   }
   pause(): void { this.intent = false; this.chunkWaitStarted = null; this.output.pause(); this.status("paused"); }
+  /** Retire a potentially stale browser device after backgrounding.
+   * The replacement opens its AudioContext only on the next Play gesture.
+   */
+  releaseAudioDevice(): void {
+    if (this.disposed) return;
+    this.seek(this.position);
+    const previous = this.output;
+    this.output = this.createOutput();
+    void previous.dispose().catch(() => { /* The old device is already retired. */ });
+  }
   stop(): void { this.seek(0); }
   seek(index: number): void {
     this.pause(); this.generation++; this.revision.contentRevision++;

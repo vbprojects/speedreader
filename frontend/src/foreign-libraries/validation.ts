@@ -110,7 +110,14 @@ export function validateForeignManifest(manifest: ForeignLibraryManifest): Forei
     }
   }
   const origins = manifest.permissions?.networkOrigins;
-  if (!Array.isArray(origins) || origins.length === 0 || origins.length > 32) invalid("Plugin must declare network origins");
+  if (!Array.isArray(origins) || (origins.length === 0 && !manifest.permissions.webSocketUrls?.length) || origins.length > 32) invalid("Plugin must declare network origins");
+  const sockets = manifest.permissions.webSocketUrls ?? [];
+  if (!Array.isArray(sockets) || sockets.length > 32 || new Set(sockets).size !== sockets.length) invalid("WebSocket endpoints are invalid");
+  for (const endpoint of sockets) {
+    let url: URL;
+    try { url = new URL(endpoint); } catch { invalid("WebSocket endpoint is invalid"); }
+    if (url!.protocol !== "wss:" || url!.username || url!.password || url!.search || url!.hash) invalid("WebSocket endpoints must use WSS without credentials");
+  }
   const normalizedOrigins = origins.map(httpsOrigin);
   if (new Set(normalizedOrigins).size !== normalizedOrigins.length) invalid("Network origins must be unique");
   const manualOrigins = manifest.permissions.manualDownloadOrigins ?? [];

@@ -130,6 +130,15 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 export class ConstrainedForeignLibraryHost implements ForeignLibraryHost {
+  openWebSocket(raw: string): WebSocket {
+    const url = new URL(raw);
+    if (url.protocol !== "wss:" || url.username || url.password || url.hash || url.search ||
+        !this.manifest.permissions.webSocketUrls?.includes(url.href)) {
+      throw new ForeignLibraryError("permission-denied", "WebSocket endpoint is not permitted.");
+    }
+    // Deliberately direct: never consult the configured HTTP gateway.
+    return new WebSocket(url.href);
+  }
   private queue = Promise.resolve();
   private nextRequestAt = 0;
   private readonly fetchImpl: ForeignFetch;

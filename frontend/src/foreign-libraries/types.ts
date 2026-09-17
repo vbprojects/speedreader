@@ -51,6 +51,8 @@ export interface ForeignLibraryManifest {
   outputs: ForeignLibraryOutput[];
   permissions: {
     networkOrigins: string[];
+    /** Exact endpoints for host-owned direct WebSocket connections. */
+    webSocketUrls?: string[];
     /** Origins opened by the browser for user-directed downloads; the host never fetches them. */
     manualDownloadOrigins?: string[];
     credentials?: ForeignCredentialSlot[];
@@ -154,6 +156,7 @@ export interface ForeignResponse {
 }
 
 export interface ForeignLibraryHost {
+  openWebSocket?(url: string): WebSocket;
   request(request: ForeignRequest): Promise<ForeignResponse>;
 }
 

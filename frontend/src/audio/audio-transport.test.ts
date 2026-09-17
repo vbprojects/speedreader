@@ -7,13 +7,13 @@ import { DEFAULT_AUDIO_SETTINGS } from "./settings";
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 function harness() {
   const words = Array.from({ length: 4 }, (_, index) => ({ index, text: `word${index}.`, metadata: [] }));
-  let complete = true, boundary = 4, enqueues = 0, playing = false;
+  let complete = true, boundary = 4, enqueues = 0, playing = false, outputs = 0, disposals = 0;
   let cursor: (value: { sample: number; remaining: number; underrun: boolean }) => void = () => {};
   const ticks: number[] = [], requests: { start: number; resolve(value: PreparedSpeech): void }[] = [];
   const states: string[] = [];
   const measurements: AudioMeasurements[] = [];
   const sink: AudioSink = { sampleRate: 24000, async play() { playing = true; }, pause() { playing = false; },
-    reset() { playing = false; }, enqueue() { enqueues++; }, async dispose() { playing = false; } };
+    reset() { playing = false; }, enqueue() { enqueues++; }, async dispose() { disposals++; playing = false; } };
   const engine: SpeechProducer = { provider: "fake", initializationMilliseconds: 0,
     prepare(source: readonly (typeof words)[number][], _settings: unknown, revision: AudioRevision) {
     return new Promise<PreparedSpeech>(resolve => requests.push({ start: source[0].index, resolve: result => resolve({ ...result,
@@ -24,7 +24,7 @@ function harness() {
     canAdvance: (_from, to) => to !== boundary || boundary === words.length, onBlocked: () => states.push("blocked"),
     onTick: index => ticks.push(index), onEnd: () => states.push("end"), onStatus: state => states.push(state),
     onMeasurements: value => measurements.push(value),
-    outputFactory: callback => { cursor = callback; return sink; } });
+    outputFactory: callback => { outputs++; cursor = callback; return sink; } });
   const resolve = (index: number, start: number, end: number, silent = false) => requests[index].resolve({
     identity: { sessionId: "test", contentRevision: 0, synthesisRevision: 0, dspRevision: 0, requestId: String(index), chunkId: String(start),
       startWord: start, endWordExclusive: end, allowedEndWordExclusive: boundary },
@@ -34,7 +34,7 @@ function harness() {
   });
   return { transport, requests, resolve, ticks, states, measurements, cursor: (sample: number, remaining: number) => cursor({ sample, remaining, underrun: remaining === 0 }),
     setBoundary: (value: number) => { boundary = value; }, setComplete: (value: boolean) => { complete = value; },
-    get enqueues() { return enqueues; }, get playing() { return playing; } };
+    get outputs() { return outputs; }, get disposals() { return disposals; }, get enqueues() { return enqueues; }, get playing() { return playing; } };
 }
 test("pause during inference never autoplays a completed result", async () => {
   const h = harness(); h.transport.resume(); await settle();
@@ -134,5 +134,23 @@ test("unspoken chunks stop at interactions and do not autoplay after pause", asy
   h.transport.resume(); await settle();
   assert.ok(h.states.includes("blocked"));
   assert.equal(h.enqueues, 0); assert.equal(h.requests.length, 1);
+  h.transport.destroy();
+});
+
+
+test("backgrounding replaces the device, preserves the word and discards old inference", async () => {
+  const h = harness();
+  h.transport.seek(1); h.transport.resume(); await settle();
+  h.transport.releaseAudioDevice();
+  assert.equal(h.outputs, 2);
+  assert.equal(h.disposals, 1);
+  assert.equal(h.transport.index, 1);
+  assert.equal(h.transport.running, false);
+  h.resolve(0, 1, 3); await settle();
+  assert.equal(h.enqueues, 0);
+  h.transport.resume(); await settle();
+  assert.equal(h.requests[1].start, 1);
+  h.resolve(1, 1, 3); await settle();
+  assert.equal(h.enqueues, 1);
   h.transport.destroy();
 });
