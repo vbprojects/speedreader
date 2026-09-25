@@ -1,3 +1,6 @@
+import { bindBackgroundPlayback, bindSpeechMediaSession } from "../audio/background-playback";
+import { RangeFlow } from "../presenters/RangeFlow";
+import type { RangeLayout } from "../presenters/types";
 // src/display/SpeedReader.tsx
 // Three reading presentations share one playback clock: RSVP shows exactly
 // one active word, Context moves surrounding text while pinning the active
@@ -44,7 +47,8 @@ function useMediaQuery(query: string): boolean {
 
 export interface SpeedReaderProps {
   pauseRequest?: number;
-  audio?: { settings: AudioSettings; engine(): Promise<KokoroEngine>; onStatus(state: AudioState, error?: string): void; onMeasurements?(measurements: AudioMeasurements): void; onObservedWpm?(wpm: number | null): void };
+  audio?: { title?: string; settings: AudioSettings; engine(): Promise<KokoroEngine>; onStatus(state: AudioState, error?: string): void; onMeasurements?(measurements: AudioMeasurements): void; onObservedWpm?(wpm: number | null): void };
+  layouts?: RangeLayout[];
   stream: WordStream;
   pacing: PacingEngine;
   config?: Partial<DisplayConfig>;
@@ -100,7 +104,7 @@ const READ_ALONG_BATCH_SIZE = 400;
 /** Distance from a scroll boundary before extending the read-along window. */
 const READ_ALONG_SCROLL_THRESHOLD = 300;
 
-export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onNavigate, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
+export function SpeedReader({ layouts, pauseRequest, audio, stream, pacing, config, fontFamily = "system-ui", fontSize = 28, theme = "light", initialViewMode = "rsvp", onViewModeChange, showNav = true, navMaxDepth, navCollapsed, onToggleNav, initialIndex = 0, onPositionChange, onRunningChange, onNavigate, onInteractionSubmit, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords = [], onInteractionCommitted, initialDeliveredTriggerIds = [], onEngineEvent }: SpeedReaderProps) {
   const cfg: DisplayConfig = { ...DEFAULT_CONFIG, ...config };
   const themeStyle = themeTokens(theme);
 
@@ -170,7 +174,7 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
     }
   };
 
-  // Pause when interrupted: returning to the app must not silently skip words.
+  // Keep audible reading alive when hidden; visual-only reading still pauses.
   useEffect(() => {
     const pause = () => {
       resumeAfterInteractionRef.current = false;
@@ -179,14 +183,36 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
       setRunning(false);
       if (clockRef.current) onPositionChange?.(clockRef.current.index);
     };
-    const onVisibility = () => { if (document.visibilityState === "hidden") pause(); };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", pause);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", pause);
-    };
-  }, [onPositionChange]);
+    return bindBackgroundPlayback(document, window, {
+      hidden: () => document.visibilityState === "hidden",
+      shouldContinue: () => audioRef.current?.settings.readAloudEnabled === true &&
+        audioRef.current.settings.readAloudInBackground && clockRef.current instanceof AudioTransport && clockRef.current.running,
+      pauseAndRelease: pause,
+      returned: () => {
+        // Recover a device the browser interrupted, without resuming on its own.
+        if (clockRef.current instanceof AudioTransport && !clockRef.current.running) clockRef.current.releaseAudioDevice();
+      },
+    });
+  }, [onPositionChange, audio?.settings.readAloudInBackground]);
+
+  useEffect(() => {
+    if (!audioEnabled || !("mediaSession" in navigator)) return;
+    const session = navigator.mediaSession;
+    if (typeof MediaMetadata !== "undefined") session.metadata = new MediaMetadata({ title: audioRef.current?.title ?? "Read aloud", artist: "Speedreader" });
+    return bindSpeechMediaSession(session, {
+      play: () => {
+        if (document.visibilityState === "hidden" && !audioRef.current?.settings.readAloudInBackground) return;
+        const clock = clockRef.current;
+        if (!(clock instanceof AudioTransport)) return;
+        clock.resume(); setRunning(clock.running);
+      },
+      pause: () => { resumeAfterInteractionRef.current = false; clockRef.current?.pause(); setRunning(false); },
+    });
+  }, [audioEnabled, audio?.title]);
+
+  useEffect(() => {
+    if (audioEnabled && "mediaSession" in navigator) navigator.mediaSession.playbackState = running ? "playing" : "paused";
+  }, [audioEnabled, running]);
 
   useEffect(() => {
     if (!pauseRequest) return;
@@ -1055,7 +1081,7 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
                     ··· Scrolling to earlier text ···
                   </div>
                 )}
-                {readAlongFlow.map((node) => node.kind === "presentation" ? (
+                <RangeFlow nodes={readAlongFlow} layouts={layouts} render={(node) => node.kind === "presentation" ? (
                   <HtmlPresentation key={node.presentation.id} presentation={node.presentation} view="read-along" />
                 ) : node.kind === "interaction" ? renderInlineInteraction(node.interaction, node.record) : node.word.index === frame.index ? (
                   <Fragment key={node.word.index}>
@@ -1099,7 +1125,7 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
                     </span>
                     <WordBreak word={node.word} position="after" />
                   </Fragment>
-                ))}
+                )} />
                 {readAlongRange.end < stream.words.length && (
                   <div style={{ textAlign: "center", padding: "12px 0", color: themeStyle.muted, fontSize: 12 }}>
                     ··· Scroll for more ···
@@ -1149,7 +1175,7 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
                     wordBreak: "normal",
                   }}
                 >
-                  {contextFlow.map((node) => {
+                  <RangeFlow nodes={contextFlow} layouts={layouts} render={(node) => {
                     if (node.kind === "presentation") {
                       // Context restores the old RSVP stream semantics, so
                       // existing RSVP-targeted inert content remains visible.
@@ -1181,7 +1207,7 @@ export function SpeedReader({ pauseRequest, audio, stream, pacing, config, fontF
                         <WordBreak word={node.word} position="after" />
                       </Fragment>
                     );
-                  })}
+                  }} />
                 </div>
               </div>
             </div>

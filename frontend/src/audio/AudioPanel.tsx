@@ -14,7 +14,8 @@ import type { PackMetadata, PackStore } from "./pack-store";
 import type { KokoroEngine } from "./kokoro-engine";
 import { estimateWpm } from "./estimate";
 import { KOKORO_WPM_PROFILE } from "./profiles";
-export function AudioPanel({ settings, onChange, store, metadata, release, backend, selectBackend, state, error, measurements, theme, getEngine, pauseReader, mainRunning, observedWpm }: {
+export function AudioPanel({ settings, onChange, store, metadata, release, backend, backendWarning, selectBackend, state, error, measurements, theme, getEngine, pauseReader, mainRunning, observedWpm }: {
+  backendWarning?: string;
   settings: AudioSettings; onChange(patch: Partial<AudioSettings>): void; store: PackStore; metadata: PackMetadata;
   theme: Theme;
   getEngine(): Promise<KokoroEngine>;
@@ -100,6 +101,9 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
     </div>
     <label className="audio-enable"><input type="checkbox" checked={settings.readAloudEnabled}
       disabled={!installed || busy} onChange={event => onChange({ readAloudEnabled: event.target.checked })} /> Enable read aloud</label>
+    <label className="audio-enable"><input type="checkbox" checked={settings.readAloudInBackground}
+      onChange={event => onChange({ readAloudInBackground: event.target.checked })} /> Continue reading aloud in background</label>
+    <p className="audio-description">Keep listening when you switch tabs or apps. Your browser may still suspend audio or speech generation. Closing the reader stops playback.</p>
     <label style={{ display: "block", margin: "8px 0" }}>Speech backend{" "}
       <select aria-label="Speech backend" value={backend} disabled={busy} onChange={event => {
         const value = event.target.value === "webgpu" ? "webgpu" : "wasm";
@@ -110,6 +114,8 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
         <option value="webgpu">WebGPU</option>
       </select>
     </label>
+    <p className="audio-description">Backend choice is remembered for this browser across books and reloads.</p>
+    {backendWarning && <p role="alert">{backendWarning}</p>}
     <NumericSettingControl label={isPiperVoice(settings.readAloudVoice) ? "Piper pacing" : "Kokoro pacing"} value={settings.kokoroPacing} min={0.5} max={4} step={0.05}
       unit="×" tokens={tokens} onChange={kokoroPacing => onChange({ kokoroPacing })} />
     <NumericSettingControl label="Pitch-preserving compression" value={settings.speechCompression} min={0.5} max={4} step={0.05}

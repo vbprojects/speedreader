@@ -1,0 +1,6 @@
+.presenter-heading { font-weight: 700; font-size: 1.25em; line-height: 1.4; margin: 1.2em 0 .6em; overflow-wrap: anywhere; }
+.presenter-paragraph { margin: 0 0 1em; }
+.presenter-post { border: 1px solid currentColor; border-radius: 12px; padding: clamp(12px, 3vw, 22px); margin: 0 0 1em; overflow-wrap: anywhere; }
+.presenter-post header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4em 1em; font-size: .7em; line-height: 1.5; margin-bottom: .8em; }
+.presenter-post header a { color: inherit; }
+.presenter-post time { opacity: .7; }

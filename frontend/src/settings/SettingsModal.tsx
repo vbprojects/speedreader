@@ -16,12 +16,13 @@ export interface SettingsModalProps {
   isReader?: boolean;
   audioActive?: boolean;
   audioSettings?: React.ReactNode;
+  readingExperience?: React.ReactNode;
   onChange: (patch: ReaderSettings) => void;
   onReset?: () => void;
   theme: Theme;
 }
 
-export function SettingsModal({ open, onClose, settings, isReader, audioActive, audioSettings, onChange, onReset, theme }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, settings, isReader, audioActive, audioSettings, readingExperience, onChange, onReset, theme }: SettingsModalProps) {
   const t = themeTokens(theme);
 
   // Close on Escape.
@@ -72,6 +73,7 @@ export function SettingsModal({ open, onClose, settings, isReader, audioActive, 
           color: t.fg,
         }}
       >
+        {readingExperience}
         <SettingsPanel downloads={audioSettings ?? (!isReader ? <Suspense fallback={<p>Loading speech settings…</p>}><VoiceDownloads settings={settings} onChange={onChange} /></Suspense> : undefined)} settings={settings} isReader={isReader} audioActive={audioActive} onChange={onChange} onReset={onReset} />
       </div>
     </div>

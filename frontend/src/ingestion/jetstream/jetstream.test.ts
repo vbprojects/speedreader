@@ -1,3 +1,4 @@
+import { standardPresentations } from "../../presenters/standard";
 import { deepStrictEqual, equal, match, ok } from "node:assert/strict";
 import { test } from "node:test";
 import { JetstreamClient, MAX_JETSTREAM_MESSAGE_BYTES, type JetstreamSocket } from "./client";
@@ -184,9 +185,16 @@ test("live format emits each accepted post and uses a trigger to load another po
     cursor?: number;
   }> = [];
   const stop = format.startStreaming(0, (chunk) => {
+    if (chunk.words.length) {
+      equal(chunk.blocks?.length, 1);
+      equal(chunk.blocks![0].start, 0);
+      equal(chunk.blocks![0].end, chunk.words.length);
+      equal(chunk.blocks![0].kind, "post");
+      equal(chunk.presentations?.some(item => item.id.includes("post-separator")), false);
+    }
     chunks.push({
       words: chunk.words.map((word) => word.text),
-      presentations: (chunk.presentations ?? []).map((presentation) => ({
+      presentations: standardPresentations(chunk).map((presentation) => ({
         boundary: presentation.boundary,
         html: presentation.html,
       })),

@@ -20,6 +20,7 @@ export interface CoverImage {
 
 /** Library book metadata (format-agnostic). */
 export interface Book {
+  presenterSelection?: import("../presenters/types").PresenterSelection;
   /** SHA-256 of the source file bytes — deterministic identity. */
   id: string;
   title: string;
@@ -84,7 +85,17 @@ export type StoredInteractiveSource = StoredSugarCubeSource;
  * The db interface. All methods async. Adapters implement this contract so
  * the client (IndexedDB), WASM, desktop, and server backends are swappable.
  */
+export interface StoredSourceFile {
+  bookId: string;
+  name: string;
+  extension: string;
+  mimeType?: string;
+  data: ArrayBuffer;
+}
 export interface Db {
+  getSourceFile(bookId: string): Promise<StoredSourceFile | null>;
+  saveSourceFile(source: StoredSourceFile): Promise<void>;
+
   // ---- Books ----
   getBook(id: string): Promise<Book | null>;
   getBooks(): Promise<Book[]>;
@@ -105,7 +116,8 @@ export interface Db {
     bookId: string,
     words: Word[],
     options?: {
-      chapterUpdates?: ChapterEntry[];
+      blocks?: import("../presenters/types").SemanticBlock[];
+    chapterUpdates?: ChapterEntry[];
       interactions?: ReaderInteraction[];
       presentations?: HtmlPresentation[];
       triggers?: EngineTrigger[];

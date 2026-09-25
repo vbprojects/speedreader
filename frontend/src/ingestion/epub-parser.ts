@@ -1,3 +1,4 @@
+import { epubBlocks } from "../presenters/blocks";
 // src/ingestion/epub-parser.ts
 // EpubParser — implements the Parser contract for EPUB files.
 // Promotes the validated logic from experiments/toc-stream.mts:
@@ -82,9 +83,11 @@ function boundedHeadingText(element: Element): string {
 
 /** Iteratively walk a spine DOM with global work/output budgets. */
 function walkNode(root: Node, ctx: WalkCtx, budget: WalkBudget): void {
-  const stack: Node[] = [root];
+  const stack: { node: Node; blockId: number; level?: number }[] = [{ node: root, blockId: 0 }];
+  let nextBlock = 0;
   while (stack.length > 0) {
-    const node = stack.pop()!;
+    const entry = stack.pop()!;
+    const node = entry.node;
     budget.nodes++;
     assertIngestionLimit(budget.nodes, INGESTION_LIMITS.maxEpubDomNodes, "EPUB DOM nodes");
     if (node.nodeType === 3) {
@@ -103,6 +106,8 @@ function walkNode(root: Node, ctx: WalkCtx, budget: WalkBudget): void {
           { attribute: "sectionId", value: ctx.sectionId },
           { attribute: "paragraphId", value: ctx.paragraphId },
           { attribute: "spineId", value: ctx.spineId },
+          { attribute: "blockId", value: entry.blockId },
+          ...(entry.level ? [{ attribute: "headingLevel", value: entry.level }] : []),
         ],
         ...(ctx.pendingLineBreaks > 0
           ? { formatting: { lineBreaksBefore: ctx.pendingLineBreaks } }
@@ -139,8 +144,20 @@ function walkNode(root: Node, ctx: WalkCtx, budget: WalkBudget): void {
     }
   // Block elements start a new paragraph.
     if (BLOCK_TAGS.has(tag)) ctx.paragraphId++;
-    for (let i = el.childNodes.length - 1; i >= 0; i--) stack.push(el.childNodes[i]);
+    const isBlock = HEADING_TAGS.has(tag) || BLOCK_TAGS.has(tag);
+    const blockId = isBlock ? ++nextBlock : entry.blockId;
+    const level = HEADING_TAGS.has(tag) ? Number(tag[1]) : isBlock ? undefined : entry.level;
+    for (let i = el.childNodes.length - 1; i >= 0; i--) stack.push({ node: el.childNodes[i], blockId, level });
   }
+}
+
+/** Shared bounded DOM extraction, also used for structural fixture tests. */
+export function extractEpubSection(root: Node, spineId: number,
+  budget: WalkBudget = { nodes: 0, words: 0, characters: 0 }): WalkCtx {
+  const ctx: WalkCtx = { words: [], anchors: new Map(), anchorText: new Map(), index: 0,
+    sectionId: 0, paragraphId: 0, spineId, pendingLineBreaks: 0 };
+  walkNode(root, ctx, budget);
+  return ctx;
 }
 
 /**
@@ -250,17 +267,7 @@ export class EpubParser implements Parser {
     for (let i = 0; i < sections.length; i++) {
       const sec = book.spine.get(i);
       const html = await sec.load(book.load.bind(book));
-      const ctx: WalkCtx = {
-        words: [],
-        anchors: new Map(),
-        anchorText: new Map(),
-        index: 0,
-        sectionId: 0,
-        paragraphId: 0,
-        spineId: i,
-        pendingLineBreaks: 0,
-      };
-      walkNode(html, ctx, budget);
+      const ctx = extractEpubSection(html, i, budget);
       sectionStart.push(allWords.length);
       for (const w of ctx.words) w.index += sectionStart[i]; // reindex to global
       for (const word of ctx.words) allWords.push(word);
@@ -292,6 +299,7 @@ export class EpubParser implements Parser {
     assignChapterIds(allWords, chapterIndex);
 
     return {
+      blocks: epubBlocks({ words: allWords, chapterIndex, meta: computeMeta(allWords) }),
       words: allWords,
       chapterIndex,
       meta: computeMeta(allWords),

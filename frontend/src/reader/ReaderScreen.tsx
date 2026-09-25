@@ -1,3 +1,7 @@
+import "../presenters/presenters.css";
+import { usePresenters } from "../presenters/use-presenters";
+import { presenters, sourceCapabilities, STANDARD } from "../presenters/registry";
+import type { PresenterSelection } from "../presenters/types";
 // src/reader/ReaderScreen.tsx
 // The reader view for one book: top bar, settings modal, and SpeedReader.
 // Receives the already-hydrated stream + effective settings + initial index,
@@ -17,6 +21,8 @@ import { SettingsModal, themeTokens } from "../settings";
 import type { GlobalSettings, ReaderSettings } from "../settings";
 
 export interface ReaderScreenProps {
+  presenterSelection?: PresenterSelection;
+  onPresenterSelection?(selection: PresenterSelection): void;
   stream: WordStream;
   title: string;
   /** Effective settings (global merged with per-book overrides). */
@@ -40,6 +46,7 @@ export interface ReaderScreenProps {
   onInteractionSubmit?: (response: InteractionResponse) => Promise<void>;
   initialDeliveredTriggerIds?: string[];
   onEngineEvent?: (event: ReaderEngineEvent) => Promise<void> | void;
+  onPresenterEventDelivered?: (event: ReaderEngineEvent) => Promise<void>;
   liveError?: string | null;
   sourceFormat?: string;
   offline?: boolean;
@@ -47,7 +54,9 @@ export interface ReaderScreenProps {
   onRetry?: () => void;
 }
 
-export function ReaderScreen({ stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent, liveError, sourceFormat, offline, onPause, onRetry }: ReaderScreenProps) {
+export function ReaderScreen({ presenterSelection = STANDARD, onPresenterSelection, stream, title, settings, initialIndex, onBack, onPositionChange, onSettingsChange, onSettingsReset, initialCompletedInteractionIds, onInteractionResolved, initialInteractionRecords, onInteractionCommitted, onInteractionSubmit, initialDeliveredTriggerIds, onEngineEvent, onPresenterEventDelivered, liveError, sourceFormat, offline, onPause, onRetry }: ReaderScreenProps) {
+  const presented = usePresenters(stream, sourceFormat ?? "", presenterSelection);
+  const layoutChoices = presenters.compatible(sourceCapabilities(sourceFormat ?? "")).filter(item => item.role === "layout");
   useEffect(() => protectReaderSession(), []);
   const audioEngine = useAudioEngine(settings.readAloudVoice);
   useEffect(() => { if (!settings.readAloudEnabled) audioEngine.release(); }, [settings.readAloudEnabled, audioEngine.release]);
@@ -124,13 +133,28 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
         <span style={{ flex: 1 }}>{audioStatus.error || `Read aloud · ${audioStatus.state}${observedWpm === null ? "" : ` · ${Math.round(observedWpm)} WPM`}`}</span>
         <button onClick={() => setShowSettings(true)}>Speech settings</button>
       </div>}
+      {presented.error && <div role="alert" style={{ background: t.panel, color: t.fg, padding: 12 }}>
+        Reading experience unavailable: {presented.error}. Showing Standard.
+        <button onClick={() => { setPauseRequest(value => value + 1); onPresenterSelection?.(STANDARD); }}>Use Standard</button>
+      </div>}
       <SettingsModal
+        readingExperience={onPresenterSelection && layoutChoices.length > 0 && <label style={{ display: "block", padding: "12px 0" }}>
+          Reading experience{" "}
+          <select value={presenterSelection.layout} onChange={event => {
+            setPauseRequest(value => value + 1);
+            onPresenterSelection({ ...presenterSelection, layout: event.target.value });
+          }}>
+            <option value="standard">Standard</option>
+            {layoutChoices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+          <p>Saved for this title. Layout applies to continuous text; RSVP keeps its word display.</p>
+        </label>}
         audioSettings={audioPreview && <AudioPanel theme={settings.theme} settings={settings} onChange={patch => {
         if (patch.readAloudVoice) { setAudioMeasurements(undefined); setObservedWpm(null); setAudioStatus({ state: "paused" }); }
         onSettingsChange(patch);
       }} store={audioEngine.store}
         getEngine={audioEngine.getEngine} pauseReader={() => setPauseRequest(value => value + 1)} mainRunning={running}
-        metadata={audioEngine.metadata} release={audioEngine.release} backend={audioEngine.backend} selectBackend={value => {
+        metadata={audioEngine.metadata} release={audioEngine.release} backend={audioEngine.backend} backendWarning={audioEngine.backendWarning} selectBackend={value => {
           setAudioMeasurements(undefined); setAudioStatus({ state: "paused" }); audioEngine.selectBackend(value);
         }} state={audioStatus.state} error={audioStatus.error} measurements={audioMeasurements} observedWpm={observedWpm} />}
         open={showSettings}
@@ -155,8 +179,9 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           </div>
         ) : <SpeedReader
           pauseRequest={pauseRequest}
-          audio={audioPreview ? { settings, engine: audioEngine.getEngine, onStatus: handleAudioStatus, onMeasurements: setAudioMeasurements, onObservedWpm: setObservedWpm } : undefined}
-          stream={stream}
+          audio={audioPreview ? { title, settings, engine: audioEngine.getEngine, onStatus: handleAudioStatus, onMeasurements: setAudioMeasurements, onObservedWpm: setObservedWpm } : undefined}
+          stream={presented.stream}
+          layouts={presented.layouts}
           pacing={pacing}
           config={{ wpm: settings.wpm }}
           fontFamily={settings.fontFamily}
@@ -174,9 +199,24 @@ export function ReaderScreen({ stream, title, settings, initialIndex, onBack, on
           onInteractionResolved={onInteractionResolved}
           initialInteractionRecords={initialInteractionRecords}
           onInteractionCommitted={onInteractionCommitted}
-          onInteractionSubmit={onInteractionSubmit}
+          onInteractionSubmit={async response => {
+            const interaction = presented.stream.interactions?.find(item => item.id === response.interactionId);
+            if (!await presented.handleEvent({ schemaVersion: 1, eventId: response.interactionId,
+              kind: "interaction-response", interactionId: response.interactionId, response,
+              boundary: interaction?.boundary ?? 0, position: interaction?.boundary ?? 0 })) {
+              if (response.interactionId.startsWith("presenter:")) throw new Error("This reading experience is no longer active.");
+              await onInteractionSubmit?.(response);
+            }
+          }}
           initialDeliveredTriggerIds={initialDeliveredTriggerIds}
-          onEngineEvent={onEngineEvent}
+          onEngineEvent={async event => {
+            if (await presented.handleEvent(event)) await onPresenterEventDelivered?.(event);
+            else {
+              const id = event.kind === "trigger" ? event.triggerId : event.interactionId;
+              if (id.startsWith("presenter:")) throw new Error("This reading experience is no longer active.");
+              await onEngineEvent?.(event);
+            }
+          }}
         />}
       </div>
 

@@ -508,7 +508,7 @@ Resuming after buffer recovery must not override a user's intervening Pause.
 | Content edit | Invalidate affected chunks and alignments |
 | Interaction | Pause at boundary; obey existing resolution/resume semantics |
 | Leave reader/change book | Stop, cancel, save and release resources |
-| Background/lock screen | Pause and save |
+| Background/lock screen | Save position; keep active read aloud when background listening is enabled and the browser permits it. Otherwise pause. |
 | Reopen | Restore word/settings; wait for Play |
 
 All worker requests carry a session ID, content revision and settings revision.
@@ -813,3 +813,34 @@ by the reader's engine. The existing experimental availability gate is retained.
 Read aloud controls are now visible by default in development and production,
 including GitHub Pages. No `?kokoro=1` flag is required. The Experimental badge
 remains, and voice installation and playback are still opt-in.
+
+
+## Background listening and backend persistence (2026-09-24)
+
+The Speech backend selector remembers CPU/WASM or WebGPU for this browser across
+books, voice changes and reloads. This device preference is separate from
+per-book reading settings. An explicit “Retry with CPU” also saves CPU as the
+preferred backend. Storage failures are reported in the speech panel.
+
+“Continue reading aloud in background” is enabled by default and follows the
+existing global/per-title settings inheritance. When enabled, hiding an actively
+speaking reader no longer closes its AudioContext. Visual-only reading still
+pauses; page navigation and reader teardown stop playback. A paused or interrupted
+device is retired on return so the next explicit Play can create a fresh device.
+Returning to the app never starts playback automatically.
+
+Media Session provides the book title and routes supported play/pause/stop
+actions to the existing audio transport, including its interaction gates.
+The existing Audio Session playback request addresses Safari media routing.
+
+This is best-effort live background synthesis, not a downloaded audiobook player.
+A browser can still suspend AudioContext, JavaScript or the synthesis worker,
+especially on mobile or after locking the screen. Neither Media Session nor a
+service worker grants unrestricted background execution. Closing or terminating
+the app cannot continue this stream. No synthetic silent keepalive is used.
+
+Validation includes preference persistence, lifecycle and media-control tests,
+plus Chromium settings smoke checks and synthetic PCM playback through a
+simulated visibility change (including continued chunk production). These do not
+emulate OS suspension. Physical iOS/Safari lock-screen and long-duration
+background playback need device testing.

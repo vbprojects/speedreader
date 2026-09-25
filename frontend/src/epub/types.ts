@@ -56,6 +56,7 @@ export interface StreamMeta {
 }
 
 export interface WordStream {
+  blocks?: import("../presenters/types").SemanticBlock[];
   words: Word[];
   /** Derived TOC: sorted chapter ranges. Built by scanning the words once. */
   chapterIndex: ChapterEntry[];

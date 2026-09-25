@@ -5,6 +5,25 @@ A running log of setup, findings, and decisions for the speedreader project.
 ---
 
 
+## 2026-09-24 — Remembered speech backend and background listening
+
+- Remember CPU/WASM or WebGPU selection in browser-local storage across readers and reloads; display a warning if the choice cannot be saved.
+- Added a persisted “Continue reading aloud in background” setting, enabled by default. Active read aloud survives visibility changes; visual-only reading still pauses and navigation closes the audio device.
+- Added Media Session title and play/pause/stop handlers where supported. Existing playback-session routing and word-boundary interaction gates remain in use.
+- Background execution remains browser-controlled: suspending or terminating the PWA can interrupt audio or synthesis. Physical iOS lock-screen playback remains unverified.
+
+---
+
+## 2026-09-17 — Selectable reading experiences
+
+- Added per-title Reading experience settings: opt-in EPUB Book layout and Bluesky Post cards, with Standard retained as the default.
+- Introduced semantic word ranges and a presenter registry/session pipeline for layouts, owned interactions and triggers. Layout changes preserve canonical words, reading position and speech alignment.
+- Added EPUB heading/paragraph extraction and complete Bluesky post ranges, with presentation-time attribution and legacy cached-content fallback.
+- Retain newly imported EPUB originals in IndexedDB; duplicate imports can backfill originals without resetting progress. Permanent deletion removes originals too.
+- Added source-storage migration, presenter lifecycle/action routing, rendering and import recovery tests. Documented the extension contract in [Presenters](docs/presenters.md); generated quizzes remain deferred.
+
+---
+
 ## 2026-09-16 — OpenBooks connector prototype
 
 - Added saved user-owned HTTPS OpenBooks servers to Foreign Libraries, with direct WSS search and EPUB/PDF results.

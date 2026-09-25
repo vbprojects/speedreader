@@ -8,6 +8,13 @@ The core idea is **separation of concerns**: each stage of the pipeline is an in
 
 ---
 
+## Presenters (implemented first release)
+
+See [Presenters: selectable reading experiences](docs/presenters.md) for the
+canonical stream → presenter → reader layer, opt-in EPUB/Bluesky layouts,
+original EPUB retention, compatibility and validation. AI chapter review is a
+deferred behavior-presenter extension.
+
 ## Architecture
 
 ### High-Level Pipeline

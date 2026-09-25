@@ -52,6 +52,11 @@ function escapeHtml(text: string): string {
   })[character]!);
 }
 
+function postLink(uri: string): string | undefined {
+  const match = /^at:\/\/([^/]+)\/app\.bsky\.feed\.post\/([^/]+)$/.exec(uri);
+  return match ? `https://bsky.app/profile/${encodeURIComponent(match[1])}/post/${encodeURIComponent(match[2])}` : undefined;
+}
+
 function initialState(saved?: JetstreamState): JetstreamState {
   if (saved?.schemaVersion === 1) {
     return {
@@ -115,6 +120,8 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
     let disposed = false;
     let words: Word[] = [];
     let presentations: HtmlPresentation[] = [];
+    let processingPost = false;
+    let blocks: import("../../presenters/types").SemanticBlock[] = [];
     let triggers: EngineTrigger[] = [];
     let postCount = 0;
     let stateDirty = false;
@@ -141,14 +148,7 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       return `@${actor?.handle ?? did}`;
     };
 
-    const finishPost = (key: string) => {
-      presentations.push({
-        schemaVersion: 1,
-        id: `jetstream:post-separator:${key}`,
-        boundary: words.length,
-        kind: "html",
-        html: "<br><hr><br>",
-      });
+    const finishPost = () => {
       postCount += 1;
       this.state.acceptedPostCount += 1;
       if (postCount === this.postsPerWindow - this.wakeRemainingPosts) {
@@ -165,9 +165,6 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           direction: "forward",
         });
       }
-      // Every accepted post is its own append so it becomes visible as soon
-      // as enrichment and filtering finish.
-      flush();
       if (postCount >= this.postsPerWindow) {
         postCount = 0;
         pausedForWindowCapacity = false;
@@ -177,8 +174,9 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
     };
 
     const flush = () => {
-      if (disposed || (!stateDirty && words.length === 0 && triggers.length === 0)) return;
+      if (processingPost || disposed || (!stateDirty && words.length === 0 && triggers.length === 0)) return;
       if (words.length === 0 && Date.now() - lastCursorFlushAt < 1_000) return;
+      const emittedBlocks = blocks; blocks = [];
       const emittedWords = words;
       const emittedPresentations = presentations;
       const emittedTriggers = triggers;
@@ -189,6 +187,7 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
       lastCursorFlushAt = Date.now();
       onChunk({
         words: emittedWords,
+        blocks: emittedBlocks,
         presentations: emittedPresentations,
         triggers: emittedTriggers,
         chapterUpdates: emittedWords.length > 0 ? [{
@@ -242,10 +241,12 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
         }
         eventQueue = eventQueue.then(async () => {
           if (disposed) return;
+          processingPost = true;
           this.state.cursor = event.cursor ?? event.time_us;
           this.state.cursorKind = event.cursor === undefined ? "time-us" : "sequence";
           this.state.lastTimeUs = event.time_us;
           stateDirty = true;
+          const blockStart = words.length;
           if (post) {
             const quotedUri = quoteUri(post.commit.record);
             if (quotedUri) {
@@ -260,9 +261,15 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
               }
             }
 
-            addPresentation(`${key}:author`, `<p><strong>${escapeHtml(await actorLabel(post.did))}</strong></p>`);
+            const author = await actorLabel(post.did);
+            const authorBoundary = words.length;
             appendWords(postWords!);
-            finishPost(key);
+            finishPost();
+            blocks.push({ id: key, sourceRef: `at://${post.did}/app.bsky.feed.post/${post.commit.rkey}`,
+              kind: "post", start: blockStart, end: words.length, author, authorBoundary,
+              timestamp: typeof post.commit.record.createdAt === "string" ? post.commit.record.createdAt : undefined,
+              url: `https://bsky.app/profile/${encodeURIComponent(post.did)}/post/${encodeURIComponent(post.commit.rkey)}`,
+              presentationIds: [`${key}:author`, `jetstream:post-separator:${key}`] });
             return;
           }
 
@@ -270,12 +277,19 @@ export class BlueskyJetstreamFormat implements InteractiveFormat<JetstreamInput,
           if (!original || (original.langs && !original.langs.some((lang) => /^en(?:-|$)/i.test(lang)))) return;
           const originalWords = formatJetstreamText(original.text);
           if (originalWords.length === 0) return;
-          addPresentation(`${key}:reposter`, `<p><strong>${escapeHtml(await actorLabel(repost!.did))}</strong> reposted</p>`);
-          addPresentation(`${key}:original-author`, `<p><strong>${escapeHtml(`@${original.author.handle}`)}</strong></p>`);
+          const reposter = await actorLabel(repost!.did);
           appendWords(originalWords);
-          finishPost(key);
+          finishPost();
+          blocks.push({ id: key, sourceRef: repost!.commit.record.subject.uri, kind: "post",
+            start: blockStart, end: words.length, authorBoundary: blockStart, reposter,
+            url: postLink(repost!.commit.record.subject.uri),
+            timestamp: typeof repost!.commit.record.createdAt === "string" ? repost!.commit.record.createdAt : undefined, author: `@${original.author.handle}`,
+            presentationIds: [`${key}:reposter`, `${key}:original-author`, `jetstream:post-separator:${key}`] });
         }).catch((error: unknown) => onError(error instanceof Error ? error : new Error(String(error))))
           .finally(() => {
+            processingPost = false;
+            // Emit only after both words and their complete structural range exist.
+            flush();
             pendingEvents--;
             reservedPosts--;
             if (pausedForBackpressure && pendingEvents <= RESUME_PENDING_EVENTS) {

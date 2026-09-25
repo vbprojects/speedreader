@@ -1,3 +1,4 @@
+import { loadSpeechBackend, saveSpeechBackend } from "./backend-preference";
 import { DEFAULT_VOICE } from "./voice-catalog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KokoroEngine } from "./kokoro-engine";
@@ -11,8 +12,9 @@ export function useAudioEngine(voice = DEFAULT_VOICE) {
   const pending = useRef<Promise<KokoroEngine> | null>(null);
   const engine = useRef<KokoroEngine | null>(null);
   const generation = useRef(0);
-  const preferred = useRef<"wasm" | "webgpu">("wasm");
-  const [backend, setBackend] = useState<"wasm" | "webgpu">("wasm");
+  const [backend, setBackend] = useState(loadSpeechBackend);
+  const preferred = useRef(backend);
+  const [backendWarning, setBackendWarning] = useState("");
   const release = useCallback(() => {
     generation.current++; engine.current?.dispose(); engine.current = null; pending.current = null;
   }, []);
@@ -37,9 +39,11 @@ export function useAudioEngine(voice = DEFAULT_VOICE) {
     return pending.current;
   }, [metadata, store, voice, pack]);
   const selectBackend = useCallback((value: "wasm" | "webgpu") => {
+    try { saveSpeechBackend(value); setBackendWarning(""); }
+    catch { setBackendWarning("This backend is selected for now, but could not be saved in this browser."); }
     preferred.current = value; setBackend(value); release();
   }, [release]);
-  return { store, metadata, getEngine, release, backend, selectBackend };
+  return { store, metadata, getEngine, release, backend, backendWarning, selectBackend };
 }
 export function audioPreviewEnabled(): boolean {
   // Experimental controls are visible in all builds; playback remains opt-in.

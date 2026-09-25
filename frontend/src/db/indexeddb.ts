@@ -8,11 +8,12 @@ import type { Book, CoverImage, Db, ReaderState, StoredInteractiveSource, Stored
 import { appendToWordStream } from "../ingestion/interactive";
 
 const DB_NAME = "speedreader";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORE_BOOKS = "books";
 const STORE_STREAMS = "streams";
 const STORE_STATES = "readerStates";
+const STORE_FILES = "sourceFiles";
 const STORE_SOURCES = "interactiveSources";
 
 function openDb(): Promise<IDBDatabase> {
@@ -20,6 +21,7 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_FILES)) db.createObjectStore(STORE_FILES, { keyPath: "bookId" });
       if (!db.objectStoreNames.contains(STORE_BOOKS)) {
         db.createObjectStore(STORE_BOOKS, { keyPath: "id" });
       }
@@ -33,7 +35,7 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore(STORE_SOURCES, { keyPath: "bookId" });
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => { req.result.onversionchange = () => req.result.close(); resolve(req.result); };
     req.onerror = () => reject(req.error ?? new Error("Failed to open IndexedDB"));
     req.onblocked = () => reject(new Error("IndexedDB open blocked"));
   });
@@ -62,6 +64,16 @@ export class IndexedDb implements Db {
     return this.dbPromise;
   }
 
+  async getSourceFile(bookId: string): Promise<import("./types").StoredSourceFile | null> {
+    const db = await this.db();
+    return (await reqResult(db.transaction(STORE_FILES, "readonly").objectStore(STORE_FILES).get(bookId))) ?? null;
+  }
+  async saveSourceFile(source: import("./types").StoredSourceFile): Promise<void> {
+    const db = await this.db();
+    const tx = db.transaction(STORE_FILES, "readwrite");
+    tx.objectStore(STORE_FILES).put(source);
+    await txDone(tx);
+  }
   async getBook(id: string): Promise<Book | null> {
     const db = await this.db();
     const tx = db.transaction(STORE_BOOKS, "readonly");
@@ -146,7 +158,8 @@ export class IndexedDb implements Db {
     bookId: string,
     newWords: import("../epub/types").Word[],
     options?: {
-      chapterUpdates?: import("../epub/types").ChapterEntry[];
+      blocks?: import("../presenters/types").SemanticBlock[];
+    chapterUpdates?: import("../epub/types").ChapterEntry[];
       interactions?: import("../interactions/types").ReaderInteraction[];
       presentations?: import("../presentation/types").HtmlPresentation[];
       triggers?: import("../engine-events/types").EngineTrigger[];
@@ -168,23 +181,10 @@ export class IndexedDb implements Db {
           if (rec?.stream) {
             updatedStream = appendToWordStream(rec.stream, newWords, options);
           } else {
-            const offsetWords = newWords.map((w, i) => ({ ...w, index: i }));
-            const totalLen = offsetWords.reduce((sum, word) => sum + word.text.length, 0);
-            updatedStream = {
-              words: offsetWords,
-              chapterIndex: options?.chapterUpdates ?? [],
-              meta: {
-                totalWords: offsetWords.length,
-                avgWordLength: offsetWords.length ? totalLen / offsetWords.length : 0,
-                isDeterministic: false,
-                isComplete: options?.isComplete ?? false,
-                totalWordsExpected: options?.totalWordsExpected,
-                chapterAttribute: "chapterId",
-              },
-              ...(options?.interactions?.length ? { interactions: options.interactions } : {}),
-              ...(options?.presentations?.length ? { presentations: options.presentations } : {}),
-              ...(options?.triggers?.length ? { triggers: options.triggers } : {}),
-            };
+            updatedStream = appendToWordStream({
+              words: [], chapterIndex: [],
+              meta: { totalWords: 0, avgWordLength: 0, isDeterministic: false, isComplete: false, chapterAttribute: "chapterId" },
+            }, newWords, options);
           }
           // Keep the read-modify-write operation inside this request callback;
           // yielding here lets IndexedDB auto-commit the transaction.
@@ -249,11 +249,12 @@ export class IndexedDb implements Db {
 
   async deleteBookCascade(bookId: string): Promise<void> {
     const db = await this.db();
-    const tx = db.transaction([STORE_BOOKS, STORE_STREAMS, STORE_STATES, STORE_SOURCES], "readwrite");
+    const tx = db.transaction([STORE_BOOKS, STORE_STREAMS, STORE_STATES, STORE_SOURCES, STORE_FILES], "readwrite");
     tx.objectStore(STORE_BOOKS).delete(bookId);
     tx.objectStore(STORE_STREAMS).delete(bookId);
     tx.objectStore(STORE_STATES).delete(bookId);
     tx.objectStore(STORE_SOURCES).delete(bookId);
+    tx.objectStore(STORE_FILES).delete(bookId);
     await txDone(tx);
   }
 }

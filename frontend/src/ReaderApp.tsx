@@ -320,14 +320,15 @@ export default function ReaderApp() {
     [enqueueReaderState, library, global]
   );
 
+  const activeSourceFormat = books.find(book => book.id === openBookId)?.format;
+
   // A live format owns its connection only while its library book is open.
   useEffect(() => {
     if (!openBookId || !online) return;
     let disposed = false;
     let stop: (() => void) | null = null;
-    const book = books.find((candidate) => candidate.id === openBookId);
-    if (book?.format === OPENAI_COMPATIBLE_FORMAT && !llmConnection.current) return;
-    const formatInput = book?.format === OPENAI_COMPATIBLE_FORMAT && llmConnection.current
+    if (activeSourceFormat === OPENAI_COMPATIBLE_FORMAT && !llmConnection.current) return;
+    const formatInput = activeSourceFormat === OPENAI_COMPATIBLE_FORMAT && llmConnection.current
       ? { connection: llmConnection.current }
       : undefined;
     void library.startStreamingBook(
@@ -362,7 +363,7 @@ export default function ReaderApp() {
       disposed = true;
       stop?.();
     };
-  }, [books, enqueueReaderState, library, openBookId, online, streamAttempt]);
+  }, [activeSourceFormat, enqueueReaderState, library, openBookId, online, streamAttempt]);
 
   const handleEngineEvent = useCallback(async (event: ReaderEngineEvent) => {
     const bookId = openBookId;
@@ -562,6 +563,15 @@ export default function ReaderApp() {
   if (openStream && openBookId && readerSettings) {
     return (
       <ReaderScreen
+        key={openBookId}
+        presenterSelection={books.find(book => book.id === openBookId)?.presenterSelection}
+        onPresenterSelection={selection => {
+          saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+            await library.setPresenterSelection(openBookId, selection);
+            setBooks(previous => previous.map(book => book.id === openBookId ? { ...book, presenterSelection: selection } : book));
+          });
+          void saveQueue.current.catch(error => setError(`Could not save reading experience: ${error instanceof Error ? error.message : String(error)}. Select it again to retry.`));
+        }}
         stream={openStream}
         title={books.find((b) => b.id === openBookId)?.title ?? "Book"}
         settings={readerSettings}
@@ -575,6 +585,12 @@ export default function ReaderApp() {
         initialInteractionRecords={interactionRecords}
         onInteractionCommitted={handleInteractionCommitted}
         initialDeliveredTriggerIds={deliveredTriggerIds}
+        onPresenterEventDelivered={async event => {
+          if (event.kind !== "trigger") return;
+          latestDeliveredTriggerIds.current = Array.from(new Set([...latestDeliveredTriggerIds.current, event.triggerId]));
+          setDeliveredTriggerIds([...latestDeliveredTriggerIds.current]);
+          await enqueueReaderState(openBookId, latestPosition.current, latestSettings.current);
+        }}
         onEngineEvent={handleEngineEvent}
         onInteractionSubmit={handleInteractionEngineSubmit}
         liveError={error}

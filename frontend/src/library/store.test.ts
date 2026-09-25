@@ -16,6 +16,10 @@ import { JSDOM } from "jsdom";
 import JSZip from "jszip";
 
 class MemoryDb implements Db {
+  files = new Map<string, import("../db/types").StoredSourceFile>();
+  async getSourceFile(id: string) { return this.files.get(id) ?? null; }
+  async saveSourceFile(file: import("../db/types").StoredSourceFile) { this.files.set(file.bookId, file); }
+
   books = new Map<string, Book>();
   streams = new Map<string, WordStream>();
   states = new Map<string, ReaderState>();
@@ -52,6 +56,7 @@ class MemoryDb implements Db {
     this.streams.delete(bookId);
     this.states.delete(bookId);
     this.sources.delete(bookId);
+    this.files.delete(bookId);
   }
 }
 
@@ -335,4 +340,43 @@ test("blank imports fail without creating an unusable library tile", async () =>
   const library = new LibraryStore(db, new IngestionEngine([new TextParser()]));
   await rejects(() => library.importFile(textFile(" \n\n ")), /No readable text/);
   equal((await library.getBooks()).length, 0);
+});
+
+test("EPUB originals survive reopen, duplicate backfill and removal without reparsing or resetting progress", async () => {
+  const { textToStream } = await import("../ingestion/text");
+  let parses = 0;
+  const parser = { format: "epub", canParse: () => true, async parse() { parses++; return textToStream("A chapter."); } };
+  const db = new MemoryDb();
+  const library = new LibraryStore(db, new IngestionEngine([parser]));
+  const file = { name: "test.epub", extension: "epub", data: new Uint8Array([9,8,7]).buffer };
+  const first = await library.importFile(file);
+  deepStrictEqual((await db.getSourceFile(first.book.id))?.data, file.data);
+  await library.saveReaderState({ bookId: first.book.id, position: 1, lastOpenedAt: 1, settings: {} });
+  await library.setPresenterSelection(first.book.id, { layout: "book-layout", behaviors: [] });
+  db.files.clear(); // simulate a legacy import
+  const duplicate = await library.importFile(file);
+  equal(duplicate.existed, true);
+  equal(parses, 1);
+  equal(duplicate.stream, first.stream);
+  equal((await library.getReaderState(first.book.id))?.position, 1);
+  await library.trashBook(first.book.id);
+  await library.restoreBook(first.book.id);
+  equal((await db.getBook(first.book.id))?.presenterSelection?.layout, "book-layout");
+  equal((await db.getSourceFile(first.book.id))?.name, "test.epub");
+  await library.removeBook(first.book.id);
+  equal(await db.getSourceFile(first.book.id), null);
+});
+
+test("source storage failure rejects EPUB import and retry can recover", async () => {
+  const { textToStream } = await import("../ingestion/text");
+  const db = new MemoryDb();
+  const library = new LibraryStore(db, new IngestionEngine([{ format: "epub", canParse: () => true,
+    async parse() { return textToStream("Recoverable book."); } }]));
+  const save = db.saveSourceFile.bind(db);
+  db.saveSourceFile = async () => { throw Error("quota exceeded"); };
+  const file = { name: "quota.epub", extension: "epub", data: new Uint8Array([6,5,4]).buffer };
+  await rejects(library.importFile(file), /quota/);
+  equal((await db.getBooks()).length, 0);
+  db.saveSourceFile = save;
+  equal((await library.importFile(file)).existed, false);
 });

@@ -33,7 +33,7 @@ import {
 } from "../ingestion/sugarcube";
 
 /** Bump when the parser output shape changes → cached streams re-ingest. */
-export const PARSER_VERSION = 1;
+export const PARSER_VERSION = 2;
 
 export class LibraryStore {
   private activeFormats = new Map<string, InteractiveFormat<unknown, Record<string, unknown>>>();
@@ -111,6 +111,7 @@ export class LibraryStore {
           const updated = await this.appendWords(bookId, chunk.words, {
             chapterUpdates: chunk.chapterUpdates,
             interactions: chunk.interactions,
+            blocks: chunk.blocks,
             presentations: chunk.presentations,
             triggers: chunk.triggers,
             isComplete: chunk.isComplete,
@@ -166,6 +167,12 @@ export class LibraryStore {
       }
     }
     const id = await sha256(file.data);
+
+    if (this.engine.parserFor(file)?.format === "epub" && !(await this.db.getSourceFile(id))) {
+      // Save first: failures cannot produce an apparently successful import.
+      // A retained source without a book is recoverable by retrying this import.
+      await this.db.saveSourceFile({ bookId: id, ...file });
+    }
 
     // Dedupe: identical bytes → reuse the existing book (no duplicate tile).
     const existing = await this.db.getBook(id);
@@ -340,6 +347,7 @@ export class LibraryStore {
     bookId: string,
     newWords: import("../epub/types").Word[],
     options?: {
+      blocks?: import("../presenters/types").SemanticBlock[];
       chapterUpdates?: import("../epub/types").ChapterEntry[];
       interactions?: import("../interactions/types").ReaderInteraction[];
       presentations?: import("../presentation/types").HtmlPresentation[];
@@ -356,6 +364,10 @@ export class LibraryStore {
       formatState: options?.formatState,
     });
     return updatedStream;
+  }
+
+  async setPresenterSelection(bookId: string, selection: import("../presenters/types").PresenterSelection): Promise<void> {
+    await this.db.updateBook(bookId, { presenterSelection: selection });
   }
 
   /** Open a book by id: load its cached stream (no re-parse). */

@@ -1,3 +1,4 @@
+import { validateBlocks } from "../presenters/blocks";
 // src/ingestion/interactive.ts
 // Abstract contracts and base abstractions for interactive and dynamic formats.
 // Unlike one-shot batch parsers, an InteractiveFormat produces words
@@ -29,6 +30,7 @@ export interface StreamChunk<TState = Record<string, unknown>> {
   isComplete: boolean;
   /** Estimated or updated total words expected, if known. */
   totalWordsExpected?: number;
+  blocks?: import("../presenters/types").SemanticBlock[];
 }
 
 /**
@@ -70,6 +72,7 @@ export function appendToWordStream(
   stream: WordStream,
   newWords: Word[],
   options?: {
+    blocks?: import("../presenters/types").SemanticBlock[];
     chapterUpdates?: ChapterEntry[];
     interactions?: ReaderInteraction[];
     presentations?: HtmlPresentation[];
@@ -83,6 +86,7 @@ export function appendToWordStream(
   const hasTriggers = (options?.triggers?.length ?? 0) > 0;
   if (
     newWords.length === 0 &&
+    !options?.blocks?.length &&
     !options?.chapterUpdates &&
     !hasInteractions &&
     !hasPresentations &&
@@ -160,6 +164,8 @@ export function appendToWordStream(
   };
 
   return {
+    blocks: validateBlocks([...(stream.blocks ?? []), ...validateBlocks(options?.blocks ?? [], newWords.length)
+      .map(block => ({ ...block, start: block.start + offset, end: block.end + offset, authorBoundary: block.authorBoundary === undefined ? undefined : block.authorBoundary + offset }))], total),
     words: mergedWords,
     chapterIndex: mergedChapters,
     meta,

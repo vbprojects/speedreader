@@ -9,6 +9,6 @@ export default function VoiceDownloads({ settings, onChange }: {
   const engine = useAudioEngine(settings.readAloudVoice);
   return audioPreviewEnabled() ? <AudioPanel settings={settings} onChange={onChange} theme={settings.theme}
     store={engine.store} metadata={engine.metadata} release={engine.release}
-    getEngine={engine.getEngine} backend={engine.backend} selectBackend={engine.selectBackend}
+    getEngine={engine.getEngine} backend={engine.backend} backendWarning={engine.backendWarning} selectBackend={engine.selectBackend}
     pauseReader={() => {}} mainRunning={false} observedWpm={null} state="Ready" /> : null;
 }
