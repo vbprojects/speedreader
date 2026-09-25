@@ -27,7 +27,7 @@
     "epubjs": "^0.3.93",
     "jszip": "^3.10.1",
     "onnxruntime-web": "1.30.0",
-    "pdfjs-dist": "6.2.108",
+    "pdfjs-dist": "6.3.289",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
