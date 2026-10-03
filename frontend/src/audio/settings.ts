@@ -1,4 +1,4 @@
-import { DEFAULT_VOICE, isPiperVoice } from "./voice-catalog";
+import { DEFAULT_VOICE, isPiperVoice, isKittenVoice } from "./voice-catalog";
 /** Persisted preferences only; installation and playback state live elsewhere. */
 export interface AudioSettings {
   readAloudEnabled: boolean;
@@ -23,7 +23,7 @@ export function audioSettingsPatch(value: unknown): Partial<AudioSettings> {
   const result: Partial<AudioSettings> = {};
   if (typeof input.readAloudInBackground === "boolean") result.readAloudInBackground = input.readAloudInBackground;
   if (typeof input.readAloudEnabled === "boolean") result.readAloudEnabled = input.readAloudEnabled;
-  if (typeof input.readAloudVoice === "string" && (isPiperVoice(input.readAloudVoice) || /^[ab][fm]_[a-z0-9_]{1,48}$/.test(input.readAloudVoice))) {
+  if (typeof input.readAloudVoice === "string" && (isPiperVoice(input.readAloudVoice) || isKittenVoice(input.readAloudVoice) || /^[ab][fm]_[a-z0-9_]{1,48}$/.test(input.readAloudVoice))) {
     result.readAloudVoice = input.readAloudVoice;
   }
   for (const key of ["kokoroPacing", "speechCompression"] as const) {

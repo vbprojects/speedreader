@@ -844,3 +844,41 @@ plus Chromium settings smoke checks and synthetic PCM playback through a
 simulated visibility change (including continued chunk production). These do not
 emulate OS suspension. Physical iOS/Safari lock-screen and long-duration
 background playback need device testing.
+
+## KittenTTS Nano adapter (2026-10-03)
+
+The shared Speech model selector now includes KittenTTS Nano 0.8, with eight
+voices (Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki and Leo) and INT8/FP32
+precision choices. Existing Piper defaults and persisted selections still apply.
+Each choice has its own verified install/repair/remove state, while model,
+NPZ voice tables, dictionary and WASM assets are shared by digest. Downloads
+use the immutable revisions and hashes from the alternatives experiment;
+Kitten graphs already export `duration` and need no ONNX output patch.
+
+Both variants use CPU/WASM by default. INT8 explicitly rejects WebGPU before
+allocating a runtime, with a recovery message to choose CPU or FP32. FP32 allows
+experimental WebGPU selection; GPU performance and listening quality still
+require device testing. Native pacing multiplies the selected voice's pinned
+speed prior (0.8, or 0.9 for Hugo). Style selection uses normalized spoken-text
+length with the upstream row clamp; this length also participates in PCM cache
+identity. No Kokoro-specific approximate WPM estimate is shown for Kitten.
+
+The browser adapter retains HeadTTS normalization and original-word provenance,
+converts compact English symbols to IPA, and uses Kitten's pinned vocabulary and
+punctuation tokenizer. This differs from the reference eSpeak frontend, so
+pronunciation/prosody and audible word-onset fidelity need listening checks.
+Chunks split at complete source words after conversion if they exceed 512 input
+tokens. Silent words retain empty token/sample spans; unresolved interactions
+still bound speech. Kitten's native durations are checked against the full raw
+waveform at 600 samples per frame and 24 kHz. The upstream 5,000-sample suffix
+trim is deliberately omitted to retain complete sample geometry. Compression
+continues through the existing SoundTouch path and shared audio transport.
+
+Browser smoke coverage uses the production ONNX worker: INT8 and FP32 CPU
+synthesis, native pacing, compression/cache reuse, original-word bounds,
+interaction gates, cancellation, shared-pack removal and model/voice/quality
+switching. Production UI checks install a voice, reload with all networking
+disabled, reopen Settings and synthesize a fresh preview from local assets.
+These checks establish execution and geometry, not perceptual audio quality or
+sustained background playback on physical mobile devices. Reproduction commands
+are in the alternatives experiment README.

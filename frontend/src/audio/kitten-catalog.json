@@ -1,0 +1,77 @@
+{
+  "version": "0.8",
+  "voices": [
+    {
+      "name": "Bella",
+      "key": "expr-voice-2-f",
+      "speedPrior": 0.8
+    },
+    {
+      "name": "Jasper",
+      "key": "expr-voice-2-m",
+      "speedPrior": 0.8
+    },
+    {
+      "name": "Luna",
+      "key": "expr-voice-3-f",
+      "speedPrior": 0.8
+    },
+    {
+      "name": "Bruno",
+      "key": "expr-voice-3-m",
+      "speedPrior": 0.8
+    },
+    {
+      "name": "Rosie",
+      "key": "expr-voice-4-f",
+      "speedPrior": 0.8
+    },
+    {
+      "name": "Hugo",
+      "key": "expr-voice-4-m",
+      "speedPrior": 0.9
+    },
+    {
+      "name": "Kiki",
+      "key": "expr-voice-5-f",
+      "speedPrior": 0.8
+    },
+    {
+      "name": "Leo",
+      "key": "expr-voice-5-m",
+      "speedPrior": 0.8
+    }
+  ],
+  "variants": [
+    {
+      "id": "int8",
+      "label": "INT8",
+      "model": {
+        "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/resolve/84781d74e29ee25217551556398b42f80593a813/kitten_tts_nano_v0_8.onnx",
+        "bytes": 24369971,
+        "sha256": "f7b0afcbee92870b32b8e0276d855b954dc25470c9f051b376ac7eee537c76fc"
+      },
+      "voice": {
+        "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/resolve/84781d74e29ee25217551556398b42f80593a813/voices.npz",
+        "bytes": 3278902,
+        "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f"
+      },
+      "modelCard": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/blob/84781d74e29ee25217551556398b42f80593a813/README.md"
+    },
+    {
+      "id": "fp32",
+      "label": "FP32",
+      "model": {
+        "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/kitten_tts_nano_v0_8.onnx",
+        "bytes": 56767095,
+        "sha256": "320564d2615f235de972ca27a7f39551c94185cfa24ca85b07a29084135f1e5e"
+      },
+      "voice": {
+        "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/voices.npz",
+        "bytes": 3278902,
+        "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f"
+      },
+      "modelCard": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/blob/7a1db645b1f3ab9420761d87428e042b9cec3f26/README.md"
+    }
+  ]
+}

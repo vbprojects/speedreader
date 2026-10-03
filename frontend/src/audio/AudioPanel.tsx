@@ -1,6 +1,6 @@
 import "./audio-settings.css";
 import { VoiceSelector } from "./VoiceSelector";
-import { isPiperVoice } from "./voice-catalog";
+import { speechModelLabel, kittenVoice } from "./voice-catalog";
 import { voiceLabel } from "./voice-pack";
 import { useVoiceDownload } from "./use-voice-download";
 import { useEffect, useRef, useState } from "react";
@@ -116,7 +116,7 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
     </label>
     <p className="audio-description">Backend choice is remembered for this browser across books and reloads.</p>
     {backendWarning && <p role="alert">{backendWarning}</p>}
-    <NumericSettingControl label={isPiperVoice(settings.readAloudVoice) ? "Piper pacing" : "Kokoro pacing"} value={settings.kokoroPacing} min={0.5} max={4} step={0.05}
+    <NumericSettingControl label={`${speechModelLabel(settings.readAloudVoice)} pacing`} value={settings.kokoroPacing} min={0.5} max={4} step={0.05}
       unit="×" tokens={tokens} onChange={kokoroPacing => onChange({ kokoroPacing })} />
     <NumericSettingControl label="Pitch-preserving compression" value={settings.speechCompression} min={0.5} max={4} step={0.05}
       unit="×" tokens={tokens} onChange={speechCompression => onChange({ speechCompression })} />
@@ -126,7 +126,7 @@ export function AudioPanel({ settings, onChange, store, metadata, release, backe
     <details className="audio-debug"><summary>Debug and diagnostics</summary>
     <button disabled={previewing || busy} onClick={() => void testOutput()}>Test audio output</button>
     {diagnostic && <p role="status">{diagnostic}</p>}
-    <p>{!isPiperVoice(settings.readAloudVoice) && <><a href={`${import.meta.env.BASE_URL}licenses/kokoro-model.txt`}>Model license</a>{" · "}</>}
+    <p>{speechModelLabel(settings.readAloudVoice) !== "Piper" && <><a href={kittenVoice(settings.readAloudVoice)?.variant.modelCard ?? `${import.meta.env.BASE_URL}licenses/kokoro-model.txt`}>Model license</a>{" · "}</>}
       <a href={`${import.meta.env.BASE_URL}licenses/headtts.txt`}>Phonemizer license</a>{" · "}
       <a href={`${import.meta.env.BASE_URL}licenses/cmudict.txt`}>Dictionary license</a>{" · "}
       <a href={`${import.meta.env.BASE_URL}licenses/onnxruntime.txt`}>Runtime license</a>{" · "}

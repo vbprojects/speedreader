@@ -1,3 +1,6 @@
+import { selectKittenStyle } from "./kitten-input";
+import { kittenVoice } from "./voice-catalog";
+import kittenVocabulary from "./vendor/kitten-vocabulary.json";
 import type { PiperConfig } from "./piper-input";
 import * as ort from "onnxruntime-web/webgpu";
 import { selectVoiceStyle } from "./model-input";
@@ -8,6 +11,8 @@ const worker = self as unknown as { onmessage: ((event: MessageEvent<OnnxCommand
 let session: ort.InferenceSession | null = null;
 let voice: Float32Array | null = null;
 let busy = false;
+let kind: "kokoro" | "piper" | "kitten" = "kokoro";
+const kittenIds = new Set(Object.values(kittenVocabulary));
 let piper: PiperConfig | null = null;
 const DURATION_OUTPUT = "/encoder/Gather_output_0";
 let durationOutput = DURATION_OUTPUT;
@@ -26,7 +31,8 @@ worker.onmessage = async ({ data }) => {
       ort.env.wasm.wasmPaths = { wasm: url.href };
       const start = performance.now();
       session = await ort.InferenceSession.create(data.model, { executionProviders: [data.provider] });
-      durationOutput = data.kind === "piper" ? "/Ceil_output_0" : DURATION_OUTPUT;
+      kind = data.kind ?? "kokoro";
+      durationOutput = kind === "piper" ? "/Ceil_output_0" : kind === "kitten" ? "duration" : DURATION_OUTPUT;
       if (!session.outputNames.includes(durationOutput)) {
         await session.release(); session = null;
         throw new Error("This graph does not expose native durations");
@@ -37,7 +43,9 @@ worker.onmessage = async ({ data }) => {
     } else if (data.type === "synthesize") {
       if (!session || !voice) throw new Error("Voice is not initialized");
       const { phonemeIds: ids, pacing, identity } = data.request;
-      if (ids.length < 3 || ids.length > (piper ? 2048 : 512) || ids[0] !== (piper ? 1 : 0) || ids[ids.length - 1] !== (piper ? 2 : 0) || ids.some(id => !Number.isSafeInteger(id) || id < 0 || id > (piper ? 255 : 177)) ||
+      const kitten = kind === "kitten" ? kittenVoice(data.request.voice) : undefined;
+      if (kind === "kitten" && !kitten) throw new Error("Unknown KittenTTS voice");
+      if (ids.length < 3 || ids.length > (piper ? 2048 : 512) || ids[0] !== (piper ? 1 : 0) || ids[ids.length - 1] !== (piper ? 2 : 0) || ids.some(id => !Number.isSafeInteger(id) || id < 0 || (kitten ? !kittenIds.has(id) : id > (piper ? 255 : 177))) || (kitten && ids[ids.length - 2] !== 10) ||
           !Number.isFinite(pacing) || pacing < .5 || pacing > 4) throw new Error("Invalid synthesis input; text is never truncated");
       if (identity.endWordExclusive > identity.allowedEndWordExclusive) throw new Error("Synthesis crosses an interaction boundary");
       const feeds: Record<string, ort.Tensor> = piper ? {
@@ -47,8 +55,8 @@ worker.onmessage = async ({ data }) => {
           piper.inference.length_scale / pacing, piper.inference.noise_w), [3]),
       } : {
         input_ids: new ort.Tensor("int64", BigInt64Array.from(ids, BigInt), [1, ids.length]),
-        style: new ort.Tensor("float32", selectVoiceStyle(voice, ids.length), [1, 256]),
-        speed: new ort.Tensor("float32", Float32Array.of(pacing), [1]),
+        style: new ort.Tensor("float32", kitten ? selectKittenStyle(voice, data.request.styleTextLength ?? 0) : selectVoiceStyle(voice, ids.length), [1, 256]),
+        speed: new ort.Tensor("float32", Float32Array.of(pacing * (kitten?.speedPrior ?? 1)), [1]),
       };
       const start = performance.now();
       try {
