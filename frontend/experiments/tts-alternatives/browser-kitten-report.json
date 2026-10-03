@@ -1,0 +1,62 @@
+{
+  "rows": [
+    {
+      "provider": "wasm",
+      "pacing": 1,
+      "compression": 1,
+      "samples": 142200,
+      "sampleRate": 24000,
+      "words": 8,
+      "nativeCacheHit": false,
+      "inferenceMilliseconds": 2526.7999997138977
+    },
+    {
+      "provider": "wasm",
+      "pacing": 1,
+      "compression": 2,
+      "samples": 71116,
+      "sampleRate": 24000,
+      "words": 8,
+      "nativeCacheHit": true,
+      "inferenceMilliseconds": 0
+    },
+    {
+      "provider": "wasm",
+      "pacing": 2,
+      "compression": 1,
+      "samples": 68400,
+      "sampleRate": 24000,
+      "words": 8,
+      "nativeCacheHit": false,
+      "inferenceMilliseconds": 1125.5
+    },
+    {
+      "provider": "wasm",
+      "precision": "fp32",
+      "pacing": 1,
+      "compression": 1,
+      "samples": 96600,
+      "sampleRate": 24000,
+      "words": 4,
+      "inferenceMilliseconds": 1026.9000000953674
+    }
+  ],
+  "date": "2026-10-03",
+  "environment": {
+    "platform": "macOS arm64",
+    "browser": "Chrome 154 headless",
+    "runtime": "onnxruntime-web 1.30.0",
+    "provider": "wasm",
+    "threads": 1
+  },
+  "devSmoke": "passed",
+  "productionOffline": {
+    "root": "passed",
+    "pagesBase": "/speedreader/",
+    "pages": "passed"
+  },
+  "limits": [
+    "Fixture downloads were fulfilled from the pinned local experiment assets and verified by the production PackStore.",
+    "Execution and sample geometry only; pronunciation/listening quality, WebGPU and physical mobile background playback are unvalidated."
+  ]
+}

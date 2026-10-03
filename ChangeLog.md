@@ -4,6 +4,16 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-10-03 — KittenTTS offline read aloud
+
+- Added KittenTTS Nano 0.8 to the shared reader/global Speech model selector, with eight English voices and INT8/FP32 choices. Saved voice preferences validate against the pinned catalog.
+- Added integrity-checked offline install, repair, removal and synthesis probes. Speaker packs share model/NPZ/dictionary/runtime assets by digest and retain files needed by other installed packs.
+- Integrated Kitten's vocabulary, IPA conversion, voice style tables and per-voice speed priors into the existing ONNX worker. Native token durations drive 24 kHz word highlighting, complete-word chunking, interaction boundaries and pitch-preserving compression; full waveform geometry is retained.
+- INT8 requires CPU/WASM and reports a recovery action for WebGPU selections. FP32 allows experimental WebGPU. Pronunciation, audible onset fidelity, GPU behavior and physical mobile playback remain unverified.
+- Verified lint, typechecking, 245 tests, root/Pages production builds, real INT8/FP32 CPU synthesis, pacing/compression and cache reuse, interaction/cancellation handling, shared-pack removal, settings controls, and fully offline production reload/fresh synthesis at both root and `/speedreader/`. Added reproducible browser smoke scripts and adapter documentation.
+
+---
+
 
 ## 2026-09-24 — Remembered speech backend and background listening
 

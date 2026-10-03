@@ -299,3 +299,44 @@ Low/Medium/High. On this machine, High CPU synthesis was slower than playback.
 Do not generalize these short-passage results to all devices, voices, or pacing.
 Full raw baseline: `piper-backend-baseline.json`; comparison plot and summaries:
 `output-backends/relative-timing.png` and `output-backends/summary.csv`.
+
+## Kitten production adapter smoke tests
+
+The reader now uses the pinned Nano 0.8 INT8 and FP32 assets from this experiment.
+The browser frontend follows HeadTTS's normalization/provenance path rather
+than the Python eSpeak path. See `docs/kokoro-offline-audio.md` for the adapter
+contract, backend restriction and listening-validation limits.
+
+Stage both Kitten models and their NPZ archives with `download.py`. Also put the
+pinned HeadTTS dictionary at `assets/kitten-int8/en-us.txt` (the app's
+`HEART_PACK` phonemizer URL and SHA-256). The browser scripts fulfill asset
+requests from these local fixtures; the application still checks their digests
+and runs a synthesis probe before committing installation metadata. Install
+Playwright for these optional scripts; `NODE_PATH` may point to an external
+installation to keep it out of the application dependencies.
+
+With Vite running at port 5250:
+
+```sh
+node frontend/experiments/tts-alternatives/browser_kitten.mjs http://localhost:5250 /path/to/chromium
+```
+
+This exercises real CPU synthesis for both precisions, pacing/compression,
+cache reuse, complete-word chunking, interaction limits, unspoken text,
+cancellation, shared-pack removal, settings selectors and offline-asset preview.
+
+Build the production PWA and run Vite preview at port 5251, then:
+
+```sh
+node frontend/experiments/tts-alternatives/browser_kitten_offline.mjs http://localhost:5251 /path/to/chromium
+```
+
+The UI test waits for service-worker control, installs and previews Kitten,
+disables all networking, reloads, checks the persisted voice selection and
+synthesizes another preview. Repeat with a `/speedreader/` build and preview
+URL to check the GitHub Pages base path. Omitting the Chromium argument uses
+Playwright's installed default browser.
+
+`browser-kitten-report.json` records the 2026-10-03 macOS/Chrome CPU smoke
+and root/Pages offline outcomes. Timings are individual smoke measurements,
+not a cross-device throughput calibration.

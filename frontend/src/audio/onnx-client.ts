@@ -22,7 +22,7 @@ export class OnnxClient {
       try { this.worker.postMessage(command, transfer); } catch (error) { this.pending = null; reject(error); }
     });
   }
-  initialize(model: ArrayBuffer, voice: ArrayBuffer, wasmUrl: string, provider: "wasm" | "webgpu", kind: "kokoro" | "piper" = "kokoro") {
+  initialize(model: ArrayBuffer, voice: ArrayBuffer, wasmUrl: string, provider: "wasm" | "webgpu", kind: "kokoro" | "piper" | "kitten" = "kokoro") {
     return this.request({ type: "initialize", id: ++this.sequence, model, voice, wasmUrl, provider, kind }, [model, voice]);
   }
   async synthesize(request: SynthesisRequest) {

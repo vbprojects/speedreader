@@ -1,6 +1,6 @@
 import type { SynthesisRequest } from "./protocol";
 export type OnnxCommand =
-  | { type: "initialize"; id: number; model: ArrayBuffer; voice: ArrayBuffer; wasmUrl: string; provider: "wasm" | "webgpu"; kind?: "kokoro" | "piper" }
+  | { type: "initialize"; id: number; model: ArrayBuffer; voice: ArrayBuffer; wasmUrl: string; provider: "wasm" | "webgpu"; kind?: "kokoro" | "piper" | "kitten" }
   | { type: "synthesize"; id: number; request: SynthesisRequest }
   | { type: "dispose"; id: number };
 export type OnnxReply =

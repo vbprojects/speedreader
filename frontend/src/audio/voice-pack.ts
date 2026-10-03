@@ -1,4 +1,4 @@
-import { PIPER_ROOT, PIPER_VOICES, isPiperVoice } from "./voice-catalog";
+import { PIPER_ROOT, PIPER_VOICES, isPiperVoice, KITTEN_VOICES, isKittenVoice } from "./voice-catalog";
 export { voiceLabel } from "./voice-catalog";
 import wasmUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm?url";
 import { assetDigest, downloadAsset, type PackAsset, type VoicePack } from "./pack-store";
@@ -24,7 +24,7 @@ export async function downloadPackAsset(asset: PackAsset, signal?: AbortSignal):
     if (await assetDigest(source) !== PIPER_SOURCE.sha256) throw new Error("Piper model integrity failure");
     return exposePiperDurations(source);
   }
-  if (asset.role !== "model" || asset.url.startsWith(PIPER_ROOT)) return downloadAsset(asset, signal);
+  if (asset.role !== "model" || asset.url !== COMPACT_SOURCE.url) return downloadAsset(asset, signal);
   const source = await downloadAsset(COMPACT_SOURCE, signal);
   if (await assetDigest(source) !== COMPACT_SOURCE.sha256) throw new Error("Original model integrity failure");
   return exposeNativeDurations(source);
@@ -50,9 +50,18 @@ const catalogPacks = new Map(PIPER_VOICES.map(voice => [voice.id, {
     HEART_PACK.assets[2], HEART_PACK.assets[3],
   ],
 }]));
+const kittenPacks = new Map(KITTEN_VOICES.map(voice => [voice.id, {
+  id: voice.id, version: "0.8-1", runtimeRevision: "ort-web-1.30.0-headtts-kitten-bridge-1-dsp-2.1.1",
+  assets: [
+    { role: "model" as const, ...voice.variant.model, license: "Apache-2.0" },
+    { role: "voice" as const, ...voice.variant.voice, license: "Apache-2.0" },
+    HEART_PACK.assets[2], HEART_PACK.assets[3],
+  ],
+}]));
 export function packForVoice(voice: string): VoicePack {
   if (voice === "piper_lessac") return PIPER_PACK; // Preserve existing offline installs.
   if (isPiperVoice(voice)) return catalogPacks.get(voice)!;
+  if (isKittenVoice(voice)) return kittenPacks.get(voice)!;
   if (voice === "af_heart") return HEART_PACK;
   throw new Error("Unknown voice pack");
 }

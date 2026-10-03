@@ -1,5 +1,6 @@
+import { kittenInput, loadKittenStyle, KITTEN_TOKEN_LIMIT } from "./kitten-input";
 import { DEFAULT_SPEECH_TEXT_PROFILE, type SpeechTextProfile } from "./speech-text";
-import { isPiperVoice } from "./voice-catalog";
+import { isPiperVoice, isKittenVoice, kittenVoice } from "./voice-catalog";
 import { exposePiperDurations } from "./duration-export";
 import { piperInput, type PiperConfig } from "./piper-input";
 import type { Word } from "../epub/types";
@@ -34,7 +35,7 @@ export interface SpeechProducer {
 }
 export class KokoroEngine implements SpeechProducer {
   constructor(private selectedVoice = "af_heart", private textProfile: SpeechTextProfile = DEFAULT_SPEECH_TEXT_PROFILE) {
-    if (selectedVoice !== "af_heart" && !isPiperVoice(selectedVoice)) throw new Error("This experimental voice is not supported");
+    if (selectedVoice !== "af_heart" && !isPiperVoice(selectedVoice) && !isKittenVoice(selectedVoice)) throw new Error("This experimental voice is not supported");
   }
   private get pack() { return packForVoice(this.selectedVoice); }
   private piper: PiperConfig | null = null;
@@ -51,6 +52,9 @@ export class KokoroEngine implements SpeechProducer {
   provider: "wasm" | "webgpu" | null = null;
   initializationMilliseconds = 0;
   async initialize(resolve: (asset: PackAsset) => Promise<ArrayBuffer>, preferred: "auto" | "wasm" | "webgpu" = "auto"): Promise<void> {
+    if (isKittenVoice(this.selectedVoice) && kittenVoice(this.selectedVoice)!.variant.id === "int8" && preferred === "webgpu") {
+      throw new Error("KittenTTS INT8 requires CPU / WASM. Select CPU or the FP32 voice variant.");
+    }
     if (this.disposed || this.client) throw new Error("Engine cannot initialize twice");
     const asset = (role: PackAsset["role"]) => this.pack.assets.find(a => a.role === role)!;
     // Sequential reads bound verification/allocation memory.
@@ -68,11 +72,13 @@ export class KokoroEngine implements SpeechProducer {
       this.client = client;
       try {
         let model = await resolve(asset("model"));
-        const voice = await resolve(asset("voice"));
+        let voice = await resolve(asset("voice"));
+        const kitten = kittenVoice(this.selectedVoice);
+        if (kitten) voice = await loadKittenStyle(voice, kitten.key);
         this.piper = isPiperVoice(this.selectedVoice) ? JSON.parse(new TextDecoder().decode(voice)) as PiperConfig : null;
         if (this.piper && this.selectedVoice !== "piper_lessac") model = exposePiperDurations(model);
         if (this.disposed) throw new Error("Engine disposed during initialization");
-        const reply = await client.initialize(model, voice, this.runtimeUrl, provider, this.piper ? "piper" : "kokoro");
+        const reply = await client.initialize(model, voice, this.runtimeUrl, provider, this.piper ? "piper" : kitten ? "kitten" : "kokoro");
         if (reply.type !== "initialized") throw new Error("Unexpected initialization response");
         this.provider = provider; this.initializationMilliseconds = reply.milliseconds;
         return;
@@ -97,8 +103,19 @@ export class KokoroEngine implements SpeechProducer {
     if (settings.readAloudVoice !== this.selectedVoice) throw new Error("Selected voice changed; restart speech");
     const preparationStart = performance.now();
     const allowed = words.filter(word => word.index < allowedEndWordExclusive);
-    const english = phonemizeChunk(this.phonemizer, allowed.slice(0, phraseWordCount(allowed)));
-    const phrase = this.piper ? piperInput(english, this.piper) : english;
+    let sourceEnd = phraseWordCount(allowed);
+    const kitten = kittenVoice(this.selectedVoice);
+    let english, phrase;
+    // IPA expansion and Kitten's punctuation separators can increase token count.
+    // Re-phonemize whole source words until the converted input fits; never truncate.
+    do {
+      english = phonemizeChunk(this.phonemizer, allowed.slice(0, sourceEnd));
+      phrase = this.piper ? piperInput(english, this.piper) : kitten ? kittenInput(english) : english;
+      if (!kitten || phrase.ids.length <= KITTEN_TOKEN_LIMIT) break;
+      sourceEnd = english.words.length - 1;
+      if (sourceEnd < 1) throw new Error("A single source word exceeds the KittenTTS token limit");
+    } while (sourceEnd > 0);
+    const styleTextLength = kitten ? Array.from(english.normalization.map(word => word.spokenText).join(" ").replace(/\s+/g, " ").trim()).length : undefined;
     if (phrase.words.every(word => word.tokenStart === word.tokenEnd)) {
       const source = allowed.slice(0, english.words.length);
       const end = source[source.length - 1].index + 1;
@@ -113,12 +130,12 @@ export class KokoroEngine implements SpeechProducer {
     const identity: ChunkIdentity = { ...revision, requestId: String(++this.sequence), chunkId: String(source[0].index),
       startWord: source[0].index, endWordExclusive: source[source.length - 1].index + 1, allowedEndWordExclusive };
     const key = nativeCacheKey({ model: this.pack.version, runtime: this.pack.runtimeRevision,
-      voice: settings.readAloudVoice, pacing: settings.kokoroPacing, phonemeIds: phrase.ids });
+      voice: settings.readAloudVoice, pacing: settings.kokoroPacing, phonemeIds: phrase.ids }) + (kitten ? `:style-${styleTextLength}` : "");
     let native = this.native.get(key), synthesisMilliseconds = 0;
     const nativeCacheHit = native !== undefined;
     if (!native) {
       const result = await this.client.synthesize({ identity, phonemeIds: phrase.ids, wordTokens: phrase.words,
-        voice: settings.readAloudVoice, pacing: settings.kokoroPacing });
+        voice: settings.readAloudVoice, pacing: settings.kokoroPacing, styleTextLength });
       if (this.disposed) throw new Error("Engine disposed during synthesis");
       native = { pcm: result.pcm, durations: result.durations }; synthesisMilliseconds = result.milliseconds;
       this.native.put(key, native, native.pcm.byteLength + native.durations.length * 8);

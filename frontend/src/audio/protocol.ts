@@ -22,6 +22,8 @@ export interface SynthesisRequest {
   wordTokens: readonly WordTokenSpan[];
   voice: string;
   pacing: number;
+  /** Kitten style rows follow normalized spoken text length, not token count. */
+  styleTextLength?: number;
 }
 
 export interface SynthesisResult {
