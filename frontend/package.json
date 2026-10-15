@@ -19,7 +19,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.8",
+    "@chenglou/pretext": "^0.0.9",
     "@langchain/langgraph": "^1.4.13",
     "@soundtouchjs/core": "2.1.1",
     "@tauri-apps/api": "^2",
