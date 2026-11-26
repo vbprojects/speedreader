@@ -327,10 +327,16 @@ export class LibraryStore {
       ingestionWarnings: [detected.warning],
     };
 
-    await this.db.addBook(book);
-    await this.db.saveStream(id, stream);
+    // Publish the library entry after its source and stream can be reopened.
     await this.db.saveInteractiveSource(source);
+    await this.db.saveStream(id, stream);
+    await this.db.addBook(book);
     return { book, stream, existed: false };
+  }
+
+  async saveStoryTurn(bookId: string, formatState: Record<string, unknown>, expectedRevision: string | null) {
+    const state = await this.db.patchReaderState(bookId, { formatState, lastOpenedAt: Date.now() }, expectedRevision);
+    if (!state) throw new Error("The story was reset or removed. Reopen it from the library.");
   }
 
   /** Load executable source only for the runtime-host layer. */

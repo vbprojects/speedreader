@@ -77,7 +77,6 @@ export function ReaderScreen({ presenterSelection = STANDARD, onPresenterSelecti
     setRunning(next);
   }, [onPause]);
   const requiresConnection = sourceFormat === "bluesky-jetstream" || sourceFormat === "openai-compatible-llm";
-  const unavailable = sourceFormat === "sugarcube-2-runtime";
 
   // Pacing engine recreated when effective WPM/pauses/model/gamma change.
   const pacing = useMemo(
@@ -171,9 +170,9 @@ export function ReaderScreen({ presenterSelection = STANDARD, onPresenterSelecti
         {stream.words.length === 0 ? (
           <div style={{ height: "100%", display: "grid", placeItems: "center", background: t.bg, color: t.muted, fontFamily: settings.fontFamily }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>{unavailable ? "Reader engine unavailable" : offline ? "You’re offline" : requiresConnection ? "Waiting for content…" : "No readable text"}</div>
+              <div style={{ fontSize: 18, color: t.fg, marginBottom: 8 }}>{offline ? "You’re offline" : requiresConnection ? "Waiting for content…" : "No readable text"}</div>
               <div role={liveError ? "alert" : undefined} style={{ fontSize: 13, color: liveError ? t.highlight : undefined }}>
-                {liveError ?? (unavailable ? "This story is saved, but its interactive reader engine is not available in this version." : offline ? "Reconnect to load new content, or return to the library to read a saved book." : sourceFormat === "bluesky-jetstream" ? "Waiting for the first eligible English text post." : "Return to the library and try importing a file with readable text.")}
+                {liveError ?? (offline ? "Reconnect to load new content, or return to the library to read a saved book." : sourceFormat === "bluesky-jetstream" ? "Waiting for the first eligible English text post." : "Return to the library and try importing a file with readable text.")}
               </div>
             </div>
           </div>

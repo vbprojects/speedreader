@@ -30,7 +30,7 @@ export function ImportDialog({ result, theme, wpm, busy, onClose, onRead, onSave
   const confirmDiscard = () => !editing || (text === original && title === (result?.book.title ?? "Pasted text"))
     || window.confirm("Discard your unsaved text changes?");
   const close = () => { if (!busy && confirmDiscard()) onClose(); };
-  const unavailable = result?.book.format === "sugarcube-2-runtime";
+  const interactive = result?.book.format === "sugarcube-2-runtime";
 
   useEffect(() => { dialog.current?.showModal(); }, []);
 
@@ -50,7 +50,7 @@ export function ImportDialog({ result, theme, wpm, busy, onClose, onRead, onSave
       <p>{result.existed ? "Already in your library." : "Saved to your library."} {availability(result.book)}.</p>
       {result.stream.words.length > 0 && <p>{result.stream.words.length.toLocaleString()} words · About {readingMinutes(result.stream.words.length, wpm)} min at {wpm} WPM</p>}
       {result.book.ingestionWarnings?.map((warning) => <p key={warning} role="status">{warning}</p>)}
-      {unavailable ? <p>This story is saved, but its interactive reader engine is not available in this version. You can import another file or paste a passage as text.</p>
+      {interactive ? <p>Open this story to read its passages and choose a path.</p>
         : !editing && <p className="import-excerpt">{preview || "No readable text is available yet. Live sources require a connection to load new content."}{result.stream.words.length > 120 ? "…" : ""}</p>}
       {!editing && editable && <button onClick={() => setEditing(true)}>Clean up text</button>}
     </>}
@@ -64,7 +64,7 @@ export function ImportDialog({ result, theme, wpm, busy, onClose, onRead, onSave
       <button onClick={close} disabled={busy}>{result ? "Back to library" : "Cancel"}</button>
       {result && <button onClick={() => { if (confirmDiscard()) onChooseFile(); }} disabled={busy}>Choose another file</button>}
       {editing ? <button disabled={busy || !text.trim()} onClick={() => void save()}>{busy ? "Saving…" : result ? "Save cleaned copy" : "Preview text"}</button>
-        : result && <button autoFocus disabled={busy || unavailable || !result.stream.words.length} onClick={() => onRead(result.book.id)}>Start reading</button>}
+        : result && <button autoFocus disabled={busy || (!interactive && !result.stream.words.length)} onClick={() => onRead(result.book.id)}>Start reading</button>}
     </div>
   </dialog>;
 }

@@ -8,7 +8,16 @@ The application is written in React and TypeScript, runs as a web/PWA applicatio
 
 ## Reading and recovery
 
-Use **Read a sample**, **Paste text**, **Import file**, or **Find books** to begin. File imports show an excerpt, approximate reading time at the current WPM, and parser warnings before opening. EPUB, PDF, TXT, and saved webpages produce cached text; published SugarCube HTML/ZIP is stored with its source, but this version does not include its interactive reader runtime. Cleanup saves a separate static text copy and does not rewrite interactive actions or the original book.
+Use **Read a sample**, **Paste text**, **Import file**, or **Find books** to begin. File imports show an excerpt, approximate reading time at the current WPM, and parser warnings before opening. EPUB, PDF, TXT, and saved webpages produce cached text. Open published SugarCube HTML or ZIP stories to play offline. **Import HTML folder** loads each HTML or HTM file in the selected folder and its subfolders as a separate library title. Cleanup saves a separate static text copy and does not rewrite interactive actions or the original book.
+
+### SugarCube story actions
+
+The native reader supports passage links (including setters), story variables, `StoryInit`, `set`, `print`, `if/elseif/else`, `link`, `button`, `textbox`, `linkappend`, and `linkreplace`. An unsupported macro reports its name. Stories that depend on the bundled JavaScript runtime, scripted widgets, or other SugarCube macros need additional engine support.
+
+Authors can add a passage action with a custom HTML tag, for example `<open-door data-passage="Hall">Enter the hall</open-door>`. The tag's text or `aria-label` supplies the action label. Application extensions can call `registerStoryElement(tag, factory)` from the SugarCube ingestion module to translate their own elements into continue or text-input actions.
+
+Each successful action commits a versioned checkpoint to IndexedDB before the reader advances. Reopening the book restores the passage, variables, and completed actions within that passage. If a second tab advances the same story, reopen it to load its latest checkpoint.
+
 
 **Continue reading** opens the last-read book at its saved word and reading mode. Previous/next sentence controls pause playback and respect unresolved actions. Playback also pauses when the app is hidden; progress is saved on pause, seek, return to the library, and backgrounding. Search is remembered on this device.
 

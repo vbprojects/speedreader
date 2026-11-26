@@ -4,7 +4,7 @@ export const SUGARCUBE_RUNTIME_FORMAT = "sugarcube-2-runtime" as const;
 export const SUGARCUBE_SOURCE_SCHEMA_VERSION = 1 as const;
 
 export const SUGARCUBE_EXECUTABLE_WARNING =
-  "SugarCube stories are executable applications. Only import files you trust; story scripts run with the permissions available to this application view.";
+  "The native story reader supports declarative passage actions. Story scripts and scripted widgets are skipped.";
 
 export interface SugarCubeStoryMetadata {
   title: string;

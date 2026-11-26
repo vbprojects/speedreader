@@ -220,6 +220,7 @@ export class IndexedDb implements Db {
   async patchReaderState(
     bookId: string,
     patch: Partial<Omit<ReaderState, "bookId">>,
+    expectedRevision?: string | null,
   ): Promise<ReaderState | null> {
     const db = await this.db();
     return new Promise((resolve, reject) => {
@@ -231,6 +232,10 @@ export class IndexedDb implements Db {
       request.onsuccess = () => {
         const existing = request.result as ReaderState | undefined;
         if (!existing) return;
+        if (expectedRevision !== undefined && (existing.formatState?.revision ?? null) !== expectedRevision) {
+          reject(new Error("This story changed in another session. Reopen it to load the latest save."));
+          return;
+        }
         updated = { ...existing, ...patch, bookId };
         store.put(updated);
       };

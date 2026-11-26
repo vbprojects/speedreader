@@ -14,3 +14,4 @@ export type {
   SugarCubeStoryMetadata,
   StoredSugarCubeAsset,
 } from "./types";
+export { registerStoryElement, type ElementAction } from "./element-actions";
