@@ -18,6 +18,8 @@ import type { OpenAICompatibleConnection } from "./ingestion";
 import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
 import { LlmConnectionDialog } from "./library/LlmConnectionDialog";
+import { StoryReader } from "./reader/StoryReader";
+import { folderImporter } from "./library/folder-import";
 import { ReaderScreen } from "./reader";
 import { SettingsStore, mergeSettings } from "./settings";
 import type { GlobalSettings, ReaderSettings } from "./settings";
@@ -205,6 +207,31 @@ export default function ReaderApp() {
     }
   }, [library, showImport]);
 
+  const importFolder = async (files: File[]) => {
+    if (importLock.current) return;
+    importLock.current = true;
+    setImporting(true);
+    setError(null);
+    setNotice(null);
+    const html = files.filter(file => /\.html?$/i.test(file.name));
+    const importHtml = folderImporter(library, files);
+    const failures: string[] = [];
+    let imported = 0;
+    try {
+      for (const file of html) {
+        setImportStatus("Importing " + file.webkitRelativePath);
+        try {
+          await importHtml(file);
+          imported++;
+        } catch (cause) { failures.push(file.webkitRelativePath + ": " + String(cause)); }
+      }
+      await refreshBooks();
+      setNotice(html.length ? `Loaded ${imported} of ${html.length} HTML files.` : "No HTML files found in this folder.");
+      if (failures.length) setError(failures.join("\n"));
+    } catch (cause) { setError(String(cause)); }
+    finally { importLock.current = false; setImporting(false); setImportStatus(null); }
+  };
+
   const handleForeignImport = useCallback(async (plan: ForeignImportPlan) => {
     if (importLock.current) return;
     importLock.current = true;
@@ -306,10 +333,9 @@ export default function ReaderApp() {
         latestDeliveredTriggerIds.current = [...delivered];
         setDeliveredTriggerIds([...delivered]);
         latestPendingEngineEvents.current = [...(state?.pendingEngineEvents ?? [])];
+        await enqueueReaderState(bookId, state?.position ?? 0, state?.settings ?? {});
         setOpenStream(opened.stream);
         setOpenBookId(bookId);
-        // Update lastOpenedAt.
-        await enqueueReaderState(bookId, state?.position ?? 0, state?.settings ?? {});
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -561,6 +587,7 @@ export default function ReaderApp() {
 
   // ---- Render ----
   if (openStream && openBookId && readerSettings) {
+    if (activeSourceFormat === "sugarcube-2-runtime") return <StoryReader key={openBookId} bookId={openBookId} library={library} theme={readerSettings.theme} onBack={handleBack} />;
     return (
       <ReaderScreen
         key={openBookId}
@@ -628,6 +655,7 @@ export default function ReaderApp() {
       settings={global}
       onUpdateSettings={(patch) => settingsStore.updateGlobal(patch)}
       onImport={handleImport}
+      onFolder={importFolder}
       onBrowseForeign={() => setForeignLibraryOpen(true)}
       onOpen={handleLibraryOpen}
       onRemove={handleRemove}

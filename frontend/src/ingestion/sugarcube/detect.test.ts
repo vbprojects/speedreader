@@ -63,3 +63,9 @@ test("ignores non-HTML candidates and rejects malformed hashes and encodings", (
   const invalidUtf8 = { name: "bad.html", extension: "html", mimeType: "text/html", data: new Uint8Array([0xff]).buffer };
   throws(() => detectSugarCubeSource({ file: invalidUtf8, sourceHash: HASH, parseHtml }), /valid UTF-8/);
 });
+
+test("published Twine 1 SugarCube stories use tiddlers and have no IFID", () => {
+  const html = '<div id="store-area"><div tiddler="StoryTitle">Island</div><div tiddler="Start">Welcome</div></div><script id="script-sugarcube"></script>';
+  equal(detectSugarCubeDocument(html, parseHtml)?.title, "Island");
+  equal(detectSugarCubeDocument(html, parseHtml)?.ifid, "");
+});

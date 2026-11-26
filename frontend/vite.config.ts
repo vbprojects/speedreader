@@ -1,14 +1,28 @@
-import { defineConfig } from "vite";
+import { defineConfig, type IndexHtmlTransformContext } from "vite";
+import { readFileSync } from "node:fs";
+import ts from "typescript";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [
     react(),
+    {
+      name: "sugarcube-isolated-host",
+      // Inline the classic bootstrap so an opaque-origin frame needs no CORS imports.
+      transformIndexHtml: {
+        order: "post",
+        handler(html: string, context: IndexHtmlTransformContext) {
+          if (!context.filename.endsWith("/sugarcube-host.html")) return html;
+          const source = readFileSync(new URL("./src/ingestion/sugarcube/frame.ts", import.meta.url), "utf8");
+          const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText;
+          return [{ tag: "script", children: script, injectTo: "body" as const }];
+        },
+      },
+    },
     VitePWA({
       // Activation is coordinated across reader sessions in main.tsx.
       registerType: "prompt",
@@ -48,6 +62,7 @@ export default defineConfig(async () => ({
         // Keep this relative to the service-worker scope. The precache key is
         // `index.html` both at root and under the GitHub Pages base path;
         // binding `/index.html` fails with Workbox's non-precached-url error.
+        navigateFallbackDenylist: [/\/sugarcube-host\.html$/],
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
         // Wait for a safe boundary across all reader tabs.
@@ -60,6 +75,7 @@ export default defineConfig(async () => ({
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
+  build: { rollupOptions: { input: ["index.html", "sugarcube-host.html"] } },
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {

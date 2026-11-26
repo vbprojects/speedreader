@@ -4,7 +4,7 @@ export const SUGARCUBE_RUNTIME_FORMAT = "sugarcube-2-runtime" as const;
 export const SUGARCUBE_SOURCE_SCHEMA_VERSION = 1 as const;
 
 export const SUGARCUBE_EXECUTABLE_WARNING =
-  "SugarCube stories are executable applications. Only import files you trust; story scripts run with the permissions available to this application view.";
+  "Published stories run author JavaScript in an isolated frame. The native story reader supports declarative actions.";
 
 export interface SugarCubeStoryMetadata {
   title: string;
@@ -20,10 +20,11 @@ export interface StoredSugarCubeSource {
   mimeType: "text/html";
   /** Decoded published story document, including its bundled SugarCube runtime. */
   html: string;
-  /** SHA-256 of the original imported bytes. */
+  /** SHA-256 of the original file or the content-addressed folder manifest. */
   sourceHash: string;
   story: SugarCubeStoryMetadata;
-  /** Additional files from a ZIP package, retained for a future virtual origin. */
+  /** Original HTML path in the package, used for relative assets. */
+  entryPath?: string;
   assets?: StoredSugarCubeAsset[];
 }
 

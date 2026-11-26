@@ -2,7 +2,7 @@ import type { Book, ReaderState } from "../db/types";
 import type { WordStream } from "../epub/types";
 
 export function availability(book: Book): string {
-  if (book.format === "sugarcube-2-runtime") return "Reader engine unavailable";
+  if (book.format === "sugarcube-2-runtime") return "Interactive story · Available offline";
   if (book.format === "bluesky-jetstream" || book.format === "openai-compatible-llm") {
     return "Requires connection for new content";
   }

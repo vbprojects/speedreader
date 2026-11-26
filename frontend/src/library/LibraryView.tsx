@@ -40,6 +40,7 @@ export interface LibraryViewProps {
   settings?: GlobalSettings;
   onUpdateSettings?: (patch: ReaderSettings) => void;
   onImport: () => void;
+  onFolder?: (files: File[]) => void;
   onBrowseForeign?: () => void;
   onOpen: (bookId: string) => void;
   onRemove: (bookId: string) => void;
@@ -62,6 +63,7 @@ export function LibraryView({
   settings,
   onUpdateSettings,
   onImport,
+  onFolder,
   onBrowseForeign,
   onOpen,
   onRemove,
@@ -320,6 +322,10 @@ export function LibraryView({
             <span aria-hidden="true">➕</span>
             <span>{importing ? "Importing…" : "Import file"}</span>
           </button>
+          {onFolder && <label style={glassButtonStyle}>Import HTML folder
+            <input aria-label="Import HTML folder" type="file" multiple ref={input => { if (input) input.webkitdirectory = true; }} disabled={importing}
+              onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) onFolder(files); }} />
+          </label>}
           {onBrowseForeign && (
             <button onClick={onBrowseForeign} disabled={importing} style={primaryButtonStyle}>
               <span aria-hidden="true">⌕</span>

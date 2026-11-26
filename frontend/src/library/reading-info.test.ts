@@ -13,13 +13,13 @@ test("continue reading uses last-opened time rather than import order and includ
   equal(lastReadBook([first, second], {}), undefined);
 });
 
-test("availability distinguishes saved content, network sources, and an unavailable story engine", () => {
+test("availability distinguishes saved content, network sources, and interactive stories", () => {
   const book = createActionsBook(1);
   equal(availability(book), "Available offline");
   equal(availability({ ...book, format: "pdf" }), "Available offline");
   equal(availability({ ...book, format: "bluesky-jetstream" }), "Requires connection for new content");
   equal(availability({ ...book, format: "openai-compatible-llm" }), "Requires connection for new content");
-  equal(availability({ ...book, format: "sugarcube-2-runtime" }), "Reader engine unavailable");
+  equal(availability({ ...book, format: "sugarcube-2-runtime" }), "Interactive story · Available offline");
   equal(readingMinutes(1200, 600), 2);
   equal(readingMinutes(1200, 0), 4);
   match(importRecovery("Failed to fetch"), /download the file from its source page/);

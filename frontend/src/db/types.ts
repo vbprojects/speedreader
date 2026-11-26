@@ -133,6 +133,7 @@ export interface Db {
   patchReaderState(
     bookId: string,
     patch: Partial<Omit<ReaderState, "bookId">>,
+    expectedRevision?: string | null,
   ): Promise<ReaderState | null>;
   deleteReaderState(bookId: string): Promise<void>;
 

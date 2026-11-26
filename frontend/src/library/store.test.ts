@@ -241,7 +241,7 @@ test("the file import selector path persists published SugarCube source and dedu
   equal(imported.book.format, "sugarcube-2-runtime");
   equal(imported.book.title, "Branching Story");
   equal(imported.stream.meta.isComplete, false);
-  equal(imported.book.ingestionWarnings?.[0].includes("executable applications"), true);
+  equal(imported.book.ingestionWarnings?.[0].includes("native story reader"), true);
   const source = await library.getSugarCubeSource(imported.book.id);
   equal(source?.html, html);
   equal(source?.sourceHash, imported.book.id);
