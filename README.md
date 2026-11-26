@@ -8,7 +8,7 @@ The application is written in React and TypeScript, runs as a web/PWA applicatio
 
 ## Reading and recovery
 
-Use **Read a sample**, **Paste text**, **Import file**, or **Find books** to begin. File imports show an excerpt, approximate reading time at the current WPM, and parser warnings before opening. EPUB, PDF, TXT, and saved webpages produce cached text. Open published SugarCube HTML or ZIP stories to play offline. **Import HTML folder** loads each HTML or HTM file in the selected folder and its subfolders as a separate library title. Cleanup saves a separate static text copy and does not rewrite interactive actions or the original book.
+Use **Read a sample**, **Paste text**, **Import file**, or **Find books** to begin. File imports show an excerpt, approximate reading time at the current WPM, and parser warnings before opening. EPUB, PDF, TXT, and saved webpages produce cached text. Open published SugarCube HTML or ZIP stories to play offline. Open the arrow beside **Import file** and choose **Import HTML folder** to load each HTML or HTM file in the selected folder and its subfolders as a separate library title. Cleanup saves a separate static text copy and does not rewrite interactive actions or the original book.
 
 ### SugarCube story actions
 

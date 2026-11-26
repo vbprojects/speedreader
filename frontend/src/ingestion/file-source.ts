@@ -24,12 +24,16 @@ export async function fileFromBrowserFile(file: File): Promise<FileInfo> {
   };
 }
 
-/** Open a native file picker (browser fallback) and return a FileInfo. */
-export function pickFileBrowser(accept = ".epub,.pdf,.txt,.html,.htm,.zip"): Promise<FileInfo | null> {
+function pickBrowserFiles(options: { accept?: string; directory?: boolean }): Promise<File[]> {
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = accept;
+    if (options.directory) {
+      input.webkitdirectory = true;
+      input.multiple = true;
+    } else if (options.accept) {
+      input.accept = options.accept;
+    }
 
     // Keep the input in the DOM (visually hidden) — on iOS standalone
     // (home-screen PWA), a detached input's .click() silently does nothing;
@@ -47,13 +51,11 @@ export function pickFileBrowser(accept = ".epub,.pdf,.txt,.html,.htm,.zip"): Pro
 
     input.onchange = () => {
       cleanup();
-      const file = input.files?.[0];
-      if (!file) return resolve(null);
-      fileFromBrowserFile(file).then(resolve, reject);
+      resolve(Array.from(input.files ?? []));
     };
     input.oncancel = () => {
       cleanup();
-      resolve(null);
+      resolve([]);
     };
     input.onerror = () => {
       cleanup();
@@ -63,4 +65,13 @@ export function pickFileBrowser(accept = ".epub,.pdf,.txt,.html,.htm,.zip"): Pro
     document.body.appendChild(input);
     input.click();
   });
+}
+
+export async function pickFileBrowser(accept = ".epub,.pdf,.txt,.html,.htm,.zip"): Promise<FileInfo | null> {
+  const [file] = await pickBrowserFiles({ accept });
+  return file ? fileFromBrowserFile(file) : null;
+}
+
+export function pickFolderBrowser(): Promise<File[]> {
+  return pickBrowserFiles({ directory: true });
 }

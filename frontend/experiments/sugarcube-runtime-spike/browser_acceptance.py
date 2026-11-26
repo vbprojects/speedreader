@@ -45,7 +45,16 @@ with server, tempfile.TemporaryDirectory() as folder, sync_playwright() as playw
       await navigator.serviceWorker.ready;
     }""")
     page.goto(url)
-    page.get_by_label("Import HTML folder").set_input_files(folder)
+    with page.expect_file_chooser() as single:
+        page.get_by_role("button", name="Import file", exact=True).first.click()
+    single.value.set_files({"name": "article.html", "mimeType": "text/html",
+                            "buffer": b"<article><p>An ordinary HTML article.</p></article>"})
+    page.get_by_role("heading", name="Preview import").wait_for()
+    page.get_by_role("button", name="Back to library").click()
+    page.get_by_role("button", name="More import options").click()
+    with page.expect_file_chooser() as picker:
+        page.get_by_role("button", name="Import HTML folder").click()
+    picker.value.set_files(folder)
     page.get_by_text("Loaded 1 of 1 HTML files.").wait_for()
     page.get_by_text("Speedreader SugarCube Runtime Spike", exact=True).first.click()
     play = page.get_by_role("button", name="Play published story")
