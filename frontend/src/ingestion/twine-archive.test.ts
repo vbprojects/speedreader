@@ -36,6 +36,7 @@ test("an HTML gateway response is not treated as ZIP solely because of its plann
 test("Twine ZIP extraction accepts one nested story and rejects ambiguous or missing stories", async () => {
   const nested = await extractTwinePackage(await archive({ "release/game.html": story("Nested"), "readme.html": "Read me" }));
   equal(nested?.file.name, "game.html");
+  equal(nested?.entryPath, "release/game.html");
 
   await rejects(
     extractTwinePackage(await archive({ "one/story.html": story("One"), "two/story.html": story("Two") })),

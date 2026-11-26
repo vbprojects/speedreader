@@ -155,6 +155,7 @@ export class LibraryStore {
         parseHtml,
         await sha256(file.data),
         extractedTwine.assets,
+        extractedTwine.entryPath,
       );
     }
     if (
@@ -289,6 +290,7 @@ export class LibraryStore {
     parseHtml?: HtmlDocumentParser,
     sourceHash?: string,
     assets?: TwineArchiveAsset[],
+    entryPath?: string,
   ): Promise<ImportResult> {
     assertFileSize(file.data.byteLength);
     const id = sourceHash ?? await sha256(file.data);
@@ -296,13 +298,16 @@ export class LibraryStore {
     const existingSource = await this.db.getInteractiveSource(id);
     const existingStream = await this.db.getStream(id);
     if (existing && existingSource && existingStream) {
+      if (entryPath && !existingSource.entryPath) {
+        await this.db.saveInteractiveSource({ ...existingSource, entryPath });
+      }
       await this.restoreBook(id);
       return { book: { ...existing, removedAt: undefined }, stream: existingStream, existed: true };
     }
 
     const detected = detectSugarCubeSource({ file, sourceHash: id, parseHtml });
     if (!detected) throw new InvalidSugarCubeStoryError("File is not published SugarCube HTML");
-    const source = assets?.length ? { ...detected.source, assets } : detected.source;
+    const source = assets?.length ? { ...detected.source, assets, entryPath } : detected.source;
 
     const stream: import("../epub/types").WordStream = {
       words: [],

@@ -64,3 +64,19 @@ test("button body executes only on activation and runs before entering the desti
   assert.equal(initial.variables.$n, 1);
   assert.deepEqual(respond(story, initial, action(initial, "Go")).parts, ["Count: 3"]);
 });
+
+test("published and native checkpoints preserve each other across IndexedDB revisions", async () => {
+  Object.assign(globalThis, { indexedDB });
+  const db = new IndexedDb();
+  const bookId = "dual-mode-story";
+  await db.saveReaderState({ bookId, position: 0, lastOpenedAt: 0, settings: {} });
+  const native = { passage: "Forest", variables: { $n: 2 }, schemaVersion: 1, revision: "native" };
+  await db.patchReaderState(bookId, { formatState: native }, null);
+  const published = { version: 1, local: [["slot", "serialized"]], session: [] };
+  await db.patchReaderState(bookId, { formatState: { published, revision: "published" } }, "native");
+  await assert.rejects(db.patchReaderState(bookId, { formatState: native }, "native"));
+  await db.patchReaderState(bookId, { formatState: { ...native, passage: "End", revision: "later" } }, "published");
+  assert.deepEqual((await new IndexedDb().getReaderState(bookId))?.formatState, {
+    ...native, passage: "End", revision: "later", published,
+  });
+});

@@ -237,6 +237,9 @@ export class IndexedDb implements Db {
           return;
         }
         updated = { ...existing, ...patch, bookId };
+        if (expectedRevision !== undefined && patch.formatState) {
+          updated.formatState = { ...existing.formatState, ...patch.formatState };
+        }
         store.put(updated);
       };
       tx.oncomplete = () => resolve(updated);

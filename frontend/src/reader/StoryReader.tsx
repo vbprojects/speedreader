@@ -1,15 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import type { LibraryStore } from "../library/store";
 import type { Theme } from "../settings/types";
+import { PublishedStory } from "./PublishedStory";
 import { TextInputInteraction } from "../interactions/TextInputInteraction";
 import { ContinueInteraction } from "../interactions/ContinueInteraction";
 import { readStory, restore, respond, start, checkpoint, type Story } from "../ingestion/sugarcube/runtime";
 
 type Session = ReturnType<typeof restore> & { story: Story; hash: string; title: string }
 
-export function StoryReader({ library, bookId, theme, onBack }: {
-  library: LibraryStore; bookId: string; theme: Theme; onBack: () => void;
-}) {
+interface StoryReaderProps { library: LibraryStore; bookId: string; theme: Theme; onBack: () => void }
+
+export function StoryReader(props: StoryReaderProps) {
+  const [mode, setMode] = useState<"published" | "native">();
+  if (mode === "published") return <PublishedStory {...props} />;
+  if (mode === "native") return <NativeStory {...props} />;
+  return <main style={{ maxWidth: "42rem", padding: "1rem", margin: "auto" }}>
+    <button onClick={props.onBack}>← Library</button>
+    <h1>Open SugarCube story</h1>
+    <p>The published story runs the author’s JavaScript, macros, and interface. Open stories from authors you trust.</p>
+    <button onClick={() => setMode("published")}>Play published story</button>
+    <p>The native action reader supports declarative passages and keeps its own reading position.</p>
+    <button onClick={() => setMode("native")}>Read with native actions</button>
+  </main>;
+}
+
+function NativeStory({ library, bookId, theme, onBack }: StoryReaderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,8 +40,10 @@ export function StoryReader({ library, bookId, theme, onBack }: {
       if (!active) return;
       savedRevision.current = typeof state?.formatState?.revision === "string" ? state.formatState.revision : null;
       setSourceInfo({ story, hash: source.sourceHash, title: source.story.title });
-      const loaded = restore(story, source.sourceHash, state?.formatState);
-      if (active) setSession({ ...loaded, story, hash: source.sourceHash, title: source.story.title });
+      const saved = state?.formatState;
+      const publishedOnly = saved?.published !== undefined && saved.schemaVersion === undefined;
+      const loaded = restore(story, source.sourceHash, publishedOnly ? undefined : saved);
+      if (active) setSession({ ...loaded, revision: savedRevision.current, story, hash: source.sourceHash, title: source.story.title });
     }
     void load().catch(cause => { if (active) setError(String(cause)); });
     return () => { active = false; };

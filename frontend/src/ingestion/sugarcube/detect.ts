@@ -51,7 +51,15 @@ export function detectSugarCubeDocument(
 ): SugarCubeStoryMetadata | null {
   const document = parseHtml(html);
   const storyData = document.querySelector("tw-storydata");
-  if (!storyData) return null;
+  if (!storyData) {
+    // Twine 1 publishes tiddlers and has no IFID. The source hash namespaces its saves.
+    const store = document.querySelector("#store-area");
+    if (!store || !document.querySelector("script#script-sugarcube")) return null;
+    const title = store.querySelector('[tiddler="StoryTitle"]')?.textContent?.trim();
+    if (!title) throw new InvalidSugarCubeStoryError("Missing Twine 1 StoryTitle passage");
+    return { title: title.slice(0, MAX_METADATA_LENGTH), ifid: "", startNode: "Start",
+      formatVersion: document.querySelector('meta[name="version"]')?.getAttribute("content") ?? undefined };
+  }
   if (storyData.getAttribute("format")?.trim().toLowerCase() !== "sugarcube") return null;
   if (!document.querySelector("script#script-sugarcube")) {
     throw new InvalidSugarCubeStoryError("Published SugarCube HTML is missing its bundled runtime");

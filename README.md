@@ -12,11 +12,15 @@ Use **Read a sample**, **Paste text**, **Import file**, or **Find books** to beg
 
 ### SugarCube story actions
 
-The native reader supports passage links (including setters), story variables, `StoryInit`, `set`, `print`, `if/elseif/else`, `link`, `button`, `textbox`, `linkappend`, and `linkreplace`. An unsupported macro reports its name. Stories that depend on the bundled JavaScript runtime, scripted widgets, or other SugarCube macros need additional engine support.
+Choose **Play published story** to run the SugarCube 2 version shipped by the author. Its macros, story JavaScript, custom elements, widgets, CSS, audio, dialogs, history, and save APIs run together in the story’s own interface. The story runs in a sandboxed frame. External services used by author scripts still depend on network access and browser permissions.
+
+The library keeps SugarCube’s browser saves, settings, and session storage in IndexedDB for each imported title. SugarCube controls when it creates a history moment and what it restores. A folder import includes companion files alongside its HTML stories. ZIP imports retain the selected story’s path so relative media, stylesheets, and scripts can load offline.
+
+Choose **Read with native actions** for the declarative reader. It supports passage links, story variables, `StoryInit`, `set`, `print`, conditionals, textboxes, buttons, and reveals. This mode has a separate checkpoint and can reopen existing native saves.
 
 Authors can add a passage action with a custom HTML tag, for example `<open-door data-passage="Hall">Enter the hall</open-door>`. The tag's text or `aria-label` supplies the action label. Application extensions can call `registerStoryElement(tag, factory)` from the SugarCube ingestion module to translate their own elements into continue or text-input actions.
 
-Each successful action commits a versioned checkpoint to IndexedDB before the reader advances. Reopening the book restores the passage, variables, and completed actions within that passage. If a second tab advances the same story, reopen it to load its latest checkpoint.
+Each successful native action commits a versioned checkpoint to IndexedDB before the reader advances. Reopening the book restores the passage, variables, and completed actions within that passage. If a second tab advances the same story, reopen it to load its latest checkpoint.
 
 
 **Continue reading** opens the last-read book at its saved word and reading mode. Previous/next sentence controls pause playback and respect unresolved actions. Playback also pauses when the app is hidden; progress is saved on pause, seek, return to the library, and backgrounding. Search is remembered on this device.

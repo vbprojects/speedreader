@@ -19,7 +19,7 @@ import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
 import { LlmConnectionDialog } from "./library/LlmConnectionDialog";
 import { StoryReader } from "./reader/StoryReader";
-import { fileFromBrowserFile } from "./ingestion/file-source";
+import { folderImporter } from "./library/folder-import";
 import { ReaderScreen } from "./reader";
 import { SettingsStore, mergeSettings } from "./settings";
 import type { GlobalSettings, ReaderSettings } from "./settings";
@@ -214,13 +214,14 @@ export default function ReaderApp() {
     setError(null);
     setNotice(null);
     const html = files.filter(file => /\.html?$/i.test(file.name));
+    const importHtml = folderImporter(library, files);
     const failures: string[] = [];
     let imported = 0;
     try {
       for (const file of html) {
         setImportStatus("Importing " + file.webkitRelativePath);
         try {
-          await library.importFile(await fileFromBrowserFile(file));
+          await importHtml(file);
           imported++;
         } catch (cause) { failures.push(file.webkitRelativePath + ": " + String(cause)); }
       }

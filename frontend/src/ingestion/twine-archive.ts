@@ -21,6 +21,7 @@ export interface TwineArchiveAsset {
 }
 
 export interface ExtractedTwinePackage {
+  entryPath: string;
   file: FileInfo;
   assets: TwineArchiveAsset[];
 }
@@ -48,11 +49,12 @@ function candidateScore(name: string): number {
 }
 
 function looksLikePublishedSugarCube(html: string): boolean {
-  return /<tw-storydata\b[^>]*\bformat\s*=\s*["']SugarCube["']/iu.test(html)
+  return (/<tw-storydata\b[^>]*\bformat\s*=\s*["']SugarCube["']/iu.test(html)
+    || /<div\b[^>]*\bid\s*=\s*["']store-area["']/iu.test(html))
     && /<script\b[^>]*\bid\s*=\s*["']script-sugarcube["']/iu.test(html);
 }
 
-function assetMimeType(name: string): string {
+export function assetMimeType(name: string): string {
   const extension = name.split(".").pop()?.toLowerCase();
   return ({
     css: "text/css",
@@ -143,5 +145,5 @@ export async function extractTwinePackage(file: FileInfo): Promise<ExtractedTwin
     const bytes = await entry.async("uint8array");
     assets.push({ path: entry.name, mimeType: assetMimeType(entry.name), data: exactArrayBuffer(bytes) });
   }
-  return { file: selected.file, assets };
+  return { file: selected.file, entryPath: selected.entry.name, assets };
 }
