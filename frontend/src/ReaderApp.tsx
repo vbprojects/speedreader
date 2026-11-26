@@ -13,7 +13,7 @@ import { ImportDialog } from "./library/ImportDialog";
 import type { ImportResult } from "./library/types";
 import { lastReadBook } from "./library/reading-info";
 import { useOnline } from "./library/connectivity";
-import { BlueskyJetstreamFormat, EncryptedCredentialVault, IngestionEngine, EpubParser, OPENAI_COMPATIBLE_FORMAT, OpenAICompatibleFormat, PdfJsParser, pickFileBrowser } from "./ingestion";
+import { BlueskyJetstreamFormat, EncryptedCredentialVault, IngestionEngine, EpubParser, OPENAI_COMPATIBLE_FORMAT, OpenAICompatibleFormat, PdfJsParser, pickFileBrowser, pickFolderBrowser } from "./ingestion";
 import type { OpenAICompatibleConnection } from "./ingestion";
 import { LibraryStore } from "./library";
 import { LibraryView } from "./library/LibraryView";
@@ -185,7 +185,7 @@ export default function ReaderApp() {
   }, [refreshBooks]);
 
   // ---- Import ----
-  const handleImport = useCallback(async () => {
+  const handleImport = useCallback(async (source: "file" | "folder" = "file") => {
     if (importLock.current) return;
     importLock.current = true;
     setImporting(true);
@@ -193,6 +193,25 @@ export default function ReaderApp() {
     setError(null);
     setNotice(null);
     try {
+      if (source === "folder") {
+        const files = await pickFolderBrowser();
+        if (!files.length) return;
+        const html = files.filter(file => /\.html?$/i.test(file.name));
+        const importHtml = folderImporter(library, files);
+        const failures: string[] = [];
+        let imported = 0;
+        for (const file of html) {
+          setImportStatus("Importing " + file.webkitRelativePath);
+          try {
+            await importHtml(file);
+            imported++;
+          } catch (cause) { failures.push(file.webkitRelativePath + ": " + String(cause)); }
+        }
+        await refreshBooks();
+        setNotice(html.length ? `Loaded ${imported} of ${html.length} HTML files.` : "No HTML files found in this folder.");
+        if (failures.length) setError(failures.join("\n"));
+        return;
+      }
       const file = await pickFileBrowser();
       if (!file) return;
       setImportStatus("Extracting and saving text…");
@@ -205,32 +224,7 @@ export default function ReaderApp() {
       setImporting(false);
       setImportStatus(null);
     }
-  }, [library, showImport]);
-
-  const importFolder = async (files: File[]) => {
-    if (importLock.current) return;
-    importLock.current = true;
-    setImporting(true);
-    setError(null);
-    setNotice(null);
-    const html = files.filter(file => /\.html?$/i.test(file.name));
-    const importHtml = folderImporter(library, files);
-    const failures: string[] = [];
-    let imported = 0;
-    try {
-      for (const file of html) {
-        setImportStatus("Importing " + file.webkitRelativePath);
-        try {
-          await importHtml(file);
-          imported++;
-        } catch (cause) { failures.push(file.webkitRelativePath + ": " + String(cause)); }
-      }
-      await refreshBooks();
-      setNotice(html.length ? `Loaded ${imported} of ${html.length} HTML files.` : "No HTML files found in this folder.");
-      if (failures.length) setError(failures.join("\n"));
-    } catch (cause) { setError(String(cause)); }
-    finally { importLock.current = false; setImporting(false); setImportStatus(null); }
-  };
+  }, [library, refreshBooks, showImport]);
 
   const handleForeignImport = useCallback(async (plan: ForeignImportPlan) => {
     if (importLock.current) return;
@@ -654,8 +648,8 @@ export default function ReaderApp() {
       theme={global.theme}
       settings={global}
       onUpdateSettings={(patch) => settingsStore.updateGlobal(patch)}
-      onImport={handleImport}
-      onFolder={importFolder}
+      onImport={() => void handleImport()}
+      onFolder={() => void handleImport("folder")}
       onBrowseForeign={() => setForeignLibraryOpen(true)}
       onOpen={handleLibraryOpen}
       onRemove={handleRemove}

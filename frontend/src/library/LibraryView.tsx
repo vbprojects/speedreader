@@ -40,7 +40,7 @@ export interface LibraryViewProps {
   settings?: GlobalSettings;
   onUpdateSettings?: (patch: ReaderSettings) => void;
   onImport: () => void;
-  onFolder?: (files: File[]) => void;
+  onFolder?: () => void;
   onBrowseForeign?: () => void;
   onOpen: (bookId: string) => void;
   onRemove: (bookId: string) => void;
@@ -74,6 +74,8 @@ export function LibraryView({
   const [searchQuery, setSearchQuery] = useState(savedSearch);
   useEffect(() => { try { localStorage.setItem(SEARCH_KEY, searchQuery); } catch { /* Optional preference. */ } }, [searchQuery]);
   const [deleteBook, setDeleteBook] = useState<Book | null>(null);
+  const [importOptionsOpen, setImportOptionsOpen] = useState(false);
+  const importOptionsButton = useRef<HTMLButtonElement>(null);
   const [restartBook, setRestartBook] = useState<Book | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -314,18 +316,31 @@ export function LibraryView({
             </button>
           )}
 
-          <button
-            onClick={onImport}
-            disabled={importing}
-            style={glassButtonStyle}
-          >
-            <span aria-hidden="true">➕</span>
-            <span>{importing ? "Importing…" : "Import file"}</span>
-          </button>
-          {onFolder && <label style={glassButtonStyle}>Import HTML folder
-            <input aria-label="Import HTML folder" type="file" multiple ref={input => { if (input) input.webkitdirectory = true; }} disabled={importing}
-              onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) onFolder(files); }} />
-          </label>}
+          <div style={{ display: "inline-flex", position: "relative" }}
+            onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setImportOptionsOpen(false); }}
+            onKeyDown={event => {
+              if (event.key === "Escape" && importOptionsOpen) {
+                setImportOptionsOpen(false);
+                importOptionsButton.current?.focus();
+              }
+            }}>
+            <button onClick={() => { setImportOptionsOpen(false); onImport(); }} disabled={importing}
+              style={{ ...glassButtonStyle, borderRadius: onFolder ? "10px 0 0 10px" : 10 }}>
+              <span aria-hidden="true">➕</span>
+              <span>{importing ? "Importing…" : "Import file"}</span>
+            </button>
+            {onFolder && <>
+              <button ref={importOptionsButton} aria-label="More import options" aria-expanded={importOptionsOpen}
+                onClick={() => setImportOptionsOpen(open => !open)} disabled={importing}
+                style={{ ...glassButtonStyle, borderRadius: "0 10px 10px 0", borderLeft: 0, padding: "8px 10px" }}>▾</button>
+              {importOptionsOpen && <button disabled={importing} onClick={() => {
+                setImportOptionsOpen(false);
+                importOptionsButton.current?.focus();
+                onFolder();
+              }} style={{ ...glassButtonStyle, position: "absolute", right: 0, top: "calc(100% + 4px)",
+                whiteSpace: "nowrap", zIndex: 1, background: t.panel }}>Import HTML folder</button>}
+            </>}
+          </div>
           {onBrowseForeign && (
             <button onClick={onBrowseForeign} disabled={importing} style={primaryButtonStyle}>
               <span aria-hidden="true">⌕</span>
