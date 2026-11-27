@@ -4,6 +4,19 @@ A running log of setup, findings, and decisions for the speedreader project.
 
 ---
 
+## 2026-11-27 — Offline SugarCube stories and save recovery
+
+- Added **Play published story** for imported SugarCube 2 HTML and ZIP stories, including Twine 1 and Twine 2 exports. The author's bundled engine runs in a sandboxed frame with its original interface, macros, widgets, story JavaScript, styles, media, history, and save APIs. Packaged assets work offline; external services still require network access and browser permissions.
+- Added **Read with native actions** for declarative stories, with passage links, variables, initialization, conditionals, textboxes, buttons, reveals, and extensible custom HTML actions. Its separate checkpoint saves each successful action before advancing and restores the passage, variables, and completed actions when reopened.
+- Added **Import HTML folder** beside the existing **Import file** control. Each HTML or HTM file in the selected folder and its subfolders becomes a separate title; SugarCube imports retain companion assets. ZIP imports retain the selected story's path so relative scripts, styles, and media resolve offline.
+- Bound each published story's emulated local and session storage to 5 MiB logical usage and 1,024 keys per area, with a shared 128 MiB logical budget for published saves across all stories. Rejected writes preserve existing saves, and no saves are automatically evicted. Imported sources, assets, and browser caches consume additional storage outside this save budget.
+- Replaced whole-snapshot persistence with atomic changed-key writes, bounded batching, and backpressure. Save acknowledgements follow completed database transactions; retries remain idempotent. Navigation drains pending saves, and immediate story restarts retain their final storage updates. Selective lossless differencing reduces transfer sizes for large values while stored values remain complete strings.
+- Added concurrent-session warnings and advisory locking. Conflicting writes pause instead of overwriting another session's progress; users can reopen the latest save or export their current session. The parent independently checks message structure, sizes, sequence, and story identity while retaining the runtime sandbox.
+- Added **Save storage and recovery** with browser usage estimates, the shared save budget, and an optional **Protect offline saves** permission request. Separate exports preserve committed data or the current session. Recovery previews validate story identity and require confirmation before replacing the story's published saves with the selected entries; oversized legacy saves remain intact for recovery, with a desktop selection tool for larger exports.
+- Added quota, protocol, concurrent-session, migration, recovery, and interrupted-save regressions. Recorded 331 passing tests, desktop Chromium/WebKit acceptance, seven concurrent-session cases, and twelve Chromium process-kill trials. Physical iOS termination and memory-pressure testing, plus Firefox and packaged Tauri acceptance for the storage update, remain pending; reproducible device procedures and results are in `frontend/experiments/published-storage-resilience/`.
+
+---
+
 ## 2026-10-03 — KittenTTS offline read aloud
 
 - Added KittenTTS Nano 0.8 to the shared reader/global Speech model selector, with eight English voices and INT8/FP32 choices. Saved voice preferences validate against the pinned catalog.
