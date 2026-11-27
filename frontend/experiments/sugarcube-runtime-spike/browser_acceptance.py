@@ -80,7 +80,16 @@ with server, tempfile.TemporaryDirectory() as folder, sync_playwright() as playw
     passage.get_by_text("Finish the spike", exact=True).click()
     ending = passage.get_by_text("The runtime spike reached its ending.", exact=False)
     ending.wait_for()
+    # Failed setItem must be synchronous and leave the previous value intact.
+    assert frame.evaluate("""() => {
+      localStorage.setItem('__sr_quota_test', 'old');
+      try { localStorage.setItem('__sr_quota_test', 'x'.repeat(3 * 1024 * 1024)); return false; }
+      catch (e) { return e.name === 'QuotaExceededError' && localStorage.getItem('__sr_quota_test') === 'old'; }
+    }""")
+    # No wait between mutations and Library: exercise drain and commit ACK.
+    frame.evaluate("() => { localStorage.setItem('__sr_quota_test', 'last'); sessionStorage.setItem('__sr_session_test', 'last'); }")
     page.get_by_role("button", name="← Library").click()
+    page.get_by_role("button", name="Continue reading").wait_for()
     page.evaluate("navigator.serviceWorker.ready")
     server.shutdown()
     server.server_close()
@@ -89,6 +98,8 @@ with server, tempfile.TemporaryDirectory() as folder, sync_playwright() as playw
     play.click()
     ending.wait_for()
     frame = page.frames[-1]
+    assert frame.evaluate("localStorage.getItem('__sr_quota_test')") == 'last'
+    assert frame.evaluate("sessionStorage.getItem('__sr_session_test')") == 'last'
     assert frame.evaluate("SugarCube.Save.browser.slot.get(0).desc") == "Forest checkpoint"
     frame.evaluate("SugarCube.Save.browser.slot.load(0).then(() => SugarCube.Engine.show())")
     passage.locator(".spike-widget").wait_for()

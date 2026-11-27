@@ -126,6 +126,13 @@ export interface Db {
     }
   ): Promise<WordStream>;
 
+  // ---- Published SugarCube saves (optional for non-browser/test adapters) ----
+  loadPublishedStorage?(bookId: string, sourceHash: string): Promise<import("../ingestion/sugarcube/storage-protocol").LoadedPublished>;
+  commitPublishedStorage?(bookId: string, batch: import("../ingestion/sugarcube/storage-protocol").PublishedCommit): Promise<void>;
+  getPublishedStorageUsage?(): Promise<import("./published-storage").PublishedStorageUsage>;
+  inspectPublishedRecovery?(bookId: string, sourceHash: string): Promise<import("./published-storage").PublishedRecovery>;
+  replacePublishedStorage?(bookId: string, replacement: import("./published-storage").PublishedReplacement): Promise<void>;
+
   // ---- Reader state ----
   getReaderState(bookId: string): Promise<ReaderState | null>;
   saveReaderState(state: ReaderState): Promise<void>;

@@ -18,7 +18,16 @@ export default defineConfig(async () => ({
         handler(html: string, context: IndexHtmlTransformContext) {
           if (!context.filename.endsWith("/sugarcube-host.html")) return html;
           const source = readFileSync(new URL("./src/ingestion/sugarcube/frame.ts", import.meta.url), "utf8");
-          const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText;
+          // Dependency-free modules are shared with the trusted app, but inlined
+          // into the classic opaque frame without CORS imports or app privileges.
+          function inlineModule(name: string, file: string) {
+            const input = readFileSync(new URL("./src/ingestion/sugarcube/" + file, import.meta.url), "utf8");
+            const code = ts.transpileModule(input, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
+            return `const ${name} = (() => { const exports = {}; ${code}\nreturn exports; })();\n`;
+          }
+          const script = "(() => {\n" + inlineModule("storageProtocol", "storage-protocol.ts")
+            + inlineModule("storageFrame", "storage-frame.ts")
+            + ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText + "\n})();";
           return [{ tag: "script", children: script, injectTo: "body" as const }];
         },
       },

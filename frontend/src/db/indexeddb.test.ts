@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { indexedDB } from "fake-indexeddb";
+import { indexedDB, IDBKeyRange } from "fake-indexeddb";
 import { IndexedDb } from "./indexeddb";
+import { PUBLISHED_BUDGET_BYTES } from "./published-storage";
 import { textToStream } from "../ingestion/text";
 
-test("version two upgrade preserves books and adds durable originals, selections and blocks", async () => {
+test("version two upgrade preserves books and adds originals, selections, blocks and published accounting", async () => {
   Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: indexedDB });
+  Object.defineProperty(globalThis, "IDBKeyRange", { configurable: true, value: IDBKeyRange });
   const old = await new Promise<IDBDatabase>((resolve,reject) => {
     const request = indexedDB.open("speedreader", 2);
     request.onupgradeneeded = () => {
@@ -22,6 +24,14 @@ test("version two upgrade preserves books and adds durable originals, selections
   old.close();
   const db = new IndexedDb();
   assert.deepEqual(await db.getBook("test"),book);
+  assert.deepEqual(await db.getPublishedStorageUsage(), { usedBytes: 0, limitBytes: PUBLISHED_BUDGET_BYTES, unaccountedStories: 0 });
+  const upgraded = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open("speedreader", 4);
+    request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+  });
+  assert.equal(upgraded.version, 4);
+  for (const name of ["publishedStorage", "publishedUsage", "publishedBudget"]) assert.equal(upgraded.objectStoreNames.contains(name), true);
+  upgraded.close();
   const file = { bookId: "test", name: "test.epub", extension: "epub", data: new Uint8Array([1,2,3]).buffer };
   await db.saveSourceFile(file);
   await db.updateBook("test", { presenterSelection: { layout: "book-layout", behaviors: [] }, removedAt: 5 });
@@ -45,4 +55,5 @@ test("version two upgrade preserves books and adds durable originals, selections
   assert.equal(await db.getSourceFile("test"),null);
   assert.equal(await db.getBook("test"),null);
   assert.equal(await db.getStream("test"),null);
+  assert.equal((await db.getPublishedStorageUsage()).usedBytes, 0);
 });

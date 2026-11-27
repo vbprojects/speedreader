@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-11-27T18:11:46.694712+00:00",
+  "baseCommit": "0863d924908b6d64525dde6ada0b350ad2e323fd",
+  "originalReviewCommit": "8d26a2bceeb173ab924382de544af611824838cb",
+  "node": "v24.22.3",
+  "projectCheck": {
+    "command": "npm run check",
+    "lint": "passed",
+    "typecheck": "passed",
+    "tests": 331,
+    "passed": 331,
+    "failed": 0,
+    "build": "passed"
+  },
+  "pagesBuild": {
+    "command": "SPEEDREADER_BASE_PATH=/speedreader/ npm run build",
+    "result": "passed"
+  },
+  "productionAcceptance": [
+    {
+      "browser": "Chromium",
+      "version": "158.0.8127.0",
+      "result": "passed"
+    },
+    {
+      "browser": "desktop WebKit",
+      "version": "26.5",
+      "result": "passed",
+      "environment": "Linux WPE with libraries extracted into a temporary test overlay"
+    }
+  ],
+  "concurrentTabCases": {
+    "passed": 7,
+    "failed": 0,
+    "report": "concurrent-recovery.json"
+  },
+  "actualProcessKills": {
+    "platform": "Linux",
+    "browser": "Chromium",
+    "method": "SIGKILL dedicated process group",
+    "passed": 12,
+    "failed": 0,
+    "offlineReload": "passed",
+    "report": "process-kill.json"
+  },
+  "notExecuted": [
+    "physical iOS Safari and installed Home Screen PWA process kills",
+    "iOS jetsam/memory-pressure tests",
+    "Firefox production acceptance",
+    "Tauri-specific acceptance"
+  ],
+  "ciNote": "Existing Pages workflow runs on main pushes/manual dispatch, not pull_request. These are locally executed results.",
+  "buildWarnings": [
+    "Audio vendor node:fs/node:readline browser externalization",
+    "Bundle chunk size warning"
+  ]
+}

@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-11-27T16:09:26.077Z",
+  "node": "v24.22.3",
+  "platform": "linux",
+  "arch": "x64",
+  "targetCommit": "8d26a2bceeb173ab924382de544af611824838cb",
+  "fixtureSha256": "a36770f26d141beac8fedf868675ee6149767e1a349db445f134a31ea1469d34",
+  "vendorRoutineSha256": "ead864f51b0e2ad1cf32bc703b7d0832462c0677c32b684c6229ff65abf31b20",
+  "iterations": 25,
+  "warmups": 3,
+  "method": "Synthetic JSON-only save objects; fixture lz-string 1.5.0 for two cases; deterministic xorshift32 Base64 payloads. Logical bytes use 64-byte entry + UTF-16 accounting, not physical disk/clone measurements. Gzip of exact UTF-16LE bytes is an experiment only. Node single-process timing is not an iOS/mobile benchmark.",
+  "decision": "Ship bounded prefix/suffix patches only when saving at least 25% and 1 KiB on a value of at least 16,384 code units. Preserve full-value fallback for unrelated or insufficiently correlated saves. Do not ship gzip or a general binary-diff engine: they add CPU, working memory and decoder attack surface; collect representative device traces first. Database rows remain full opaque values; patches only reduce transport cloning.",
+  "results": [
+    {
+      "name": "raw-json-small-early-edit",
+      "description": "Synthetic JSON save; one digit changed before stable history and large opaque variable",
+      "beforeCodeUnits": 1068523,
+      "afterCodeUnits": 1068523,
+      "afterUTF16Sha256": "0505e7b64c59f7bb6eb64c782bfe8f87b8825dd2b5beaab1202090a5ce180cb1",
+      "fullLogicalBytes": 2137138,
+      "patchedLogicalBytes": 126,
+      "wireFraction": 0.00005895735324532155,
+      "selectedPatch": true,
+      "gzipExactUTF16Bytes": 792400,
+      "gzipFractionOfFullUTF16": 0.3707922056895359,
+      "timingsMs": {
+        "encodePatch": {
+          "p50": 2.6466139999993175,
+          "p95": 3.933950999999979
+        },
+        "validateDecodeApply": {
+          "p50": 0.01689500000065891,
+          "p95": 0.04807199999959266
+        },
+        "cloneFullDelta": {
+          "p50": 0.436319999999796,
+          "p95": 0.7205299999995987
+        },
+        "cloneWireDelta": {
+          "p50": 0.0032639999999446445,
+          "p95": 0.005368000000089523
+        },
+        "gzipLevel6": {
+          "p50": 32.276850999999624,
+          "p95": 45.45506899999964
+        },
+        "gunzip": {
+          "p50": 4.235968999999386,
+          "p95": 5.730368999999882
+        }
+      }
+    },
+    {
+      "name": "raw-json-history-insertion",
+      "description": "Synthetic JSON save; passage history grows before an unchanged opaque variable",
+      "beforeCodeUnits": 1068523,
+      "afterCodeUnits": 1068645,
+      "afterUTF16Sha256": "eb2278a90b4e4f2d59a46a6ae42df0aff746a32324f7537d10b51b329cb58ae7",
+      "fullLogicalBytes": 2137382,
+      "patchedLogicalBytes": 368,
+      "wireFraction": 0.00017217324745880707,
+      "selectedPatch": true,
+      "gzipExactUTF16Bytes": 792410,
+      "gzipFractionOfFullUTF16": 0.37075455366375176,
+      "timingsMs": {
+        "encodePatch": {
+          "p50": 2.276593999999932,
+          "p95": 2.55196099999921
+        },
+        "validateDecodeApply": {
+          "p50": 0.022242999999434687,
+          "p95": 0.05972100000053615
+        },
+        "cloneFullDelta": {
+          "p50": 0.3295490000000427,
+          "p95": 0.4269860000003973
+        },
+        "cloneWireDelta": {
+          "p50": 0.0032850000006874325,
+          "p95": 0.004377000000204134
+        },
+        "gzipLevel6": {
+          "p50": 30.839947999999822,
+          "p95": 31.90815400000065
+        },
+        "gunzip": {
+          "p50": 4.160785000000033,
+          "p95": 8.67815900000005
+        }
+      }
+    },
+    {
+      "name": "fixture-lz-utf16-early-edit",
+      "description": "Same JSON-only synthetic states compressed with the fixture's lz-string 1.5.0 WebStorage codec",
+      "beforeCodeUnits": 411901,
+      "afterCodeUnits": 411848,
+      "afterUTF16Sha256": "45711081e032715192e4951046b662c20a31d4589807ae10128416d048268fba",
+      "fullLogicalBytes": 823788,
+      "patchedLogicalBytes": 823788,
+      "wireFraction": 1,
+      "selectedPatch": false,
+      "gzipExactUTF16Bytes": 798701,
+      "gzipFractionOfFullUTF16": 0.969655066917892,
+      "timingsMs": {
+        "encodePatch": {
+          "p50": 0.003094000000601227,
+          "p95": 0.0034759999998641433
+        },
+        "validateDecodeApply": {
+          "p50": 0.010766000000330678,
+          "p95": 0.011968000000706525
+        },
+        "cloneFullDelta": {
+          "p50": 0.25659799999993993,
+          "p95": 0.5777439999992566
+        },
+        "cloneWireDelta": {
+          "p50": 0.2488969999994879,
+          "p95": 0.3042199999999866
+        },
+        "gzipLevel6": {
+          "p50": 19.651372000000265,
+          "p95": 33.48592400000052
+        },
+        "gunzip": {
+          "p50": 2.5112600000002203,
+          "p95": 2.909432000000379
+        }
+      }
+    },
+    {
+      "name": "fixture-lz-utf16-history-append",
+      "description": "Fixture codec with history at end of object, then one extra passage appended",
+      "beforeCodeUnits": 411663,
+      "afterCodeUnits": 411672,
+      "afterUTF16Sha256": "2b254bfeef03fa0c8a988299f726994e8b33a21e90501a48d9abb8981f6c8e44",
+      "fullLogicalBytes": 823436,
+      "patchedLogicalBytes": 148,
+      "wireFraction": 0.00017973467276145323,
+      "selectedPatch": true,
+      "gzipExactUTF16Bytes": 785034,
+      "gzipFractionOfFullUTF16": 0.953470238442255,
+      "timingsMs": {
+        "encodePatch": {
+          "p50": 1.4157620000005409,
+          "p95": 1.7051390000005995
+        },
+        "validateDecodeApply": {
+          "p50": 0.02025099999991653,
+          "p95": 0.05706599999939499
+        },
+        "cloneFullDelta": {
+          "p50": 0.3140349999994214,
+          "p95": 0.4447730000001684
+        },
+        "cloneWireDelta": {
+          "p50": 0.0031040000003486057,
+          "p95": 0.0034849999992729863
+        },
+        "gzipLevel6": {
+          "p50": 19.050271000000066,
+          "p95": 24.29038799999944
+        },
+        "gunzip": {
+          "p50": 2.4998020000002725,
+          "p95": 2.7736559999993915
+        }
+      }
+    },
+    {
+      "name": "base64-complete-replacement",
+      "description": "Uncorrelated deterministic high-entropy binary payloads encoded as Base64",
+      "beforeCodeUnits": 1000000,
+      "afterCodeUnits": 1000000,
+      "afterUTF16Sha256": "8c10df81d2c5afc66d68956e20d1857831acf2e92ec6df9ca1c956cf8a6d4aff",
+      "fullLogicalBytes": 2000092,
+      "patchedLogicalBytes": 2000092,
+      "wireFraction": 1,
+      "selectedPatch": false,
+      "gzipExactUTF16Bytes": 940859,
+      "gzipFractionOfFullUTF16": 0.4704295,
+      "timingsMs": {
+        "encodePatch": {
+          "p50": 0.001983000000109314,
+          "p95": 0.0024529999991500517
+        },
+        "validateDecodeApply": {
+          "p50": 0.010134999998626881,
+          "p95": 0.026710000000093714
+        },
+        "cloneFullDelta": {
+          "p50": 0.306854000000385,
+          "p95": 0.384131000000707
+        },
+        "cloneWireDelta": {
+          "p50": 0.3442610000001878,
+          "p95": 2.771372999999585
+        },
+        "gzipLevel6": {
+          "p50": 37.9145410000001,
+          "p95": 58.5979529999986
+        },
+        "gunzip": {
+          "p50": 4.773732000001473,
+          "p95": 5.239395999999033
+        }
+      }
+    },
+    {
+      "name": "base64-small-middle-edit",
+      "description": "A local edit within a large Base64-like opaque string (best-case correlation)",
+      "beforeCodeUnits": 826668,
+      "afterCodeUnits": 826668,
+      "afterUTF16Sha256": "adecf6b332bfc71920b82180016d286c7eb13f5ce170407c13380ab332bb99d3",
+      "fullLogicalBytes": 1653428,
+      "patchedLogicalBytes": 140,
+      "wireFraction": 0.00008467257116729607,
+      "selectedPatch": true,
+      "gzipExactUTF16Bytes": 777943,
+      "gzipFractionOfFullUTF16": 0.4705292814043848,
+      "timingsMs": {
+        "encodePatch": {
+          "p50": 2.31758599999921,
+          "p95": 2.4377479999984644
+        },
+        "validateDecodeApply": {
+          "p50": 0.01614499999959662,
+          "p95": 0.0661099999997532
+        },
+        "cloneFullDelta": {
+          "p50": 0.37244400000054156,
+          "p95": 0.49055199999929755
+        },
+        "cloneWireDelta": {
+          "p50": 0.0029840000006515766,
+          "p95": 0.003394999999727588
+        },
+        "gzipLevel6": {
+          "p50": 28.674552000000403,
+          "p95": 34.35286199999973
+        },
+        "gunzip": {
+          "p50": 3.8147619999999733,
+          "p95": 4.189878000001045
+        }
+      }
+    }
+  ]
+}

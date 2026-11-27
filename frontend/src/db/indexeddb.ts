@@ -7,8 +7,12 @@
 import type { Book, CoverImage, Db, ReaderState, StoredInteractiveSource, StoredStream } from "./types";
 import { appendToWordStream } from "../ingestion/interactive";
 
+import { STORE_PUBLISHED, STORE_PUBLISHED_USAGE, STORE_PUBLISHED_BUDGET, PUBLISHED_STORES,
+  loadPublished, commitPublished, getPublishedUsage, inspectPublishedRecovery, replacePublished,
+  guardPublishedStateWrite, removePublishedInTransaction } from "./published-storage";
+
 const DB_NAME = "speedreader";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORE_BOOKS = "books";
 const STORE_STREAMS = "streams";
@@ -16,11 +20,15 @@ const STORE_STATES = "readerStates";
 const STORE_FILES = "sourceFiles";
 const STORE_SOURCES = "interactiveSources";
 
-function openDb(): Promise<IDBDatabase> {
+function openDb(invalidate: () => void): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    let blocked = false;
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_PUBLISHED)) db.createObjectStore(STORE_PUBLISHED, { keyPath: ["bookId", "area", "key"] });
+      if (!db.objectStoreNames.contains(STORE_PUBLISHED_USAGE)) db.createObjectStore(STORE_PUBLISHED_USAGE, { keyPath: "bookId" });
+      if (!db.objectStoreNames.contains(STORE_PUBLISHED_BUDGET)) db.createObjectStore(STORE_PUBLISHED_BUDGET, { keyPath: "id" });
       if (!db.objectStoreNames.contains(STORE_FILES)) db.createObjectStore(STORE_FILES, { keyPath: "bookId" });
       if (!db.objectStoreNames.contains(STORE_BOOKS)) {
         db.createObjectStore(STORE_BOOKS, { keyPath: "id" });
@@ -35,9 +43,14 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore(STORE_SOURCES, { keyPath: "bookId" });
       }
     };
-    req.onsuccess = () => { req.result.onversionchange = () => req.result.close(); resolve(req.result); };
+    req.onsuccess = () => {
+      if (blocked) { req.result.close(); return; }
+      req.result.onversionchange = () => { req.result.close(); invalidate(); };
+      req.result.onclose = invalidate;
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error ?? new Error("Failed to open IndexedDB"));
-    req.onblocked = () => reject(new Error("IndexedDB open blocked"));
+    req.onblocked = () => { blocked = true; reject(new Error("IndexedDB upgrade is blocked. Close other Speedreader tabs, then retry.")); };
   });
 }
 
@@ -60,7 +73,9 @@ export class IndexedDb implements Db {
   private dbPromise: Promise<IDBDatabase> | null = null;
 
   private db(): Promise<IDBDatabase> {
-    if (!this.dbPromise) this.dbPromise = openDb();
+    if (!this.dbPromise) {
+      this.dbPromise = openDb(() => { this.dbPromise = null; }).catch(cause => { this.dbPromise = null; throw cause; });
+    }
     return this.dbPromise;
   }
 
@@ -203,6 +218,22 @@ export class IndexedDb implements Db {
     });
   }
 
+  async loadPublishedStorage(bookId: string, sourceHash: string) {
+    return loadPublished(await this.db(), STORE_STATES, bookId, sourceHash);
+  }
+  async commitPublishedStorage(bookId: string, batch: import("../ingestion/sugarcube/storage-protocol").PublishedCommit) {
+    return commitPublished(await this.db(), STORE_STATES, bookId, batch);
+  }
+  async getPublishedStorageUsage() {
+    return getPublishedUsage(await this.db(), STORE_STATES);
+  }
+  async inspectPublishedRecovery(bookId: string, sourceHash: string) {
+    return inspectPublishedRecovery(await this.db(), STORE_STATES, bookId, sourceHash);
+  }
+  async replacePublishedStorage(bookId: string, replacement: import("./published-storage").PublishedReplacement) {
+    return replacePublished(await this.db(), STORE_STATES, bookId, replacement);
+  }
+
   async getReaderState(bookId: string): Promise<ReaderState | null> {
     const db = await this.db();
     const tx = db.transaction(STORE_STATES, "readonly");
@@ -212,9 +243,24 @@ export class IndexedDb implements Db {
 
   async saveReaderState(state: ReaderState): Promise<void> {
     const db = await this.db();
-    const tx = db.transaction(STORE_STATES, "readwrite");
-    tx.objectStore(STORE_STATES).put(state);
-    await txDone(tx);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([STORE_STATES, ...PUBLISHED_STORES], "readwrite");
+      const store = tx.objectStore(STORE_STATES), request = store.get(state.bookId);
+      let failure: unknown;
+      request.onsuccess = () => {
+        try {
+          const existing = request.result as ReaderState | undefined;
+          const updated = { ...state, formatState: { ...existing?.formatState, ...state.formatState } };
+          const published = existing?.formatState?.published as { version?: unknown } | undefined;
+          if (published?.version === 2 && updated.formatState.revision !== existing?.formatState?.revision) {
+            throw new Error("Changing a story revision requires an expected revision.");
+          }
+          guardPublishedStateWrite(tx, existing, updated); store.put(updated);
+        } catch (cause) { failure = cause; tx.abort(); }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(failure ?? tx.error ?? new Error("Reader state save aborted."));
+    });
   }
 
   async patchReaderState(
@@ -224,40 +270,42 @@ export class IndexedDb implements Db {
   ): Promise<ReaderState | null> {
     const db = await this.db();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_STATES, "readwrite");
-      const store = tx.objectStore(STORE_STATES);
-      const request = store.get(bookId);
-      let updated: ReaderState | null = null;
-      request.onerror = () => reject(request.error ?? new Error("Failed to read reader state for patch"));
+      const tx = db.transaction([STORE_STATES, ...PUBLISHED_STORES], "readwrite");
+      const store = tx.objectStore(STORE_STATES), request = store.get(bookId);
+      let updated: ReaderState | null = null, failure: unknown;
       request.onsuccess = () => {
-        const existing = request.result as ReaderState | undefined;
-        if (!existing) return;
-        if (expectedRevision !== undefined && (existing.formatState?.revision ?? null) !== expectedRevision) {
-          reject(new Error("This story changed in another session. Reopen it to load the latest save."));
-          return;
-        }
-        updated = { ...existing, ...patch, bookId };
-        if (expectedRevision !== undefined && patch.formatState) {
-          updated.formatState = { ...existing.formatState, ...patch.formatState };
-        }
-        store.put(updated);
+        try {
+          const existing = request.result as ReaderState | undefined;
+          if (!existing) return;
+          if (expectedRevision !== undefined && (existing.formatState?.revision ?? null) !== expectedRevision) {
+            throw new Error("This story changed in another session. Reopen it to load the latest save.");
+          }
+          updated = { ...existing, ...patch, bookId };
+          if (existing.formatState || patch.formatState) updated.formatState = { ...existing.formatState, ...patch.formatState };
+          const published = existing.formatState?.published as { version?: unknown } | undefined;
+          if (published?.version === 2 && expectedRevision === undefined && updated.formatState?.revision !== existing.formatState?.revision) {
+            throw new Error("Changing a story revision requires an expected revision.");
+          }
+          guardPublishedStateWrite(tx, existing, updated); store.put(updated);
+        } catch (cause) { failure = cause; tx.abort(); }
       };
       tx.oncomplete = () => resolve(updated);
-      tx.onerror = () => reject(tx.error ?? new Error("Reader state patch transaction failed"));
-      tx.onabort = () => reject(tx.error ?? new Error("Reader state patch transaction aborted"));
+      tx.onabort = () => reject(failure ?? tx.error ?? new Error("Reader state patch aborted."));
     });
   }
 
   async deleteReaderState(bookId: string): Promise<void> {
     const db = await this.db();
-    const tx = db.transaction(STORE_STATES, "readwrite");
+    const tx = db.transaction([STORE_STATES, ...PUBLISHED_STORES], "readwrite");
+    removePublishedInTransaction(tx, bookId);
     tx.objectStore(STORE_STATES).delete(bookId);
     await txDone(tx);
   }
 
   async deleteBookCascade(bookId: string): Promise<void> {
     const db = await this.db();
-    const tx = db.transaction([STORE_BOOKS, STORE_STREAMS, STORE_STATES, STORE_SOURCES, STORE_FILES], "readwrite");
+    const tx = db.transaction([STORE_BOOKS, STORE_STREAMS, STORE_STATES, STORE_SOURCES, STORE_FILES, ...PUBLISHED_STORES], "readwrite");
+    removePublishedInTransaction(tx, bookId);
     tx.objectStore(STORE_BOOKS).delete(bookId);
     tx.objectStore(STORE_STREAMS).delete(bookId);
     tx.objectStore(STORE_STATES).delete(bookId);
