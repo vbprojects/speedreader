@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-11-27T18:09:47.379501+00:00",
+  "platform": "Linux",
+  "binary": "chromium",
+  "method": "SIGKILL dedicated process group; persistent profile; no close/pagehide",
+  "results": [
+    {
+      "iteration": 1,
+      "boundary": "before-submit",
+      "expected": "before",
+      "recovered": "before",
+      "bothAreasAtomic": true,
+      "idempotentReplay": false,
+      "passed": true
+    },
+    {
+      "iteration": 1,
+      "boundary": "during-transaction",
+      "expected": "before",
+      "recovered": "before",
+      "bothAreasAtomic": true,
+      "idempotentReplay": false,
+      "passed": true
+    },
+    {
+      "iteration": 1,
+      "boundary": "committed-before-ack",
+      "expected": "after",
+      "recovered": "after",
+      "bothAreasAtomic": true,
+      "idempotentReplay": true,
+      "passed": true
+    },
+    {
+      "iteration": 1,
+      "boundary": "after-ack",
+      "expected": "after",
+      "recovered": "after",
+      "bothAreasAtomic": true,
+      "idempotentReplay": true,
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "boundary": "before-submit",
+      "expected": "before",
+      "recovered": "before",
+      "bothAreasAtomic": true,
+      "idempotentReplay": false,
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "boundary": "during-transaction",
+      "expected": "before",
+      "recovered": "before",
+      "bothAreasAtomic": true,
+      "idempotentReplay": false,
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "boundary": "committed-before-ack",
+      "expected": "after",
+      "recovered": "after",
+      "bothAreasAtomic": true,
+      "idempotentReplay": true,
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "boundary": "after-ack",
+      "expected": "after",
+      "recovered": "after",
+      "bothAreasAtomic": true,
+      "idempotentReplay": true,
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "boundary": "before-submit",
+      "expected": "before",
+      "recovered": "before",
+      "bothAreasAtomic": true,
+      "idempotentReplay": false,
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "boundary": "during-transaction",
+      "expected": "before",
+      "recovered": "before",
+      "bothAreasAtomic": true,
+      "idempotentReplay": false,
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "boundary": "committed-before-ack",
+      "expected": "after",
+      "recovered": "after",
+      "bothAreasAtomic": true,
+      "idempotentReplay": true,
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "boundary": "after-ack",
+      "expected": "after",
+      "recovered": "after",
+      "bothAreasAtomic": true,
+      "idempotentReplay": true,
+      "passed": true
+    }
+  ],
+  "browserVersion": "158.0.8127.0",
+  "offlineReload": true,
+  "passed": true
+}

@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-11-27T18:09:47.374462+00:00",
+  "browser": "chromium",
+  "targetCommit": "0863d924908b6d64525dde6ada0b350ad2e323fd",
+  "fixtureSha256": "a36770f26d141beac8fedf868675ee6149767e1a349db445f134a31ea1469d34",
+  "dist": "frontend/dist",
+  "results": [
+    {
+      "name": "advisory gate and explicit Continue launch a separate session",
+      "status": "passed",
+      "opaqueOrigins": true
+    },
+    {
+      "name": "stale session pauses after CAS conflict; winner remains saved",
+      "status": "passed",
+      "saved": "A committed",
+      "live": "B unsaved"
+    },
+    {
+      "name": "conflict export downloads current dirty state and saved-data export downloads winner",
+      "status": "passed",
+      "sourceHash": "a36770f26d141beac8fedf868675ee6149767e1a349db445f134a31ea1469d34"
+    },
+    {
+      "name": "different-source recovery import is rejected without writes",
+      "status": "passed"
+    },
+    {
+      "name": "preview and cancelled replacement preserve the winner",
+      "status": "passed"
+    },
+    {
+      "name": "confirmed replacement persists candidate then reopens from it",
+      "status": "passed",
+      "saved": "B unsaved"
+    },
+    {
+      "name": "former winner cannot overwrite an explicitly imported replacement",
+      "status": "passed"
+    }
+  ],
+  "scope": "Two actual same-origin browser tabs with independent opaque story frames, shared real IndexedDB, real Web Locks and real download/import UI. Desktop browser only; this does not validate iOS process termination.",
+  "browserVersion": "158.0.8127.0",
+  "status": "passed"
+}

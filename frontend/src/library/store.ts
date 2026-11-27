@@ -344,6 +344,27 @@ export class LibraryStore {
     if (!state) throw new Error("The story was reset or removed. Reopen it from the library.");
   }
 
+  async loadPublishedStorage(bookId: string, sourceHash: string) {
+    if (!this.db.loadPublishedStorage) throw new Error("Published storage is unavailable on this backend.");
+    return this.db.loadPublishedStorage(bookId, sourceHash);
+  }
+  async commitPublishedStorage(bookId: string, batch: import("../ingestion/sugarcube/storage-protocol").PublishedCommit) {
+    if (!this.db.commitPublishedStorage) throw new Error("Published storage is unavailable on this backend.");
+    return this.db.commitPublishedStorage(bookId, batch);
+  }
+  async getPublishedStorageUsage() {
+    if (!this.db.getPublishedStorageUsage) throw new Error("Published storage is unavailable on this backend.");
+    return this.db.getPublishedStorageUsage();
+  }
+  async inspectPublishedRecovery(bookId: string, sourceHash: string) {
+    if (!this.db.inspectPublishedRecovery) throw new Error("Published storage is unavailable on this backend.");
+    return this.db.inspectPublishedRecovery(bookId, sourceHash);
+  }
+  async replacePublishedStorage(bookId: string, replacement: import("../db/published-storage").PublishedReplacement) {
+    if (!this.db.replacePublishedStorage) throw new Error("Published storage is unavailable on this backend.");
+    return this.db.replacePublishedStorage(bookId, replacement);
+  }
+
   /** Load executable source only for the runtime-host layer. */
   async getSugarCubeSource(bookId: string): Promise<StoredSugarCubeSource | null> {
     const source = await this.db.getInteractiveSource(bookId);

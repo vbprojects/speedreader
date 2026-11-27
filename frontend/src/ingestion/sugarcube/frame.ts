@@ -1,4 +1,6 @@
 // Standalone classic script in the opaque-origin story document. No app imports.
+declare const storageProtocol: typeof import("./storage-protocol");
+declare const storageFrame: typeof import("./storage-frame");
 (() => {
   if (window === parent) return;
   const host = new URL(document.baseURI);
@@ -29,6 +31,8 @@
   if (self.origin !== "null") return;
   type Entries = [string, string][];
   interface Launch {
+    v: 2;
+    epoch: string;
     html: string;
     local: Entries;
     session: Entries;
@@ -37,52 +41,22 @@
   }
 
   function boot(event: MessageEvent<Launch>) {
-    if (event.source !== parent || event.origin !== hostOrigin || !event.ports[0]) return;
+    if (event.source !== parent || event.origin !== hostOrigin || event.ports.length !== 1) return;
+    if (!event.data || event.data.v !== storageProtocol.PROTOCOL_VERSION || !storageProtocol.validToken(event.data.epoch)
+      || typeof event.data.html !== "string" || !Array.isArray(event.data.assets)) { event.ports[0].close(); return; }
     window.removeEventListener("message", boot);
     const port = event.ports[0];
     const launch = event.data;
-    const local = new Map(launch.local);
-    const session = new Map(launch.session);
-    let scheduled = false;
-    function changed() {
-      if (scheduled) return;
-      scheduled = true;
-      queueMicrotask(() => {
-        scheduled = false;
-        port.postMessage({ type: "save", local: [...local], session: [...session] });
-      });
-    }
-
-    // SugarCube probes both Web Storage objects during startup. Keep its own
-    // serialized session, settings, autosaves and slots verbatim for each book.
-    function storage(values: Map<string, string>): Storage {
-      const api: Storage = {
-        get length() { return values.size; },
-        key(index: number) { return [...values.keys()][index] ?? null; },
-        getItem(key: string) { return values.get(String(key)) ?? null; },
-        setItem(key: string, value: string) { values.set(String(key), String(value)); changed(); },
-        removeItem(key: string) { if (values.delete(String(key))) changed(); },
-        clear() { values.clear(); changed(); },
-      };
-      return new Proxy(api, {
-        get(target, key) {
-          if (typeof key === "string" && !(key in target)) return values.get(key);
-          return Reflect.get(target, key);
-        },
-        set(_, key, value) { api.setItem(String(key), String(value)); return true; },
-        deleteProperty(_, key) { api.removeItem(String(key)); return true; },
-        ownKeys() { return [...values.keys()]; },
-        getOwnPropertyDescriptor(_, key) {
-          if (typeof key === "string" && values.has(key)) return { configurable: true, enumerable: true, writable: true, value: values.get(key) };
-        },
-      });
-    }
     try {
-      Object.defineProperty(window, "localStorage", { value: storage(local) });
-      Object.defineProperty(window, "sessionStorage", { value: storage(session) });
+      const bridge = storageFrame.createStorageBridge(storageProtocol, port, storageProtocol.parseSnapshot(launch), launch.epoch);
+      Object.defineProperty(window, "localStorage", { value: bridge.local });
+      Object.defineProperty(window, "sessionStorage", { value: bridge.session });
       // Open before installing story listeners: document.open removes listeners
       // from the old document and window. The private message port survives.
       document.open();
+      // document.open removes old document/window event listeners. Reattach here.
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") bridge.flush(); });
+      window.addEventListener("pagehide", () => bridge.flush());
       const packageRoot = "https://story.invalid/";
       const entry = new URL(launch.entryPath || "story.html", packageRoot);
       const assets = new Map<string, string>();
@@ -179,12 +153,14 @@
           // host after SugarCube resets its session, retaining its named slots.
           const runtime = window as Window & { jQuery?: (doc: Document) => { on(name: string, fn: () => void): void } };
           runtime.jQuery?.(document).on(":enginerestart", () => {
-            port.postMessage({ type: "restart", local: [...local], session: [...session] });
+            bridge.restart();
           });
-          port.postMessage({ type: "started" });
+          port.postMessage(storageProtocol.envelope(launch.epoch, { type: "started" }));
         }
       }, 50);
-    } catch (error) { port.postMessage({ type: "error", message: String(error) }); }
+    } catch (error) {
+      port.postMessage(storageProtocol.envelope(launch.epoch, { type: "error", message: String(error).slice(0, storageProtocol.LIMIT.error) }));
+    }
   }
   window.addEventListener("message", boot);
   parent.postMessage("speedreader:story-host", hostOrigin);

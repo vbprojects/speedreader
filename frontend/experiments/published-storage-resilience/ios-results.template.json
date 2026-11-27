@@ -1,0 +1,23 @@
+{
+  "platform": "iOS",
+  "executed": false,
+  "device": null,
+  "osBuild": null,
+  "browserOrAppBuild": null,
+  "mode": null,
+  "profileType": "persistent",
+  "offline": null,
+  "persistenceGranted": null,
+  "freeSpaceBytes": null,
+  "trials": [],
+  "trialSchema": {
+    "boundary": "before-submit | during-transaction | committed-before-ack | after-ack",
+    "killMethod": "record actual process termination method",
+    "iteration": 1,
+    "localValue": null,
+    "sessionValue": null,
+    "revision": null,
+    "passed": null,
+    "notes": null
+  }
+}

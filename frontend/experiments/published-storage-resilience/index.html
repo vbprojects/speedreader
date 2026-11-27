@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Published save crash fixture</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>body{font:17px system-ui;max-width:54rem;margin:2rem auto;padding:0 1rem}button{padding:.7rem;margin:.3rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}#phase{font-weight:bold;font-size:1.5rem}li{margin:.5rem}</style>
+<h1>Published save crash fixture</h1>
+<p>This engineering test uses a separate fixture database. Serve it on a dedicated test origin. It uses the production storage bridge, controller and IndexedDB code.</p>
+<p id="offline">Checking offline availability…</p>
+<p>Phase: <output id="phase">opening</output></p>
+<button id="prepare">Prepare baseline</button><button id="read">Read saved state</button>
+<ol><li>Prepare baseline and verify both values say “before”.</li><li>Select a boundary below. Kill the browser or installed test app process when that phase appears; do not navigate back or close the tab normally.</li><li>Relaunch with the same origin/profile and read saved state. Both keys must agree. Before submission or during the held transaction: “before”. After completion or acknowledgement: “after”.</li></ol>
+<button data-mode="before-submit">Before database submission</button>
+<button data-mode="during-transaction">During database transaction</button>
+<button data-mode="committed-before-ack">Committed, before acknowledgement</button>
+<button data-mode="after-ack">After received acknowledgement</button>
+<h2>Recovered state</h2><pre id="saved"></pre>
+<script type="module" src="harness.js"></script></html>
